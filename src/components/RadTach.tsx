@@ -28,7 +28,7 @@ interface DraftStudyData {
 
 export default function RadTach() {
   // Default settings
-  const defaultParTimes = {
+  const defaultParTimes: ParTimesConfig = {
     'XR': 90,
     'FL': 120,
     'CT': 240,
@@ -48,8 +48,8 @@ export default function RadTach() {
     'Bilateral': 0, // Special: multiplies par time by 2
     'Vascular': 120 // +2 minutes
   };
-  
-  const defaultRVUValues = {
+
+  const defaultRVUValues: RVUConfig = {
     'XR': 0.2,
     'FL': 0.4,
     'CT': 1.0,
@@ -89,8 +89,8 @@ export default function RadTach() {
   const [showSettings, setShowSettings] = useState(false);
   const [showRVUSettings, setShowRVUSettings] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
-  const [parTimes, setParTimes] = useState(defaultParTimes);
-  const [rvuValues, setRVUValues] = useState(defaultRVUValues);
+  const [parTimes, setParTimes] = useState<ParTimesConfig>(defaultParTimes);
+  const [rvuValues, setRVUValues] = useState<RVUConfig>(defaultRVUValues);
   const [stealthMode, setStealthMode] = useState(false);
   
   const [totalRVU, setTotalRVU] = useState(0);
@@ -106,11 +106,11 @@ export default function RadTach() {
   const [isDraftMode, setIsDraftMode] = useState(false);
   const [draftStudy, setDraftStudy] = useState<DraftStudyData | null>(null);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const sessionTimeRef = useRef<NodeJS.Timeout | null>(null);
-  const interstitialTimeRef = useRef<NodeJS.Timeout | null>(null);
-  const adminTimeRef = useRef<NodeJS.Timeout | null>(null);
-  const commsTimeRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const sessionTimeRef = useRef<number | null>(null);
+  const interstitialTimeRef = useRef<number | null>(null);
+  const adminTimeRef = useRef<number | null>(null);
+  const commsTimeRef = useRef<number | null>(null);
   
   // Calculate current par time based on selections
   const calculateParTime = () => {
@@ -137,24 +137,27 @@ export default function RadTach() {
   
   const calculateRVU = () => {
     if (!selectedModality) return 0;
-    
-    let total = rvuValues[selectedModality] || 0;
-    
+
+    const modalityRVU = rvuValues[selectedModality];
+    let total = typeof modalityRVU === 'number' ? modalityRVU : 0;
+
     // Add complication RVUs that depend on modality
     selectedComplications.forEach(comp => {
-      if (rvuValues[comp]) {
-        if (typeof rvuValues[comp] === 'object') {
+      const compRVU = rvuValues[comp];
+      if (compRVU !== undefined) {
+        if (typeof compRVU === 'object' && compRVU !== null) {
           // Modality-specific RVU addition
-          if (rvuValues[comp][selectedModality]) {
-            total += rvuValues[comp][selectedModality];
+          const modalitySpecificRVU = compRVU[selectedModality];
+          if (typeof modalitySpecificRVU === 'number') {
+            total += modalitySpecificRVU;
           }
-        } else {
+        } else if (typeof compRVU === 'number') {
           // Direct RVU value
-          total += rvuValues[comp];
+          total += compRVU;
         }
       }
     });
-    
+
     return total;
   };
   
@@ -323,7 +326,7 @@ export default function RadTach() {
       if (savedStealthMode !== null) {
         setStealthMode(JSON.parse(savedStealthMode));
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error loading settings from localStorage:', error);
     }
   }, []);
@@ -332,7 +335,7 @@ export default function RadTach() {
   useEffect(() => {
     try {
       localStorage.setItem('radtach_parTimes', JSON.stringify(parTimes));
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error saving parTimes to localStorage:', error);
     }
   }, [parTimes]);
@@ -341,7 +344,7 @@ export default function RadTach() {
   useEffect(() => {
     try {
       localStorage.setItem('radtach_rvuValues', JSON.stringify(rvuValues));
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error saving rvuValues to localStorage:', error);
     }
   }, [rvuValues]);
@@ -350,13 +353,13 @@ export default function RadTach() {
   useEffect(() => {
     try {
       localStorage.setItem('radtach_stealthMode', JSON.stringify(stealthMode));
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error saving stealthMode to localStorage:', error);
     }
   }, [stealthMode]);
   
   // Format time as MM:SS
-  const formatTime = (seconds) => {
+  const formatTime = (seconds: number): string => {
     const mins = Math.floor(Math.abs(seconds) / 60);
     const secs = Math.abs(seconds) % 60;
     const sign = seconds < 0 ? '-' : '';
@@ -567,7 +570,7 @@ export default function RadTach() {
   };
   
   // Toggle complication selection
-  const toggleComplication = (complication) => {
+  const toggleComplication = (complication: Complication): void => {
     if (selectedComplications.includes(complication)) {
       setSelectedComplications(selectedComplications.filter(c => c !== complication));
     } else {
@@ -576,7 +579,7 @@ export default function RadTach() {
   };
   
   // Update par time in settings
-  const updateParTime = (key, value) => {
+  const updateParTime = (key: string, value: string): void => {
     const seconds = parseInt(value) || 0;
     setParTimes(prev => ({
       ...prev,
@@ -585,14 +588,14 @@ export default function RadTach() {
   };
   
   // Update RVU values in settings
-  const updateRVUValue = (key, value, modality = null) => {
+  const updateRVUValue = (key: string, value: string, modality: string | null = null): void => {
     const rvu = parseFloat(value) || 0;
     if (modality) {
       // Modality-specific complication RVU
       setRVUValues(prev => ({
         ...prev,
         [key]: {
-          ...prev[key],
+          ...(typeof prev[key] === 'object' ? prev[key] : {}),
           [modality]: rvu
         }
       }));
@@ -642,8 +645,9 @@ export default function RadTach() {
       
       // Show helpful message
       alert(`Settings exported successfully!\n\nFile saved to your Downloads folder as:\n${filename}\n\n💡 Tip: Email this file to yourself to easily transfer settings to another workstation!`);
-    } catch (error) {
-      alert('Error exporting settings: ' + error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert('Error exporting settings: ' + errorMessage);
     }
   };
   
@@ -694,8 +698,9 @@ export default function RadTach() {
         setParTimes(newParTimes);
         setRVUValues(newRVUValues);
         alert('Settings imported successfully!');
-      } catch (error) {
-        alert('Error importing settings: ' + error.message);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        alert('Error importing settings: ' + errorMessage);
       }
     };
     
@@ -713,8 +718,8 @@ export default function RadTach() {
     }
   };
   
-  const modalities = ['XR', 'FL', 'CT', 'US', 'MR', 'NM', 'MA', 'PET-CT'];
-  const complications = ['Cancer Follow', '+1 Section', '+2 Section', 'Multiple Priors', 'Age >70', 'Complex Hx', 'Prior Surg Hx', 'CTA', 'Bilateral', 'Vascular'];
+  const modalities: Modality[] = ['XR', 'FL', 'CT', 'US', 'MR', 'NM', 'MA', 'PET-CT'];
+  const complications: Complication[] = ['Cancer Follow', '+1 Section', '+2 Section', 'Multiple Priors', 'Age >70', 'Complex Hx', 'Prior Surg Hx', 'CTA', 'Bilateral', 'Vascular'];
   
   return (
     <div className="min-h-screen bg-gray-900 p-4">
@@ -734,7 +739,7 @@ export default function RadTach() {
                   className="hidden"
                 />
                 <button
-                  onClick={() => document.getElementById('import-settings').click()}
+                  onClick={() => document.getElementById('import-settings')?.click()}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
                   title="Import Settings from CSV"
                 >
@@ -873,7 +878,7 @@ export default function RadTach() {
               <h2 className="text-2xl font-bold text-white">RVU Settings</h2>
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => document.getElementById('import-settings').click()}
+                  onClick={() => document.getElementById('import-settings')?.click()}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
                   title="Import Settings from CSV"
                 >
@@ -914,7 +919,7 @@ export default function RadTach() {
                           type="number"
                           min="0"
                           step="0.1"
-                          value={rvuValues[modality]}
+                          value={typeof rvuValues[modality] === 'number' ? rvuValues[modality] : 0}
                           onChange={(e) => updateRVUValue(modality, e.target.value)}
                           className="w-20 px-2 py-1 bg-gray-600 text-white rounded text-center"
                         />
@@ -938,7 +943,7 @@ export default function RadTach() {
                           type="number"
                           min="0"
                           step="0.1"
-                          value={rvuValues['+1 Section']['CT'] || 0}
+                          value={typeof rvuValues['+1 Section'] === 'object' && rvuValues['+1 Section'] !== null ? (rvuValues['+1 Section'] as { [key: string]: number })['CT'] || 0 : 0}
                           onChange={(e) => updateRVUValue('+1 Section', e.target.value, 'CT')}
                           className="w-16 px-2 py-1 bg-gray-700 text-white rounded text-center text-sm"
                         />
@@ -952,7 +957,7 @@ export default function RadTach() {
                           type="number"
                           min="0"
                           step="0.1"
-                          value={rvuValues['+1 Section']['US'] || 0}
+                          value={typeof rvuValues['+1 Section'] === 'object' && rvuValues['+1 Section'] !== null ? (rvuValues['+1 Section'] as { [key: string]: number })['US'] || 0 : 0}
                           onChange={(e) => updateRVUValue('+1 Section', e.target.value, 'US')}
                           className="w-16 px-2 py-1 bg-gray-700 text-white rounded text-center text-sm"
                         />
@@ -971,7 +976,7 @@ export default function RadTach() {
                         type="number"
                         min="0"
                         step="0.1"
-                        value={rvuValues['+2 Section']['CT'] || 0}
+                        value={typeof rvuValues['+2 Section'] === 'object' && rvuValues['+2 Section'] !== null ? (rvuValues['+2 Section'] as { [key: string]: number })['CT'] || 0 : 0}
                         onChange={(e) => updateRVUValue('+2 Section', e.target.value, 'CT')}
                         className="w-16 px-2 py-1 bg-gray-700 text-white rounded text-center text-sm"
                       />
@@ -989,7 +994,7 @@ export default function RadTach() {
                         type="number"
                         min="0"
                         step="0.1"
-                        value={rvuValues['CTA']['CT'] || 0}
+                        value={typeof rvuValues['CTA'] === 'object' && rvuValues['CTA'] !== null ? (rvuValues['CTA'] as { [key: string]: number })['CT'] || 0 : 0}
                         onChange={(e) => updateRVUValue('CTA', e.target.value, 'CT')}
                         className="w-16 px-2 py-1 bg-gray-700 text-white rounded text-center text-sm"
                       />
