@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for animations */
+@keyframes flash-red {
+  0%, 100% {
+    background: linear-gradient(to bottom right, #dc2626, #b91c1c);
+  }
+  50% {
+    background: linear-gradient(to bottom right, #991b1b, #7f1d1d);
+  }
+}
+
+.elapsed-flash-red {
+  animation: flash-red 1s infinite;
+}
