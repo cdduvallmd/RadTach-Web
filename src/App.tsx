@@ -116,6 +116,9 @@ export default function RadTach() {
   const [showAnimalMessage, setShowAnimalMessage] = useState(false);
   const [lastBreakDeclineTime, setLastBreakDeclineTime] = useState(0);
 
+  // Auto-start tracking
+  const [autoStartEnabled, setAutoStartEnabled] = useState(false);
+
   const timerRef = useRef<number | null>(null);
   const sessionTimeRef = useRef<number | null>(null);
   const interstitialTimeRef = useRef<number | null>(null);
@@ -348,6 +351,7 @@ export default function RadTach() {
       const savedParTimes = localStorage.getItem('radtach_parTimes');
       const savedRVUValues = localStorage.getItem('radtach_rvuValues');
       const savedStealthMode = localStorage.getItem('radtach_stealthMode');
+      const savedAutoStart = localStorage.getItem('radtach_autoStart');
 
       if (savedParTimes) {
         const parsed = JSON.parse(savedParTimes);
@@ -378,6 +382,9 @@ export default function RadTach() {
       }
       if (savedStealthMode !== null) {
         setStealthMode(JSON.parse(savedStealthMode));
+      }
+      if (savedAutoStart !== null) {
+        setAutoStartEnabled(JSON.parse(savedAutoStart));
       }
     } catch (error: unknown) {
       console.error('Error loading settings from localStorage:', error);
@@ -410,7 +417,25 @@ export default function RadTach() {
       console.error('Error saving stealthMode to localStorage:', error);
     }
   }, [stealthMode]);
-  
+
+  // Save autoStartEnabled to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('radtach_autoStart', JSON.stringify(autoStartEnabled));
+    } catch (error: unknown) {
+      console.error('Error saving autoStartEnabled to localStorage:', error);
+    }
+  }, [autoStartEnabled]);
+
+  // Auto-start timer when modality is selected (if AUTO mode is enabled)
+  useEffect(() => {
+    if (autoStartEnabled && selectedModality && !isRunning && !isDraftMode) {
+      // Auto-start the timer
+      toggleTimer();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModality, autoStartEnabled]);
+
   // Format time as MM:SS
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(Math.abs(seconds) / 60);
@@ -597,6 +622,11 @@ export default function RadTach() {
       setIsBreakTimeRunning(false);
       setIsInterstitialRunning(true);
     }
+  };
+
+  // Toggle Auto-Start Mode
+  const toggleAutoStart = () => {
+    setAutoStartEnabled(prev => !prev);
   };
 
   // Toggle Draft Mode
@@ -1163,10 +1193,17 @@ export default function RadTach() {
                       </div>
                     </div>
                     <div className="flex items-start">
+                      <span className="flex-shrink-0 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold mr-3">★</span>
+                      <div>
+                        <h3 className="font-semibold text-white">Enable AUTO Mode (Optional)</h3>
+                        <p className="text-sm text-gray-300">Click the Auto button (between Draft and Break) to enable auto-start. When active, the timer starts automatically as soon as you select a modality - no need to click Par Time! Yellow outline indicates AUTO is enabled. Click again to disable.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
                       <span className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold mr-3">3</span>
                       <div>
-                        <h3 className="font-semibold text-white">Click Par Time to Start</h3>
-                        <p className="text-sm text-gray-300">Begin reading when you click the blue Par Time display</p>
+                        <h3 className="font-semibold text-white">Start Timer</h3>
+                        <p className="text-sm text-gray-300">With AUTO disabled: Click the blue Par Time display to start. With AUTO enabled: Timer starts automatically when you select a modality!</p>
                       </div>
                     </div>
                     <div className="flex items-start">
@@ -1492,6 +1529,21 @@ export default function RadTach() {
             title={isDraftMode ? 'Click to restore drafted study' : 'Save current study and start priority case'}
           >
             {isDraftMode ? 'Resume Draft' : 'Draft'}
+          </button>
+          <button
+            onClick={toggleAutoStart}
+            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+              stealthMode
+                ? autoStartEnabled
+                  ? 'bg-gray-700 hover:bg-gray-600 text-white border-2 border-white'
+                  : 'bg-gray-700 hover:bg-gray-600 text-white border-2 border-gray-700'
+                : autoStartEnabled
+                ? 'bg-gray-700 hover:bg-gray-600 text-white border-2 border-yellow-400'
+                : 'bg-gray-700 hover:bg-gray-600 text-white'
+            }`}
+            title={autoStartEnabled ? 'Click to disable auto-start timer' : 'Click to enable auto-start timer when modality is selected'}
+          >
+            Auto
           </button>
           <button
             onClick={toggleBreakTime}
