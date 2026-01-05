@@ -68,7 +68,20 @@ export default function RadTach() {
   const [currentTime, setCurrentTime] = useState(0);
   const [cumulativeVariance, setCumulativeVariance] = useState(0);
   const [studiesCompleted, setStudiesCompleted] = useState(0);
-  
+
+  // Pause timer tracking (Issue #2) - tracks pause duration per study
+  // const [pauseTime, setPauseTime] = useState(0); // TODO: Integrate pause time display in UI
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Double Tap tracking (Issue #3) - tracks when reopening recently-completed studies
+  const [doubleTapTime, setDoubleTapTime] = useState(0);
+  const [isDoubleTapRunning, setIsDoubleTapRunning] = useState(false);
+  const [doubleTapEvents, setDoubleTapEvents] = useState(0);
+  // const [lastStudyModality, setLastStudyModality] = useState<Modality | null>(null); // TODO: Track modality for double tap events
+
+  // Track if Admin/Comms auto-paused a study (so we can resume it when they stop)
+  const [studyWasAutoPaused, setStudyWasAutoPaused] = useState(false);
+
   // Total and Interstitial time tracking
   const [sessionTime, setSessionTime] = useState(0);
   const [interstitialTime, setInterstitialTime] = useState(0);
@@ -80,7 +93,14 @@ export default function RadTach() {
   const [commsTime, setCommsTime] = useState(0);
   const [isAdminTimeRunning, setIsAdminTimeRunning] = useState(false);
   const [isCommsTimeRunning, setIsCommsTimeRunning] = useState(false);
-  
+  const [adminEvents, setAdminEvents] = useState(0); // Issue #4: Admin event counter
+  const [commsEvents, setCommsEvents] = useState(0); // Issue #4: Comms event counter
+
+  // Hover states for secondary timers (UI test for Issue #5)
+  const [isHoveringAdmin, setIsHoveringAdmin] = useState(false);
+  const [isHoveringComms, setIsHoveringComms] = useState(false);
+  const [isHoveringRVU, setIsHoveringRVU] = useState(false); // Issue #6: toggle RVU/hr vs Rolling RVU
+
   // Study selection states
   const [selectedModality, setSelectedModality] = useState<Modality | null>(null);
   const [selectedComplications, setSelectedComplications] = useState<Complication[]>([]);
@@ -95,7 +115,11 @@ export default function RadTach() {
   
   const [totalRVU, setTotalRVU] = useState(0);
   const [rvuPerHour, setRvuPerHour] = useState(0);
-  
+
+  // Rolling RVU tracking (Issue #6) - track studies with timestamps
+  const [completedStudies, setCompletedStudies] = useState<Array<{timestamp: number, rvu: number}>>([]);
+  const [rollingRVU, setRollingRVU] = useState(0);
+
   // Undo tracking
   const [lastStudy, setLastStudy] = useState<LastStudyData | null>(null);
 
@@ -116,6 +140,9 @@ export default function RadTach() {
   const [showAnimalMessage, setShowAnimalMessage] = useState(false);
   const [lastBreakDeclineTime, setLastBreakDeclineTime] = useState(0);
 
+  // Auto-start tracking
+  const [autoStartEnabled, setAutoStartEnabled] = useState(false);
+
   const timerRef = useRef<number | null>(null);
   const sessionTimeRef = useRef<number | null>(null);
   const interstitialTimeRef = useRef<number | null>(null);
@@ -123,6 +150,8 @@ export default function RadTach() {
   const commsTimeRef = useRef<number | null>(null);
   const breakTimeRef = useRef<number | null>(null);
   const timeSinceLastBreakRef = useRef<number | null>(null);
+  const pauseTimeRef = useRef<number | null>(null); // Issue #2: Pause timer
+  const doubleTapTimeRef = useRef<number | null>(null); // Issue #3: Double Tap timer
   
   // Calculate current par time based on selections
   const calculateParTime = () => {
@@ -225,7 +254,45 @@ export default function RadTach() {
       }
     };
   }, [isRunning]);
-  
+
+  // Pause timer effect (Issue #2) - tracks pause duration
+  useEffect(() => {
+    if (isPaused) {
+      pauseTimeRef.current = setInterval(() => {
+        // setPauseTime(prev => prev + 1); // TODO: Uncomment when pause time UI is ready
+      }, 1000);
+    } else {
+      if (pauseTimeRef.current) {
+        clearInterval(pauseTimeRef.current);
+      }
+    }
+
+    return () => {
+      if (pauseTimeRef.current) {
+        clearInterval(pauseTimeRef.current);
+      }
+    };
+  }, [isPaused]);
+
+  // Double Tap timer effect (Issue #3) - tracks duration of double tap events
+  useEffect(() => {
+    if (isDoubleTapRunning) {
+      doubleTapTimeRef.current = setInterval(() => {
+        setDoubleTapTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (doubleTapTimeRef.current) {
+        clearInterval(doubleTapTimeRef.current);
+      }
+    }
+
+    return () => {
+      if (doubleTapTimeRef.current) {
+        clearInterval(doubleTapTimeRef.current);
+      }
+    };
+  }, [isDoubleTapRunning]);
+
   // Session time effect
   useEffect(() => {
     if (isSessionTimeRunning) {
@@ -348,6 +415,7 @@ export default function RadTach() {
       const savedParTimes = localStorage.getItem('radtach_parTimes');
       const savedRVUValues = localStorage.getItem('radtach_rvuValues');
       const savedStealthMode = localStorage.getItem('radtach_stealthMode');
+      const savedAutoStart = localStorage.getItem('radtach_autoStart');
 
       if (savedParTimes) {
         const parsed = JSON.parse(savedParTimes);
@@ -360,7 +428,7 @@ export default function RadTach() {
           parsed['FL'] = parsed['Fluoro'];
           delete parsed['Fluoro'];
         }
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+         
         setParTimes(parsed);
       }
       if (savedRVUValues) {
@@ -378,6 +446,9 @@ export default function RadTach() {
       }
       if (savedStealthMode !== null) {
         setStealthMode(JSON.parse(savedStealthMode));
+      }
+      if (savedAutoStart !== null) {
+        setAutoStartEnabled(JSON.parse(savedAutoStart));
       }
     } catch (error: unknown) {
       console.error('Error loading settings from localStorage:', error);
@@ -410,7 +481,25 @@ export default function RadTach() {
       console.error('Error saving stealthMode to localStorage:', error);
     }
   }, [stealthMode]);
-  
+
+  // Save autoStartEnabled to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('radtach_autoStart', JSON.stringify(autoStartEnabled));
+    } catch (error: unknown) {
+      console.error('Error saving autoStartEnabled to localStorage:', error);
+    }
+  }, [autoStartEnabled]);
+
+  // Auto-start timer when modality is selected (if AUTO mode is enabled)
+  useEffect(() => {
+    if (autoStartEnabled && selectedModality && !isRunning && !isDraftMode) {
+      // Auto-start the timer
+      toggleTimer();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModality, autoStartEnabled]);
+
   // Format time as MM:SS
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(Math.abs(seconds) / 60);
@@ -427,8 +516,9 @@ export default function RadTach() {
     }
     
     if (!isRunning) {
-      // Starting a study
+      // Starting/Resuming a study
       setIsRunning(true);
+      setIsPaused(false); // Issue #2: Stop pause tracking when resuming
       setIsInterstitialRunning(false); // Stop interstitial time
       setIsAdminTimeRunning(false); // Stop admin time
       setIsCommsTimeRunning(false); // Stop comms time
@@ -442,8 +532,9 @@ export default function RadTach() {
         setTimeout(() => setIsInterstitialRunning(false), 0);
       }
     } else {
-      // Pausing a study - stop elapsed time and start interstitial time
+      // Pausing a study - stop elapsed time, start pause tracking and interstitial time
       setIsRunning(false);
+      setIsPaused(true); // Issue #2: Start pause tracking
       setIsInterstitialRunning(true); // Start tracking non-productive time
     }
   };
@@ -485,13 +576,24 @@ export default function RadTach() {
     // Update total RVU and calculate RVU/hr
     const newTotalRVU = totalRVU + currentStudyRVU;
     setTotalRVU(newTotalRVU);
-    
+
     // Calculate and update RVU per hour
     if (sessionTime > 0) {
       const hours = sessionTime / 3600;
       setRvuPerHour(newTotalRVU / hours);
     }
-    
+
+    // Issue #6: Track completed study with timestamp for rolling RVU calculation
+    const now = Date.now();
+    const updatedStudies = [...completedStudies, { timestamp: now, rvu: currentStudyRVU }];
+    setCompletedStudies(updatedStudies);
+
+    // Calculate rolling RVU (last 60 minutes)
+    const sixtyMinutesAgo = now - (60 * 60 * 1000); // 60 minutes in milliseconds
+    const recentStudies = updatedStudies.filter(study => study.timestamp >= sixtyMinutesAgo);
+    const calculatedRollingRVU = recentStudies.reduce((sum, study) => sum + study.rvu, 0);
+    setRollingRVU(calculatedRollingRVU);
+
     setStudiesCompleted(prev => prev + 1);
     
     // Start interstitial time
@@ -499,6 +601,9 @@ export default function RadTach() {
     
     // Reset for next study
     setCurrentTime(0);
+    // setPauseTime(0); // TODO: Issue #2: Reset pause timer for next study
+    setIsPaused(false); // Issue #2: Clear pause state
+    // setLastStudyModality(selectedModality); // TODO: Issue #3: Save modality for Double Tap association
     setSelectedModality(null);
     setSelectedComplications([]);
 
@@ -554,28 +659,60 @@ export default function RadTach() {
   // Toggle Admin Time
   const toggleAdminTime = () => {
     if (!isAdminTimeRunning) {
-      // Starting Admin Time - pause Interstitial and Comms
+      // Starting Admin Time
       setIsAdminTimeRunning(true);
       setIsInterstitialRunning(false);
       setIsCommsTimeRunning(false);
+      setAdminEvents(prev => prev + 1); // Issue #4: Increment event counter
+
+      // If study is in progress, auto-pause it
+      const isStudyInProgress = selectedModality !== null && isRunning;
+      if (isStudyInProgress) {
+        setIsRunning(false);
+        setIsPaused(true);
+        setStudyWasAutoPaused(true);
+      }
     } else {
       // Stopping Admin Time - restart Interstitial
       setIsAdminTimeRunning(false);
       setIsInterstitialRunning(true);
+
+      // If we auto-paused a study, resume it
+      if (studyWasAutoPaused) {
+        setIsRunning(true);
+        setIsPaused(false);
+        setStudyWasAutoPaused(false);
+      }
     }
   };
-  
+
   // Toggle Comms Time
   const toggleCommsTime = () => {
     if (!isCommsTimeRunning) {
-      // Starting Comms Time - pause Interstitial and Admin
+      // Starting Comms Time
       setIsCommsTimeRunning(true);
       setIsInterstitialRunning(false);
       setIsAdminTimeRunning(false);
+      setCommsEvents(prev => prev + 1); // Issue #4: Increment event counter
+
+      // If study is in progress, auto-pause it
+      const isStudyInProgress = selectedModality !== null && isRunning;
+      if (isStudyInProgress) {
+        setIsRunning(false);
+        setIsPaused(true);
+        setStudyWasAutoPaused(true);
+      }
     } else {
       // Stopping Comms Time - restart Interstitial
       setIsCommsTimeRunning(false);
       setIsInterstitialRunning(true);
+
+      // If we auto-paused a study, resume it
+      if (studyWasAutoPaused) {
+        setIsRunning(true);
+        setIsPaused(false);
+        setStudyWasAutoPaused(false);
+      }
     }
   };
 
@@ -597,6 +734,33 @@ export default function RadTach() {
       setIsBreakTimeRunning(false);
       setIsInterstitialRunning(true);
     }
+  };
+
+  // Toggle Double Tap (Issue #3)
+  const toggleDoubleTap = () => {
+    // Disable if study is in progress (modality selected OR timer running/has time)
+    const isStudyInProgress = selectedModality !== null || currentTime > 0;
+    if (isStudyInProgress && !isDoubleTapRunning) {
+      // Don't allow starting Double Tap during dictation
+      return;
+    }
+
+    if (!isDoubleTapRunning) {
+      // Starting Double Tap - stop Interstitial (productive time, not wasted)
+      setIsDoubleTapRunning(true);
+      setIsInterstitialRunning(false);
+      setDoubleTapEvents(prev => prev + 1);
+    } else {
+      // Stopping Double Tap - restart Interstitial and reset duration for next event
+      setIsDoubleTapRunning(false);
+      setIsInterstitialRunning(true);
+      setDoubleTapTime(0);
+    }
+  };
+
+  // Toggle Auto-Start Mode
+  const toggleAutoStart = () => {
+    setAutoStartEnabled(prev => !prev);
   };
 
   // Toggle Draft Mode
@@ -1163,10 +1327,17 @@ export default function RadTach() {
                       </div>
                     </div>
                     <div className="flex items-start">
+                      <span className="flex-shrink-0 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold mr-3">★</span>
+                      <div>
+                        <h3 className="font-semibold text-white">Enable AUTO Mode (Optional)</h3>
+                        <p className="text-sm text-gray-300">Click the Auto button (between Draft and Break) to enable auto-start. When active, the timer starts automatically as soon as you select a modality - no need to click Par Time! Yellow outline indicates AUTO is enabled. Click again to disable.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
                       <span className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold mr-3">3</span>
                       <div>
-                        <h3 className="font-semibold text-white">Click Par Time to Start</h3>
-                        <p className="text-sm text-gray-300">Begin reading when you click the blue Par Time display</p>
+                        <h3 className="font-semibold text-white">Start Timer</h3>
+                        <p className="text-sm text-gray-300">With AUTO disabled: Click the blue Par Time display to start. With AUTO enabled: Timer starts automatically when you select a modality!</p>
                       </div>
                     </div>
                     <div className="flex items-start">
@@ -1494,6 +1665,21 @@ export default function RadTach() {
             {isDraftMode ? 'Resume Draft' : 'Draft'}
           </button>
           <button
+            onClick={toggleAutoStart}
+            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+              stealthMode
+                ? autoStartEnabled
+                  ? 'bg-gray-700 hover:bg-gray-600 text-white border-2 border-white'
+                  : 'bg-gray-700 hover:bg-gray-600 text-white border-2 border-gray-700'
+                : autoStartEnabled
+                ? 'bg-gray-700 hover:bg-gray-600 text-white border-2 border-yellow-400'
+                : 'bg-gray-700 hover:bg-gray-600 text-white'
+            }`}
+            title={autoStartEnabled ? 'Click to disable auto-start timer' : 'Click to enable auto-start timer when modality is selected'}
+          >
+            Auto
+          </button>
+          <button
             onClick={toggleBreakTime}
             className={`px-6 py-3 rounded-lg font-medium transition-colors ${
               stealthMode
@@ -1664,21 +1850,34 @@ export default function RadTach() {
             </div>
           </div>
           
-          {/* RVU/hr */}
-          <div className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : 'border-purple-500'}`}>
+          {/* RVU/hr (hover to show Rolling RVU - Issue #6) */}
+          <div
+            onMouseEnter={() => setIsHoveringRVU(true)}
+            onMouseLeave={() => setIsHoveringRVU(false)}
+            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : 'border-purple-500'} transition-all duration-200 cursor-help`}
+          >
             <div className="flex items-center justify-between">
               <div className="text-left">
-                <div className="text-sm text-gray-400">RVU/hr</div>
+                <div className="text-sm text-gray-400">
+                  {isHoveringRVU ? 'RVU/Last Hr' : 'RVU/hr'}
+                </div>
               </div>
               <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : 'text-purple-400'}`}>
-                {rvuPerHour.toFixed(1)}
+                {isHoveringRVU ? rollingRVU.toFixed(1) : rvuPerHour.toFixed(1)}
               </div>
             </div>
           </div>
 
-          {/* Break Time */}
-          <div className={`bg-gray-800 rounded-lg py-3 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isBreakTimeRunning ? 'border-red-500' : 'border-gray-600')}`}>
-            <div className="flex items-center justify-between">
+          {/* Break Time (with Breaks Taken overlay) */}
+          <div className={`bg-gray-800 rounded-lg py-3 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isBreakTimeRunning ? 'border-red-500' : 'border-gray-600')} relative overflow-hidden`}>
+            {/* Large semi-transparent Breaks Taken number overlay */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className={`text-9xl font-bold ${stealthMode ? 'text-gray-600' : 'text-pink-400'} opacity-20`}>
+                {breaksTaken}
+              </div>
+            </div>
+            {/* Break Time content (on top of overlay) */}
+            <div className="flex items-center justify-between relative z-10">
               <div className="text-left">
                 <div className="text-sm text-gray-400">Break Time</div>
               </div>
@@ -1688,38 +1887,68 @@ export default function RadTach() {
             </div>
           </div>
 
-          {/* Bottom Row: Admin Time, Comms Time, Total RVU, Breaks Taken */}
-          
-          {/* Admin Time */}
-          <div 
+          {/* Bottom Row: Admin Time, Comms Time, Total RVU, Double Tap (4x2 grid) */}
+
+          {/* Admin Time (with event counter overlay) - Issue #4 */}
+          <div
             onClick={toggleAdminTime}
-            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isAdminTimeRunning ? 'border-orange-500' : 'border-gray-600')} cursor-pointer hover:bg-gray-700 transition-colors`}
+            onMouseEnter={() => setIsHoveringAdmin(true)}
+            onMouseLeave={() => setIsHoveringAdmin(false)}
+            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isAdminTimeRunning ? 'border-orange-500' : 'border-gray-600')} cursor-pointer hover:bg-gray-700 transition-colors relative overflow-hidden`}
           >
-            <div className="flex items-center justify-between">
+            {/* Large semi-transparent Admin event counter overlay */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className={`text-9xl font-bold ${stealthMode ? 'text-gray-600' : 'text-orange-400'} opacity-20`}>
+                {adminEvents}
+              </div>
+            </div>
+            {/* Admin Time content (on top of overlay) */}
+            <div className="flex items-center justify-between relative z-10">
               <div className="text-left">
                 <div className="text-sm text-gray-400">Admin Time</div>
               </div>
-              <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : (isAdminTimeRunning ? 'text-orange-400' : 'text-gray-400')}`}>
+              <div
+                className={`text-4xl font-bold overflow-hidden transition-all duration-300 ease-in-out ${stealthMode ? 'text-gray-400' : (isAdminTimeRunning ? 'text-orange-400' : 'text-gray-400')}`}
+                style={{
+                  width: (isAdminTimeRunning || isHoveringAdmin) ? 'auto' : '0px',
+                  opacity: (isAdminTimeRunning || isHoveringAdmin) ? 1 : 0
+                }}
+              >
                 {formatTime(adminTime)}
               </div>
             </div>
           </div>
-          
-          {/* Comms Time */}
-          <div 
+
+          {/* Comms Time (with event counter overlay) - Issue #4 */}
+          <div
             onClick={toggleCommsTime}
-            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isCommsTimeRunning ? 'border-cyan-500' : 'border-gray-600')} cursor-pointer hover:bg-gray-700 transition-colors`}
+            onMouseEnter={() => setIsHoveringComms(true)}
+            onMouseLeave={() => setIsHoveringComms(false)}
+            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isCommsTimeRunning ? 'border-cyan-500' : 'border-gray-600')} cursor-pointer hover:bg-gray-700 transition-colors relative overflow-hidden`}
           >
-            <div className="flex items-center justify-between">
+            {/* Large semi-transparent Comms event counter overlay */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className={`text-9xl font-bold ${stealthMode ? 'text-gray-600' : 'text-cyan-400'} opacity-20`}>
+                {commsEvents}
+              </div>
+            </div>
+            {/* Comms Time content (on top of overlay) */}
+            <div className="flex items-center justify-between relative z-10">
               <div className="text-left">
                 <div className="text-sm text-gray-400">Comms Time</div>
               </div>
-              <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : (isCommsTimeRunning ? 'text-cyan-400' : 'text-gray-400')}`}>
+              <div
+                className={`text-4xl font-bold overflow-hidden transition-all duration-300 ease-in-out ${stealthMode ? 'text-gray-400' : (isCommsTimeRunning ? 'text-cyan-400' : 'text-gray-400')}`}
+                style={{
+                  width: (isCommsTimeRunning || isHoveringComms) ? 'auto' : '0px',
+                  opacity: (isCommsTimeRunning || isHoveringComms) ? 1 : 0
+                }}
+              >
                 {formatTime(commsTime)}
               </div>
             </div>
           </div>
-          
+
           {/* Total RVU */}
           <div className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : 'border-green-500'}`}>
             <div className="flex items-center justify-between">
@@ -1732,17 +1961,36 @@ export default function RadTach() {
             </div>
           </div>
 
-          {/* Breaks Taken */}
-          <div className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : 'border-pink-500'}`}>
-            <div className="flex items-center justify-between">
-              <div className="text-left">
-                <div className="text-sm text-gray-400">Breaks Taken</div>
+          {/* Double Tap (with event counter overlay) - Issue #3 */}
+          <div
+            onClick={toggleDoubleTap}
+            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${
+              stealthMode
+                ? 'border-gray-600'
+                : (isDoubleTapRunning ? 'border-yellow-500' : 'border-gray-600')
+            } ${
+              (selectedModality !== null || currentTime > 0) && !isDoubleTapRunning
+                ? 'opacity-50 cursor-not-allowed'
+                : 'cursor-pointer hover:bg-gray-700'
+            } transition-colors relative overflow-hidden`}
+          >
+            {/* Large semi-transparent Double Tap event counter overlay */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className={`text-9xl font-bold ${stealthMode ? 'text-gray-600' : 'text-yellow-400'} opacity-20`}>
+                {doubleTapEvents}
               </div>
-              <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : 'text-pink-400'}`}>
-                {breaksTaken}
+            </div>
+            {/* Double Tap timer content (on top of overlay) */}
+            <div className="flex items-center justify-between relative z-10">
+              <div className="text-left">
+                <div className="text-sm text-gray-400">Double Tap</div>
+              </div>
+              <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : (isDoubleTapRunning ? 'text-yellow-400' : 'text-gray-400')}`}>
+                {formatTime(doubleTapTime)}
               </div>
             </div>
           </div>
+
         </div>
         
         {/* Modality Selection */}
