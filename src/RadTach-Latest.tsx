@@ -70,14 +70,14 @@ export default function RadTach() {
   const [studiesCompleted, setStudiesCompleted] = useState(0);
 
   // Pause timer tracking (Issue #2) - tracks pause duration per study
-  // const [pauseTime, setPauseTime] = useState(0); // TODO: Integrate pause time display in UI
+  // const [pauseTime, setPauseTime] = useState(0); // TODO: FIREBASE - Uncomment for Phase 3 (Issue #2). Tracks pause time per study for SESSION recording
   const [isPaused, setIsPaused] = useState(false);
 
   // Double Tap tracking (Issue #3) - tracks when reopening recently-completed studies
   const [doubleTapTime, setDoubleTapTime] = useState(0);
   const [isDoubleTapRunning, setIsDoubleTapRunning] = useState(false);
   const [doubleTapEvents, setDoubleTapEvents] = useState(0);
-  // const [lastStudyModality, setLastStudyModality] = useState<Modality | null>(null); // TODO: Track modality for double tap events
+  // const [lastStudyModality, setLastStudyModality] = useState<Modality | null>(null); // TODO: FIREBASE - Uncomment for Phase 3 (Issue #3). Associates Double Tap events with modality for analytics
 
   // Track if Admin/Comms auto-paused a study (so we can resume it when they stop)
   const [studyWasAutoPaused, setStudyWasAutoPaused] = useState(false);
@@ -259,7 +259,7 @@ export default function RadTach() {
   useEffect(() => {
     if (isPaused) {
       pauseTimeRef.current = setInterval(() => {
-        // setPauseTime(prev => prev + 1); // TODO: Uncomment when pause time UI is ready
+        // setPauseTime(prev => prev + 1); // TODO: FIREBASE - Uncomment for Phase 3. Accumulates pause time for STUDY event recording
       }, 1000);
     } else {
       if (pauseTimeRef.current) {
@@ -601,9 +601,9 @@ export default function RadTach() {
     
     // Reset for next study
     setCurrentTime(0);
-    // setPauseTime(0); // TODO: Issue #2: Reset pause timer for next study
+    // setPauseTime(0); // TODO: FIREBASE - Uncomment for Phase 3 (Issue #2). Resets pause timer after recording to database
     setIsPaused(false); // Issue #2: Clear pause state
-    // setLastStudyModality(selectedModality); // TODO: Issue #3: Save modality for Double Tap association
+    // setLastStudyModality(selectedModality); // TODO: FIREBASE - Uncomment for Phase 3 (Issue #3). Saves modality for next Double Tap event association
     setSelectedModality(null);
     setSelectedComplications([]);
 
