@@ -751,10 +751,9 @@ export default function RadTach() {
       setIsInterstitialRunning(false);
       setDoubleTapEvents(prev => prev + 1);
     } else {
-      // Stopping Double Tap - restart Interstitial and reset duration for next event
+      // Stopping Double Tap - restart Interstitial (cumulative time persists for user feedback)
       setIsDoubleTapRunning(false);
       setIsInterstitialRunning(true);
-      setDoubleTapTime(0);
     }
   };
 
