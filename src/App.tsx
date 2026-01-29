@@ -17,6 +17,7 @@ interface LastStudyData {
   variance: number;
   rvu: number;
   streakBefore: number;
+  elapsedTime: number;
 }
 
 interface DraftStudyData {
@@ -857,11 +858,12 @@ export default function RadTach() {
       setCurrentStreak(0);
     }
     
-    // Save study info for undo
+    // Save study info for undo (Issue #21: include elapsedTime for interstitial recovery)
     setLastStudy({
       variance: variance,
       rvu: currentStudyRVU,
-      streakBefore: currentStreak // Save streak for undo
+      streakBefore: currentStreak,
+      elapsedTime: currentTime
     });
     
     setCumulativeVariance(prev => prev + variance);
@@ -973,6 +975,10 @@ export default function RadTach() {
 
     // Track deleted study (Issue #1)
     setDeletedStudies(prev => prev + 1);
+
+    // Issue #21: Add erased study's elapsed time to Interstitial Timer
+    // Use case: Study opened but someone else claimed it (worklist collision)
+    setInterstitialTime(prev => prev + lastStudy.elapsedTime);
 
     // Clear the last study
     setLastStudy(null);
