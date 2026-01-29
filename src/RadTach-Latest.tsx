@@ -26,6 +26,65 @@ interface DraftStudyData {
   parTime: number;
 }
 
+// Event types for session recording (Issue #1)
+interface StudyEvent {
+  type: 'STUDY';
+  studyNumber: number;
+  startTimeSession: number;
+  startTimeSystem: string;
+  modality: Modality;
+  complications: Complication[];
+  parTime: number;
+  elapsedTime: number;
+  variance: number;
+  rvu: number;
+  pauseTime: number;
+  pauseUsed: boolean;
+}
+
+interface InterstitialEvent {
+  type: 'INTERSTITIAL';
+  startTimeSession: number;
+  startTimeSystem: string;
+  endTimeSession: number;
+  endTimeSystem: string;
+  duration: number;
+}
+
+interface TimerEvent {
+  type: 'ADMIN' | 'COMMS' | 'BREAK' | 'DOUBLE_TAP';
+  startTimeSession: number;
+  startTimeSystem: string;
+  endTimeSession: number;
+  endTimeSystem: string;
+  duration: number;
+  associatedModality?: Modality | null; // For DOUBLE_TAP events
+}
+
+type SessionEvent = StudyEvent | InterstitialEvent | TimerEvent;
+
+interface SessionData {
+  sessionId: string;
+  userAbbrev: string;
+  workstationId: string;
+  startDateTime: string;
+  stopDateTime: string;
+  totalSessionTime: number;
+  studiesCompleted: number;
+  deletedStudies: number;
+  cumulativeParTime: number;
+  interstitialTime: number;
+  adminTime: number;
+  adminEvents: number;
+  commsTime: number;
+  commsEvents: number;
+  breakTime: number;
+  breakEvents: number;
+  doubleTapTime: number;
+  doubleTapEvents: number;
+  totalRVU: number;
+}
+
 export default function RadTach() {
   // Default settings
   const defaultParTimes: ParTimesConfig = {
@@ -112,6 +171,7 @@ export default function RadTach() {
   const [parTimes, setParTimes] = useState<ParTimesConfig>(defaultParTimes);
   const [rvuValues, setRVUValues] = useState<RVUConfig>(defaultRVUValues);
   const [stealthMode, setStealthMode] = useState(false);
+  const [useHMSFormat, setUseHMSFormat] = useState(false);
   
   const [totalRVU, setTotalRVU] = useState(0);
   const [rvuPerHour, setRvuPerHour] = useState(0);
@@ -142,6 +202,25 @@ export default function RadTach() {
 
   // Auto-start tracking
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
+
+  // Session management (Issue #1)
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [sessionStartDateTime, setSessionStartDateTime] = useState<string | null>(null);
+  const [sessionEvents, setSessionEvents] = useState<SessionEvent[]>([]);
+  const [deletedStudies, setDeletedStudies] = useState(0);
+  const [cumulativeParTime, setCumulativeParTime] = useState(0);
+  const [showStopSessionDialog, setShowStopSessionDialog] = useState(false);
+  const [todaySessionCount, setTodaySessionCount] = useState(0);
+
+  // Track event start times for duration calculation
+  const [adminStartTime, setAdminStartTime] = useState<{session: number, system: string} | null>(null);
+  const [commsStartTime, setCommsStartTime] = useState<{session: number, system: string} | null>(null);
+  const [breakStartTime, setBreakStartTime] = useState<{session: number, system: string} | null>(null);
+  const [doubleTapStartTime, setDoubleTapStartTime] = useState<{session: number, system: string} | null>(null);
+  const [interstitialStartTime, setInterstitialStartTime] = useState<{session: number, system: string} | null>(null);
+  const [studyStartTime, setStudyStartTime] = useState<{session: number, system: string} | null>(null);
+  const [lastStudyModality, setLastStudyModality] = useState<Modality | null>(null);
+  const [studyPauseTime, setStudyPauseTime] = useState(0);
 
   const timerRef = useRef<number | null>(null);
   const sessionTimeRef = useRef<number | null>(null);
@@ -255,11 +334,11 @@ export default function RadTach() {
     };
   }, [isRunning]);
 
-  // Pause timer effect (Issue #2) - tracks pause duration
+  // Pause timer effect (Issue #2) - tracks pause duration per study
   useEffect(() => {
     if (isPaused) {
       pauseTimeRef.current = setInterval(() => {
-        // setPauseTime(prev => prev + 1); // TODO: FIREBASE - Uncomment for Phase 3. Accumulates pause time for STUDY event recording
+        setStudyPauseTime(prev => prev + 1); // Issue #1: Accumulate pause time for STUDY event recording
       }, 1000);
     } else {
       if (pauseTimeRef.current) {
@@ -450,6 +529,10 @@ export default function RadTach() {
       if (savedAutoStart !== null) {
         setAutoStartEnabled(JSON.parse(savedAutoStart));
       }
+      const savedUseHMSFormat = localStorage.getItem('radtach_useHMSFormat');
+      if (savedUseHMSFormat !== null) {
+        setUseHMSFormat(JSON.parse(savedUseHMSFormat));
+      }
     } catch (error: unknown) {
       console.error('Error loading settings from localStorage:', error);
     }
@@ -491,6 +574,15 @@ export default function RadTach() {
     }
   }, [autoStartEnabled]);
 
+  // Save useHMSFormat to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('radtach_useHMSFormat', JSON.stringify(useHMSFormat));
+    } catch (error: unknown) {
+      console.error('Error saving useHMSFormat to localStorage:', error);
+    }
+  }, [useHMSFormat]);
+
   // Auto-start timer when modality is selected (if AUTO mode is enabled)
   useEffect(() => {
     if (autoStartEnabled && selectedModality && !isRunning && !isDraftMode) {
@@ -501,20 +593,204 @@ export default function RadTach() {
   }, [selectedModality, autoStartEnabled]);
 
   // Format time as MM:SS
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(Math.abs(seconds) / 60);
-    const secs = Math.abs(seconds) % 60;
+  const formatTime = (seconds: number, forceShort: boolean = false): string => {
     const sign = seconds < 0 ? '-' : '';
-    return `${sign}${mins}:${secs.toString().padStart(2, '0')}`;
+    const absSeconds = Math.abs(seconds);
+
+    if (useHMSFormat && !forceShort) {
+      const hours = Math.floor(absSeconds / 3600);
+      const mins = Math.floor((absSeconds % 3600) / 60);
+      const secs = absSeconds % 60;
+      return `${sign}${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    } else {
+      const mins = Math.floor(absSeconds / 60);
+      const secs = absSeconds % 60;
+      return `${sign}${mins}:${secs.toString().padStart(2, '0')}`;
+    }
   };
-  
+
+  // Helper function to get current ISO 8601 datetime string (Issue #1)
+  const getCurrentDateTime = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  };
+
+  // Helper function to get today's date string for session ID (Issue #1)
+  const getTodayDateString = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}${month}${day}`;
+  };
+
+  // Generate session ID in format YYYYMMDD-##-CDD0001 (Issue #1)
+  const generateSessionId = (): string => {
+    const dateStr = getTodayDateString();
+    const sessionNum = String(todaySessionCount + 1).padStart(2, '0');
+    return `${dateStr}-${sessionNum}-CDD0001`;
+  };
+
+  // Start a new session (Issue #1)
+  const handleStartSession = () => {
+    const now = getCurrentDateTime();
+    setSessionStartDateTime(now);
+    setIsSessionActive(true);
+    setIsSessionTimeRunning(true); // Start the session timer
+    setTodaySessionCount(prev => prev + 1);
+    setSessionEvents([]);
+    // Reset all counters
+    setSessionTime(0);
+    setInterstitialTime(0);
+    setAdminTime(0);
+    setCommsTime(0);
+    setBreakTime(0);
+    setDoubleTapTime(0);
+    setAdminEvents(0);
+    setCommsEvents(0);
+    setBreaksTaken(0);
+    setDoubleTapEvents(0);
+    setStudiesCompleted(0);
+    setDeletedStudies(0);
+    setCumulativeParTime(0);
+    setCumulativeVariance(0);
+    setTotalRVU(0);
+    setRvuPerHour(0);
+    setRollingRVU(0);
+    setCompletedStudies([]);
+    setCurrentStreak(0);
+    setCurrentTime(0);
+    setSelectedModality(null);
+    setSelectedComplications([]);
+    setLastStudy(null);
+    setTimeSinceLastBreak(0);
+    setLastBreakDeclineTime(0);
+    setStudyPauseTime(0);
+  };
+
+  // Handle STOP SESSION button click (Issue #1)
+  const handleStopSessionClick = (event: React.MouseEvent) => {
+    if (!event.shiftKey) {
+      alert('Hold SHIFT and click to stop the session');
+      return;
+    }
+    setShowStopSessionDialog(true);
+  };
+
+  // Build session data for export (Issue #1)
+  const buildSessionData = (): { session: SessionData; events: SessionEvent[] } => {
+    const sessionData: SessionData = {
+      sessionId: generateSessionId(),
+      userAbbrev: 'CDD0001',
+      workstationId: 'Placeholder',
+      startDateTime: sessionStartDateTime || '',
+      stopDateTime: getCurrentDateTime(),
+      totalSessionTime: sessionTime,
+      studiesCompleted: studiesCompleted,
+      deletedStudies: deletedStudies,
+      cumulativeParTime: cumulativeParTime,
+      interstitialTime: interstitialTime,
+      adminTime: adminTime,
+      adminEvents: adminEvents,
+      commsTime: commsTime,
+      commsEvents: commsEvents,
+      breakTime: breakTime,
+      breakEvents: breaksTaken,
+      doubleTapTime: doubleTapTime,
+      doubleTapEvents: doubleTapEvents,
+      totalRVU: totalRVU,
+    };
+    return { session: sessionData, events: sessionEvents };
+  };
+
+  // Copy session data to clipboard and close (Issue #1)
+  const handleCopyAndClose = async () => {
+    const data = buildSessionData();
+    const jsonString = JSON.stringify(data, null, 2);
+    try {
+      await navigator.clipboard.writeText(jsonString);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      alert('Failed to copy to clipboard. Please try again.');
+      return;
+    }
+    resetSession();
+    setShowStopSessionDialog(false);
+  };
+
+  // Close without copying (Issue #1)
+  const handleCloseWithoutCopy = () => {
+    resetSession();
+    setShowStopSessionDialog(false);
+  };
+
+  // Reset session state (Issue #1)
+  const resetSession = () => {
+    setIsSessionActive(false);
+    setIsSessionTimeRunning(false);
+    setIsRunning(false);
+    setIsInterstitialRunning(false);
+    setIsAdminTimeRunning(false);
+    setIsCommsTimeRunning(false);
+    setIsBreakTimeRunning(false);
+    setIsDoubleTapRunning(false);
+    setIsPaused(false);
+    setSessionStartDateTime(null);
+    setSessionEvents([]);
+    setSessionTime(0);
+    setInterstitialTime(0);
+    setAdminTime(0);
+    setCommsTime(0);
+    setBreakTime(0);
+    setDoubleTapTime(0);
+    setAdminEvents(0);
+    setCommsEvents(0);
+    setBreaksTaken(0);
+    setDoubleTapEvents(0);
+    setStudiesCompleted(0);
+    setDeletedStudies(0);
+    setCumulativeParTime(0);
+    setCumulativeVariance(0);
+    setTotalRVU(0);
+    setRvuPerHour(0);
+    setRollingRVU(0);
+    setCompletedStudies([]);
+    setCurrentStreak(0);
+    setCurrentTime(0);
+    setSelectedModality(null);
+    setSelectedComplications([]);
+    setLastStudy(null);
+    setTimeSinceLastBreak(0);
+    setLastBreakDeclineTime(0);
+    setStudyPauseTime(0);
+    setLastStudyModality(null);
+    setAdminStartTime(null);
+    setCommsStartTime(null);
+    setBreakStartTime(null);
+    setDoubleTapStartTime(null);
+    setInterstitialStartTime(null);
+    setStudyStartTime(null);
+  };
+
   // Start/Stop timer
   const toggleTimer = () => {
     if (!selectedModality && !isRunning) {
       alert('Please select a modality before starting');
       return;
     }
-    
+
+    // Require active session to start timer (Issue #1)
+    if (!isSessionActive && !isRunning) {
+      alert('Please start a session first');
+      return;
+    }
+
     if (!isRunning) {
       // Starting/Resuming a study
       setIsRunning(true);
@@ -523,13 +799,30 @@ export default function RadTach() {
       setIsAdminTimeRunning(false); // Stop admin time
       setIsCommsTimeRunning(false); // Stop comms time
       setIsBreakTimeRunning(false); // Stop break time
+      setIsDoubleTapRunning(false); // Stop double tap time
 
-      // Start session time and interstitial time if this is the first study
+      // Record study start time (Issue #1)
+      if (studyStartTime === null) {
+        setStudyStartTime({ session: sessionTime, system: getCurrentDateTime() });
+      }
+
+      // Record interstitial end if it was running (Issue #1)
+      if (interstitialStartTime !== null) {
+        const interstitialEvent: InterstitialEvent = {
+          type: 'INTERSTITIAL',
+          startTimeSession: interstitialStartTime.session,
+          startTimeSystem: interstitialStartTime.system,
+          endTimeSession: sessionTime,
+          endTimeSystem: getCurrentDateTime(),
+          duration: sessionTime - interstitialStartTime.session,
+        };
+        setSessionEvents(prev => [...prev, interstitialEvent]);
+        setInterstitialStartTime(null);
+      }
+
+      // Start session time if this is the first study
       if (!isSessionTimeRunning) {
         setIsSessionTimeRunning(true);
-        setIsInterstitialRunning(true);
-        // Stop interstitial immediately since we're starting a study
-        setTimeout(() => setIsInterstitialRunning(false), 0);
       }
     } else {
       // Pausing a study - stop elapsed time, start pause tracking and interstitial time
@@ -595,15 +888,41 @@ export default function RadTach() {
     setRollingRVU(calculatedRollingRVU);
 
     setStudiesCompleted(prev => prev + 1);
-    
-    // Start interstitial time
+
+    // Record STUDY event (Issue #1)
+    if (studyStartTime !== null && selectedModality) {
+      const studyEvent: StudyEvent = {
+        type: 'STUDY',
+        studyNumber: studiesCompleted + 1,
+        startTimeSession: studyStartTime.session,
+        startTimeSystem: studyStartTime.system,
+        modality: selectedModality,
+        complications: [...selectedComplications],
+        parTime: currentParTime,
+        elapsedTime: currentTime,
+        variance: variance,
+        rvu: currentStudyRVU,
+        pauseTime: studyPauseTime,
+        pauseUsed: studyPauseTime > 0,
+      };
+      setSessionEvents(prev => [...prev, studyEvent]);
+    }
+
+    // Update cumulative par time (Issue #1)
+    setCumulativeParTime(prev => prev + currentParTime);
+
+    // Save modality for double tap tracking (Issue #1)
+    setLastStudyModality(selectedModality);
+
+    // Start interstitial time and track start (Issue #1)
     setIsInterstitialRunning(true);
-    
+    setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
+
     // Reset for next study
     setCurrentTime(0);
-    // setPauseTime(0); // TODO: FIREBASE - Uncomment for Phase 3 (Issue #2). Resets pause timer after recording to database
+    setStudyPauseTime(0); // Reset pause time for next study
+    setStudyStartTime(null); // Reset study start time
     setIsPaused(false); // Issue #2: Clear pause state
-    // setLastStudyModality(selectedModality); // TODO: FIREBASE - Uncomment for Phase 3 (Issue #3). Saves modality for next Double Tap event association
     setSelectedModality(null);
     setSelectedComplications([]);
 
@@ -651,11 +970,14 @@ export default function RadTach() {
     }
     
     setStudiesCompleted(prev => prev - 1);
-    
+
+    // Track deleted study (Issue #1)
+    setDeletedStudies(prev => prev + 1);
+
     // Clear the last study
     setLastStudy(null);
   };
-  
+
   // Toggle Admin Time
   const toggleAdminTime = () => {
     if (!isAdminTimeRunning) {
@@ -664,6 +986,7 @@ export default function RadTach() {
       setIsInterstitialRunning(false);
       setIsCommsTimeRunning(false);
       setAdminEvents(prev => prev + 1); // Issue #4: Increment event counter
+      setAdminStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1: Track start time
 
       // If study is in progress, auto-pause it
       const isStudyInProgress = selectedModality !== null && isRunning;
@@ -673,9 +996,23 @@ export default function RadTach() {
         setStudyWasAutoPaused(true);
       }
     } else {
-      // Stopping Admin Time - restart Interstitial
+      // Stopping Admin Time - record event (Issue #1)
+      if (adminStartTime !== null) {
+        const adminEvent: TimerEvent = {
+          type: 'ADMIN',
+          startTimeSession: adminStartTime.session,
+          startTimeSystem: adminStartTime.system,
+          endTimeSession: sessionTime,
+          endTimeSystem: getCurrentDateTime(),
+          duration: sessionTime - adminStartTime.session,
+        };
+        setSessionEvents(prev => [...prev, adminEvent]);
+        setAdminStartTime(null);
+      }
+
       setIsAdminTimeRunning(false);
       setIsInterstitialRunning(true);
+      setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1
 
       // If we auto-paused a study, resume it
       if (studyWasAutoPaused) {
@@ -694,6 +1031,7 @@ export default function RadTach() {
       setIsInterstitialRunning(false);
       setIsAdminTimeRunning(false);
       setCommsEvents(prev => prev + 1); // Issue #4: Increment event counter
+      setCommsStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1: Track start time
 
       // If study is in progress, auto-pause it
       const isStudyInProgress = selectedModality !== null && isRunning;
@@ -703,9 +1041,23 @@ export default function RadTach() {
         setStudyWasAutoPaused(true);
       }
     } else {
-      // Stopping Comms Time - restart Interstitial
+      // Stopping Comms Time - record event (Issue #1)
+      if (commsStartTime !== null) {
+        const commsEvent: TimerEvent = {
+          type: 'COMMS',
+          startTimeSession: commsStartTime.session,
+          startTimeSystem: commsStartTime.system,
+          endTimeSession: sessionTime,
+          endTimeSystem: getCurrentDateTime(),
+          duration: sessionTime - commsStartTime.session,
+        };
+        setSessionEvents(prev => [...prev, commsEvent]);
+        setCommsStartTime(null);
+      }
+
       setIsCommsTimeRunning(false);
       setIsInterstitialRunning(true);
+      setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1
 
       // If we auto-paused a study, resume it
       if (studyWasAutoPaused) {
@@ -729,10 +1081,25 @@ export default function RadTach() {
       setLastBreakDeclineTime(0);
       // Increment breaks taken
       setBreaksTaken(prev => prev + 1);
+      setBreakStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1: Track start time
     } else {
-      // Stopping Break - restart Interstitial
+      // Stopping Break - record event (Issue #1)
+      if (breakStartTime !== null) {
+        const breakEvent: TimerEvent = {
+          type: 'BREAK',
+          startTimeSession: breakStartTime.session,
+          startTimeSystem: breakStartTime.system,
+          endTimeSession: sessionTime,
+          endTimeSystem: getCurrentDateTime(),
+          duration: sessionTime - breakStartTime.session,
+        };
+        setSessionEvents(prev => [...prev, breakEvent]);
+        setBreakStartTime(null);
+      }
+
       setIsBreakTimeRunning(false);
       setIsInterstitialRunning(true);
+      setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1
     }
   };
 
@@ -750,10 +1117,26 @@ export default function RadTach() {
       setIsDoubleTapRunning(true);
       setIsInterstitialRunning(false);
       setDoubleTapEvents(prev => prev + 1);
+      setDoubleTapStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1: Track start time
     } else {
-      // Stopping Double Tap - restart Interstitial (cumulative time persists for user feedback)
+      // Stopping Double Tap - record event (Issue #1)
+      if (doubleTapStartTime !== null) {
+        const doubleTapEvent: TimerEvent = {
+          type: 'DOUBLE_TAP',
+          startTimeSession: doubleTapStartTime.session,
+          startTimeSystem: doubleTapStartTime.system,
+          endTimeSession: sessionTime,
+          endTimeSystem: getCurrentDateTime(),
+          duration: sessionTime - doubleTapStartTime.session,
+          associatedModality: lastStudyModality,
+        };
+        setSessionEvents(prev => [...prev, doubleTapEvent]);
+        setDoubleTapStartTime(null);
+      }
+
       setIsDoubleTapRunning(false);
       setIsInterstitialRunning(true);
+      setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1
     }
   };
 
@@ -977,8 +1360,8 @@ export default function RadTach() {
     <div className="min-h-screen bg-gray-900 p-4">
       {/* Settings Modal */}
       {showSettings && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-start justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl my-4">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-start justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl my-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-white">Par Time Settings</h2>
               <div className="flex items-center space-x-2">
@@ -1088,6 +1471,29 @@ export default function RadTach() {
                       </button>
                     </div>
                   </div>
+
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-600">
+                    <div>
+                      <span className="text-white font-medium">H:M:S Time Format</span>
+                      <p className="text-sm text-gray-300 mt-1">
+                        Display times as Hours:Minutes:Seconds instead of Minutes:Seconds.
+                        <br />
+                        <span className="text-gray-400 italic">Useful for longer sessions</span>
+                      </p>
+                    </div>
+                    <div className="ml-4">
+                      <button
+                        onClick={() => setUseHMSFormat(!useHMSFormat)}
+                        className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                          useHMSFormat
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                            : 'bg-gray-600 hover:bg-gray-500 text-gray-300'
+                        }`}
+                      >
+                        {useHMSFormat ? 'ON' : 'OFF'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1124,8 +1530,8 @@ export default function RadTach() {
       
       {/* RVU Settings Modal */}
       {showRVUSettings && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-start justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl my-4">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-start justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl my-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-white">RVU Settings</h2>
               <div className="flex items-center space-x-2">
@@ -1578,9 +1984,12 @@ export default function RadTach() {
                     </a>
                     {' '}with the Subject line "RadTach".
                   </p>
+                  <p className="text-center text-gray-500 text-xs mt-4">
+                    © 2025 Charles Darren Duvall, MD. All rights reserved.
+                  </p>
                 </div>
               </div>
-              
+
               <button
                 onClick={() => setShowGuide(false)}
                 className="mt-6 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
@@ -1644,10 +2053,51 @@ export default function RadTach() {
         </div>
       )}
 
+      {/* Stop Session Dialog (Issue #1) */}
+      {showStopSessionDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h2 className="text-2xl font-bold text-white mb-4">Session Complete</h2>
+            <p className="text-gray-200 mb-2">
+              Copy session data to clipboard?
+            </p>
+            <p className="text-gray-400 text-sm mb-6">
+              Session: {generateSessionId()}<br />
+              Studies: {studiesCompleted} | RVU: {totalRVU.toFixed(1)} | Time: {formatTime(sessionTime)}
+            </p>
+            <div className="flex gap-4">
+              <button
+                onClick={handleCopyAndClose}
+                className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Copy & Close
+              </button>
+              <button
+                onClick={handleCloseWithoutCopy}
+                className="flex-1 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Close Without Copying
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-3xl font-bold text-white">RadTach 1.2</h1>
+          <button
+            onClick={isSessionActive ? handleStopSessionClick : handleStartSession}
+            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+              isSessionActive
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-green-600 hover:bg-green-700 text-white'
+            }`}
+            title={isSessionActive ? 'Hold SHIFT and click to stop session' : 'Start a new session'}
+          >
+            {isSessionActive ? 'Stop Session' : 'Start Session'}
+          </button>
           <button
             onClick={toggleDraft}
             className={`px-6 py-3 rounded-lg font-medium transition-colors ${
@@ -1733,7 +2183,7 @@ export default function RadTach() {
                     <span className="text-gray-300"> + {draftStudy.complications.join(', ')}</span>
                   )}
                   <span className="text-gray-400 ml-2">
-                    ({formatTime(draftStudy.currentTime)} / {formatTime(draftStudy.parTime)})
+                    ({formatTime(draftStudy.currentTime, true)} / {formatTime(draftStudy.parTime, true)})
                   </span>
                 </span>
               </div>
@@ -1788,7 +2238,7 @@ export default function RadTach() {
           >
             <div className="text-xs text-gray-400 mb-1">Par Time</div>
             <div className={`text-5xl font-bold ${stealthMode ? 'text-gray-400' : 'text-blue-400'}`}>
-              {formatTime(currentParTime)}
+              {formatTime(currentParTime, true)}
             </div>
             <div className="text-xs text-gray-500 mt-1">
               {!isRunning ? 'Click to Start' : 'Current Study Target'}
@@ -1804,7 +2254,7 @@ export default function RadTach() {
               Elapsed Time
             </div>
             <div className="text-5xl font-bold text-white">
-              {formatTime(currentTime)}
+              {formatTime(currentTime, true)}
             </div>
             <div className={`text-xs mt-1 ${!selectedModality || currentParTime === 0 ? 'text-gray-500' : 'text-white'}`}>
               {currentTime > 0 ? 'Click to Complete Exam' : isRunning ? 'Timer Running...' : 'Start Timer First'}
