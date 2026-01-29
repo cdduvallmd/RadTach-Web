@@ -1719,6 +1719,30 @@ export default function RadTach() {
                   </p>
                 </section>
 
+                {/* Session Management */}
+                <section>
+                  <h2 className="text-2xl font-bold text-white mb-3">Session Management</h2>
+                  <div className="bg-gray-700 rounded-lg p-4 space-y-3">
+                    <div className="flex items-start">
+                      <span className="flex-shrink-0 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-bold mr-3">▶</span>
+                      <div>
+                        <h3 className="font-semibold text-white">Start Session</h3>
+                        <p className="text-sm text-gray-300">Click the <strong>Start Session</strong> button in the header to begin tracking. All timers and counters will be recorded for this session.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="flex-shrink-0 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-white font-bold mr-3">■</span>
+                      <div>
+                        <h3 className="font-semibold text-white">Stop Session (SHIFT+Click)</h3>
+                        <p className="text-sm text-gray-300">To end your session, hold <strong>SHIFT</strong> and click the <strong>Stop Session</strong> button. This prevents accidental session stops. You'll be asked to confirm, then session data is copied to your clipboard as JSON for record-keeping.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-blue-900 bg-opacity-30 border border-blue-500 rounded-lg p-3 mt-3">
+                    <p className="text-sm"><strong className="text-blue-400">Session Data Export:</strong> When you stop a session, complete session data (all studies, events, and metrics) is automatically copied to your clipboard. Paste into a text file or spreadsheet to save.</p>
+                  </div>
+                </section>
+
                 {/* Basic Workflow */}
                 <section>
                   <h2 className="text-2xl font-bold text-white mb-3">Basic Workflow</h2>
@@ -1777,6 +1801,20 @@ export default function RadTach() {
                       <div>
                         <h3 className="font-semibold text-white">Take Breaks (Recommended)</h3>
                         <p className="text-sm text-gray-300">Click the Break button to take a break. RadTach will prompt you after 2 hours of continuous work. Break Time is tracked separately and pauses Interstitial Time. Your Break Time and Breaks Taken are displayed in the metrics grid.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="flex-shrink-0 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold mr-3">8</span>
+                      <div>
+                        <h3 className="font-semibold text-white">Track Double Taps (Optional)</h3>
+                        <p className="text-sm text-gray-300">A "Double Tap" is when you reopen a just-completed study to fix something you missed. Click <strong>Double Tap</strong> when this happens, click again when done. This tracks correction time separately from Interstitial Time, helping you identify opportunities to be more thorough on the first read.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="flex-shrink-0 w-8 h-8 bg-gray-500 rounded-full flex items-center justify-center text-white font-bold mr-3">↩</span>
+                      <div>
+                        <h3 className="font-semibold text-white">Undo Mistakes</h3>
+                        <p className="text-sm text-gray-300">Accidentally completed a study or had a worklist collision (someone else claimed the study)? Click the <strong>Undo</strong> button to revert. The elapsed time is added to Interstitial Time so it's not lost.</p>
                       </div>
                     </div>
                   </div>
@@ -1848,6 +1886,14 @@ export default function RadTach() {
                       <span className="font-semibold text-pink-400">Breaks Taken:</span>
                       <span className="text-gray-300"> Number of breaks taken this session. RadTach prompts you to take a break after 2 hours of continuous work</span>
                     </div>
+                    <div>
+                      <span className="font-semibold text-yellow-400">Double Tap Time:</span>
+                      <span className="text-gray-300"> Time spent reopening recently-completed studies for corrections. Yellow border when active. Tracks mistakes to eliminate</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-yellow-400">Double Taps:</span>
+                      <span className="text-gray-300"> Number of times you've reopened a just-completed study. Lower is better - aim to get it right the first time</span>
+                    </div>
                   </div>
                 </section>
 
@@ -1914,6 +1960,14 @@ export default function RadTach() {
                       <span className="text-blue-400 mr-2">💡</span>
                       <span><strong>Customize for your practice:</strong> Adjust par times in Settings to match your specialty and workflow.</span>
                     </p>
+                    <p className="flex items-start">
+                      <span className="text-blue-400 mr-2">💡</span>
+                      <span><strong>Track Double Taps honestly:</strong> The goal is to reduce them over time by being more thorough on the first read.</span>
+                    </p>
+                    <p className="flex items-start">
+                      <span className="text-blue-400 mr-2">💡</span>
+                      <span><strong>Hover for details:</strong> Hover over Admin Time, Comms Time, or RVU/hr to see additional metrics and event counts.</span>
+                    </p>
                   </div>
                 </section>
 
@@ -1924,6 +1978,8 @@ export default function RadTach() {
                   <ul className="list-disc ml-6 space-y-1 mb-3">
                     <li><strong>Par Time Settings:</strong> Adjust target times for each modality and complication</li>
                     <li><strong>RVU Settings:</strong> Customize RVU values for your practice patterns</li>
+                    <li><strong>Stealth Mode:</strong> Hide visual feedback colors for discreet use</li>
+                    <li><strong>H:M:S Display:</strong> Show times as Hours:Minutes:Seconds instead of Minutes:Seconds (useful for long sessions)</li>
                     <li><strong>Quick Start Guide:</strong> Return to this guide anytime</li>
                   </ul>
                   <div className="bg-green-900 bg-opacity-30 border border-green-500 rounded-lg p-3 mt-3">
@@ -1962,7 +2018,7 @@ export default function RadTach() {
                   <div className="bg-yellow-900 bg-opacity-30 border border-yellow-500 rounded-lg p-4 space-y-2">
                     <p className="flex items-start">
                       <span className="text-yellow-400 mr-2">⚠️</span>
-                      <span><strong>Data doesn't persist:</strong> Refreshing the page resets all session data. This is by design for daily use.</span>
+                      <span><strong>Save before refreshing:</strong> Stop your session before refreshing the page to export your data. Refreshing without stopping loses unsaved session data.</span>
                     </p>
                     <p className="flex items-start">
                       <span className="text-yellow-400 mr-2">⚠️</span>
@@ -1981,7 +2037,7 @@ export default function RadTach() {
                     <strong>RadTach</strong> - Your Radiologist Tachometer<br/>
                     Created by Charles Darren Duvall, MD<br/>
                     Coded by Claude (Anthropic)<br/>
-                    Version 1.2
+                    Version 1.3
                   </p>
                   <p className="text-center text-gray-400 text-xs mt-4">
                     Please forward feedback or identified errors to{' '}
