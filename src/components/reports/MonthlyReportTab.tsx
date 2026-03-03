@@ -1,0 +1,445 @@
+// Phase 3: Monthly Report Tab — User (Radiologist) view
+// Introduces weekly sub-aggregation, rotation analysis, day-of-week analysis
+
+import { useState, useMemo } from 'react';
+import { useSessionData } from '../../hooks/useSessionData';
+import { useGroupStats } from '../../hooks/useGroupStats';
+import { aggregateSessions, getMonthRange, computeWeeklyTrend } from '../../utils/periodAggregation';
+import type { DateRange, DistributionStats, EffectiveRole } from '../../types/reports';
+import { addMonths, subMonths, format } from 'date-fns';
+import GARPercentileGauge from './shared/GARPercentileGauge';
+import { estimatePercentile } from '../../utils/percentileEstimation';
+import PresidentMonthlySection from './sections/PresidentMonthlySection';
+import HospitalMonthlySection from './sections/HospitalMonthlySection';
+import ITMonthlySection from './sections/ITMonthlySection';
+
+interface MonthlyReportTabProps {
+  userId: string | null;
+  userSystem: string | null;
+  formatTime: (seconds: number) => string;
+  role?: EffectiveRole;
+}
+
+export default function MonthlyReportTab({ userId, userSystem, formatTime, role = 'radiologist' }: MonthlyReportTabProps) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const monthRange: DateRange = useMemo(() => {
+    return getMonthRange(currentDate.getFullYear(), currentDate.getMonth() + 1);
+  }, [currentDate]);
+  const { sessions, loading, error } = useSessionData(userId, monthRange);
+  const { garDays } = useGroupStats(userSystem, monthRange);
+  const summary = useMemo(
+    () => sessions.length > 0 ? aggregateSessions(sessions, monthRange) : null,
+    [sessions, monthRange]
+  );
+  const weeklyTrend = useMemo(
+    () => sessions.length > 0 ? computeWeeklyTrend(sessions) : [],
+    [sessions]
+  );
+
+  // Average GAR distributions across all days in the period
+  const garAvg = useMemo(() => {
+    if (garDays.length === 0) return null;
+    const avgDist = (accessor: (g: typeof garDays[0]) => DistributionStats): DistributionStats => {
+      const dists = garDays.map(accessor);
+      const n = dists.reduce((s, d) => s + d.n, 0);
+      return {
+        mean: dists.reduce((s, d) => s + d.mean * d.n, 0) / (n || 1),
+        median: dists.reduce((s, d) => s + d.median, 0) / dists.length,
+        p25: dists.reduce((s, d) => s + d.p25, 0) / dists.length,
+        p50: dists.reduce((s, d) => s + d.p50, 0) / dists.length,
+        p75: dists.reduce((s, d) => s + d.p75, 0) / dists.length,
+        stdDev: dists.reduce((s, d) => s + d.stdDev, 0) / dists.length,
+        n,
+      };
+    };
+    return {
+      rvuPerHour: avgDist(g => g.rvuPerHour),
+      productiveRatio: avgDist(g => g.productiveRatio),
+    };
+  }, [garDays]);
+
+  // Weekly percentile trend (monthly tab unique feature)
+  const weeklyPercentileTrend = useMemo(() => {
+    if (!garAvg || weeklyTrend.length === 0) return null;
+    return weeklyTrend.map(w => ({
+      weekLabel: w.weekLabel,
+      rvuPerHourPctile: estimatePercentile(w.avgRVUPerHour, garAvg.rvuPerHour),
+    }));
+  }, [garAvg, weeklyTrend]);
+
+  const navigateMonth = (direction: -1 | 1) => {
+    setCurrentDate(prev => direction === -1 ? subMonths(prev, 1) : addMonths(prev, 1));
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Period navigation */}
+      <div className="flex items-center justify-between bg-gray-800 rounded-lg p-4">
+        <button onClick={() => navigateMonth(-1)} className="text-gray-400 hover:text-white text-xl px-3">&#8592;</button>
+        <div className="text-center">
+          <div className="text-sm text-gray-400">Monthly Report</div>
+          <div className="text-white font-medium">{format(currentDate, 'MMMM yyyy')}</div>
+          {userSystem && <div className="text-xs text-gray-500">{userSystem}</div>}
+        </div>
+        <button onClick={() => navigateMonth(1)} className="text-gray-400 hover:text-white text-xl px-3">&#8594;</button>
+      </div>
+
+      {loading && (
+        <div className="flex items-center justify-center h-48">
+          <div className="text-gray-400">Loading sessions...</div>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-4 text-red-300 text-sm">
+          Error loading data: {error}
+        </div>
+      )}
+
+      {!loading && !error && sessions.length === 0 && (
+        <div className="flex items-center justify-center h-48">
+          <div className="text-center">
+            <p className="text-gray-500 text-lg">No sessions found for this month</p>
+            <p className="text-gray-600 text-sm mt-1">Navigate to a different month or complete some sessions first</p>
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && summary && (
+        <div className="space-y-6">
+          {/* Summary cards */}
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-gray-800 rounded-lg p-4 text-center">
+              <div className="text-gray-400 text-xs mb-1">Sessions</div>
+              <div className="text-2xl font-bold text-white">{summary.totalSessions}</div>
+              <div className="text-xs text-gray-500">{summary.fullDaySessions} full / {summary.halfDaySessions} half</div>
+            </div>
+            <div className="bg-gray-800 rounded-lg p-4 text-center">
+              <div className="text-gray-400 text-xs mb-1">Total Studies</div>
+              <div className="text-2xl font-bold text-white">{summary.totalStudies}</div>
+            </div>
+            <div className="bg-gray-800 rounded-lg p-4 text-center">
+              <div className="text-gray-400 text-xs mb-1">Total RVU</div>
+              <div className="text-2xl font-bold text-white">{summary.totalRVU.toFixed(1)}</div>
+            </div>
+            {summary.sessionsWithVerifiedRVU > 0 && (
+              <div className="bg-gray-800 rounded-lg p-4 text-center">
+                <div className="text-gray-400 text-xs mb-1">Verified RVU</div>
+                <div className="text-2xl font-bold text-green-400">{summary.totalVerifiedRVU.toFixed(1)}</div>
+              </div>
+            )}
+            <div className="bg-gray-800 rounded-lg p-4 text-center">
+              <div className="text-gray-400 text-xs mb-1">Avg RVU/hr</div>
+              <div className="text-2xl font-bold text-white">{summary.avgRVUPerHour.toFixed(1)}</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-gray-800 rounded-lg p-4 text-center">
+              <div className="text-gray-400 text-xs mb-1">Avg Variance</div>
+              <div className={`text-2xl font-bold ${summary.avgVariance <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {summary.avgVariance > 0 ? '+' : ''}{Math.round(summary.avgVariance)}s
+              </div>
+            </div>
+            <div className="bg-gray-800 rounded-lg p-4 text-center">
+              <div className="text-gray-400 text-xs mb-1">Productive Ratio</div>
+              <div className="text-2xl font-bold text-white">{(summary.avgProductiveRatio * 100).toFixed(1)}%</div>
+            </div>
+            <div className="bg-gray-800 rounded-lg p-4 text-center">
+              <div className="text-gray-400 text-xs mb-1">Avg Interstitial/Study</div>
+              <div className="text-2xl font-bold text-white">{Math.round(summary.avgInterstitialPerStudy)}s</div>
+            </div>
+          </div>
+
+          {/* Weekly trend within month */}
+          {weeklyTrend.length > 1 && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Weekly RVU/hr Trend</h3>
+              <div className="flex items-end gap-2 h-32">
+                {weeklyTrend.map((w, i) => {
+                  const maxRVU = Math.max(...weeklyTrend.map(p => p.avgRVUPerHour), 1);
+                  const height = (w.avgRVUPerHour / maxRVU) * 100;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center">
+                      <div className="text-xs text-gray-400 mb-1">{w.avgRVUPerHour.toFixed(1)}</div>
+                      <div
+                        className="w-full rounded-t"
+                        style={{ height: `${height}%`, backgroundColor: '#3b82f6', minHeight: 4 }}
+                      />
+                      <div className="text-xs text-gray-500 mt-1">{w.weekLabel}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Day of week analysis */}
+          {Object.keys(summary.sessionsByDayOfWeek).length > 0 && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Day of Week Analysis</h3>
+              <div className="grid grid-cols-7 gap-2 text-center text-xs">
+                {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => {
+                  const sessions = summary.sessionsByDayOfWeek[day] || 0;
+                  const rvuHr = summary.avgRVUPerHourByDayOfWeek[day] || 0;
+                  return (
+                    <div key={day} className="bg-gray-700 rounded p-2">
+                      <div className="text-gray-400 font-medium">{day.slice(0, 3)}</div>
+                      <div className="text-white font-bold mt-1">{sessions}</div>
+                      <div className="text-gray-500">sessions</div>
+                      {rvuHr > 0 && <div className="text-blue-400 mt-1">{rvuHr.toFixed(1)} RVU/hr</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Rotation comparison */}
+          {Object.keys(summary.sessionsByRotation).length > 1 && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Rotation Comparison</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-gray-400 border-b border-gray-700">
+                    <th className="text-left py-2">Rotation</th>
+                    <th className="text-right py-2">Sessions</th>
+                    <th className="text-right py-2">RVU/hr</th>
+                    <th className="text-right py-2">Avg Variance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(summary.sessionsByRotation)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([rot, count]) => (
+                      <tr key={rot} className="border-b border-gray-800 text-gray-300">
+                        <td className="py-2">{rot}</td>
+                        <td className="py-2 text-right">{count}</td>
+                        <td className="py-2 text-right">{(summary.rvuPerHourByRotation[rot] || 0).toFixed(1)}</td>
+                        <td className={`py-2 text-right ${(summary.avgVarianceByRotation[rot] || 0) <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {Math.round(summary.avgVarianceByRotation[rot] || 0)}s
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Modality efficiency table */}
+          {Object.keys(summary.studiesByModality).length > 0 && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Modality Efficiency</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-gray-400 border-b border-gray-700">
+                    <th className="text-left py-2">Modality</th>
+                    <th className="text-right py-2">Studies</th>
+                    <th className="text-right py-2">RVU/hr</th>
+                    <th className="text-right py-2">Avg Variance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(summary.studiesByModality)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([mod, count]) => (
+                      <tr key={mod} className="border-b border-gray-800 text-gray-300">
+                        <td className="py-2">{mod}</td>
+                        <td className="py-2 text-right">{count}</td>
+                        <td className="py-2 text-right">{(summary.rvuPerHourByModality[mod] || 0).toFixed(1)}</td>
+                        <td className={`py-2 text-right ${(summary.avgVarianceByModality[mod] || 0) <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {Math.round(summary.avgVarianceByModality[mod] || 0)}s
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Complication cost aggregated */}
+          {Object.keys(summary.complicationCostAggregated).length > 0 && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Complication Cost (Aggregated)</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-gray-400 border-b border-gray-700">
+                    <th className="text-left py-2">Complication</th>
+                    <th className="text-right py-2">Avg Added</th>
+                    <th className="text-right py-2">Par Allotment</th>
+                    <th className="text-right py-2">Occurrences</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(summary.complicationCostAggregated).map(([comp, data]) => (
+                    <tr key={comp} className="border-b border-gray-800 text-gray-300">
+                      <td className="py-2">{comp}</td>
+                      <td className="py-2 text-right">{Math.round(data.avgActualTimeAdded)}s</td>
+                      <td className="py-2 text-right">{Math.round(data.parTimeAllotment)}s</td>
+                      <td className="py-2 text-right">{data.totalOccurrences}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Tag frequency + correlated metrics */}
+          {Object.keys(summary.tagFrequency).length > 0 && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Tag Impact Analysis</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-gray-400 border-b border-gray-700">
+                    <th className="text-left py-2">Tag</th>
+                    <th className="text-right py-2">Sessions</th>
+                    <th className="text-right py-2">Avg RVU/hr</th>
+                    <th className="text-right py-2">Avg Variance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(summary.tagCorrelatedMetrics)
+                    .sort(([, a], [, b]) => b.sessionCount - a.sessionCount)
+                    .map(([tag, data]) => (
+                      <tr key={tag} className="border-b border-gray-800 text-gray-300">
+                        <td className="py-2">{tag}</td>
+                        <td className="py-2 text-right">{data.sessionCount}</td>
+                        <td className="py-2 text-right">{data.avgRVUPerHour.toFixed(1)}</td>
+                        <td className={`py-2 text-right ${data.avgVariance <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {Math.round(data.avgVariance)}s
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Time allocation */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Time Allocation</h3>
+            <div className="flex h-6 rounded overflow-hidden">
+              {[
+                { label: 'Study', value: summary.totalStudyTime, color: '#22c55e' },
+                { label: 'Interstitial', value: summary.totalInterstitialTime, color: '#6b7280' },
+                { label: 'Admin', value: summary.totalAdminTime, color: '#f97316' },
+                { label: 'Comms', value: summary.totalCommsTime, color: '#06b6d4' },
+                { label: 'Break', value: summary.totalBreakTime, color: '#ec4899' },
+                { label: 'Double Tap', value: summary.totalDoubleTapTime, color: '#eab308' },
+              ].filter(t => t.value > 0).map(t => {
+                const total = summary.totalStudyTime + summary.totalInterstitialTime + summary.totalAdminTime + summary.totalCommsTime + summary.totalBreakTime + summary.totalDoubleTapTime;
+                const pct = total > 0 ? (t.value / total) * 100 : 0;
+                return (
+                  <div
+                    key={t.label}
+                    style={{ width: `${pct}%`, backgroundColor: t.color }}
+                    title={`${t.label}: ${formatTime(t.value)} (${pct.toFixed(1)}%)`}
+                  />
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-400">
+              {[
+                { label: 'Study', value: summary.totalStudyTime, color: '#22c55e' },
+                { label: 'Interstitial', value: summary.totalInterstitialTime, color: '#6b7280' },
+                { label: 'Admin', value: summary.totalAdminTime, color: '#f97316' },
+                { label: 'Comms', value: summary.totalCommsTime, color: '#06b6d4' },
+                { label: 'Break', value: summary.totalBreakTime, color: '#ec4899' },
+                { label: 'Double Tap', value: summary.totalDoubleTapTime, color: '#eab308' },
+              ].filter(t => t.value > 0).map(t => (
+                <div key={t.label} className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded" style={{ backgroundColor: t.color }} />
+                  <span>{t.label}: {formatTime(t.value)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Best session */}
+          {summary.bestSession && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Best Session</h3>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-gray-400 text-xs">RVU/hr</div>
+                  <div className="text-xl font-bold text-green-400">{summary.bestSession.rvuPerHour.toFixed(1)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs">Studies</div>
+                  <div className="text-xl font-bold text-white">{summary.bestSession.studies}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs">Productive %</div>
+                  <div className="text-xl font-bold text-white">{(summary.bestSession.productiveRatio * 100).toFixed(1)}%</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* GAR Percentile Gauges */}
+          {garAvg ? (
+            <div className="space-y-4">
+              <GARPercentileGauge
+                label="RVU/hr"
+                userValue={summary.avgRVUPerHour}
+                distribution={garAvg.rvuPerHour}
+              />
+              <GARPercentileGauge
+                label="Productive Ratio"
+                userValue={summary.avgProductiveRatio}
+                distribution={garAvg.productiveRatio}
+                formatValue={(v) => `${(v * 100).toFixed(1)}%`}
+              />
+              {/* Weekly percentile trend (unique to monthly) */}
+              {weeklyPercentileTrend && weeklyPercentileTrend.length > 1 && (
+                <div style={{ backgroundColor: '#1f2937', borderRadius: 8, padding: 16 }}>
+                  <div style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+                    Weekly GAR Percentile Trend
+                  </div>
+                  <div className="flex items-end gap-2 h-24">
+                    {weeklyPercentileTrend.map((w, i) => (
+                      <div key={i} className="flex-1 flex flex-col items-center">
+                        <div className="text-xs mb-1" style={{ color: w.rvuPerHourPctile >= 50 ? '#22c55e' : '#f59e0b' }}>
+                          {Math.round(w.rvuPerHourPctile)}%
+                        </div>
+                        <div
+                          className="w-full rounded-t"
+                          style={{
+                            height: `${w.rvuPerHourPctile}%`,
+                            backgroundColor: w.rvuPerHourPctile >= 75 ? '#22c55e' : w.rvuPerHourPctile >= 50 ? '#3b82f6' : w.rvuPerHourPctile >= 25 ? '#f59e0b' : '#ef4444',
+                            minHeight: 4,
+                          }}
+                        />
+                        <div className="text-xs text-gray-500 mt-1">{w.weekLabel}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-gray-800 rounded-lg p-4 opacity-50">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">GAR Percentile Trend</h3>
+              <p className="text-gray-500 text-sm">Minimum 3 daily users required for group comparison</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* President section */}
+      {role === 'president' && (
+        <PresidentMonthlySection system={userSystem} dateRange={monthRange} formatTime={formatTime} />
+      )}
+
+      {/* Hospital Admin section */}
+      {(role === 'hospitalAdmin' || role === 'president') && (
+        <HospitalMonthlySection system={userSystem} dateRange={monthRange} />
+      )}
+
+      {/* IT section */}
+      {(role === 'it' || role === 'president') && (
+        <ITMonthlySection system={userSystem} dateRange={monthRange} />
+      )}
+    </div>
+  );
+}

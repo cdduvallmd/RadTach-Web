@@ -1,0 +1,382 @@
+import { db } from './firebase';
+import {
+  collection,
+  collectionGroup,
+  doc,
+
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  writeBatch,
+  serverTimestamp,
+  query,
+  orderBy,
+  limit,
+  where,
+  Timestamp,
+} from 'firebase/firestore';
+import type { StoredSession, GroupStats, CompositeStats, WorkstationStats } from '../types/reports';
+
+export const firestoreService = {
+  async createUserProfile(userId: string, data: { timezone: string; email: string; firstName: string; lastName: string; credentials?: string }) {
+    const userRef = doc(db, 'users', userId);
+    await setDoc(userRef, {
+      ...data,
+      createdAt: serverTimestamp(),
+    });
+  },
+
+  // Lookup system → returns { key, offices } or null if system not found
+  // Case-insensitive, whitespace-trimmed: handles invisible chars in Firestore field names
+  async getSystemOffices(systemName: string): Promise<{ key: string; offices: string[] } | null> {
+    const docRef = doc(db, 'Config', 'Systems');
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    const data = docSnap.data();
+    const normalizedInput = systemName.trim().toLowerCase();
+    const matchedKey = Object.keys(data).find(k => k.trim().toLowerCase() === normalizedInput);
+    if (!matchedKey) return null;
+    const offices = data[matchedKey];
+    if (!Array.isArray(offices)) return null;
+    return { key: matchedKey.trim(), offices };
+  },
+
+  // Lookup system → returns rotation list or null if system not found
+  // Case-insensitive, whitespace-trimmed: same matching as getSystemOffices
+  async getSystemRotations(systemName: string): Promise<string[] | null> {
+    const docRef = doc(db, 'Config', 'Rotation');
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    const data = docSnap.data();
+    const normalizedInput = systemName.trim().toLowerCase();
+    const matchedKey = Object.keys(data).find(k => k.trim().toLowerCase() === normalizedInput);
+    if (!matchedKey) return null;
+    const rotations = data[matchedKey];
+    return Array.isArray(rotations) ? rotations : null;
+  },
+
+  async createSession(userId: string, sessionKey: string, sessionData: Record<string, any>) {
+    const docRef = doc(db, 'users', userId, 'sessions', sessionKey);
+    // Use client-provided startDateTime for the indexed startTime field.
+    // This ensures offline-buffered sessions land in the correct date range for reports.
+    // Falls back to serverTimestamp() if startDateTime is missing (defensive).
+    const startTime = sessionData.startDateTime
+      ? Timestamp.fromDate(new Date(sessionData.startDateTime))
+      : serverTimestamp();
+    await setDoc(docRef, { ...sessionData, startTime });
+    return sessionKey;
+  },
+
+  async endSession(userId: string, sessionId: string, finalData: Record<string, any>) {
+    const docRef = doc(db, 'users', userId, 'sessions', sessionId);
+    // Use client-provided stopDateTime for the indexed endTime field.
+    // Falls back to serverTimestamp() if stopDateTime is missing (defensive).
+    const endTime = finalData.stopDateTime
+      ? Timestamp.fromDate(new Date(finalData.stopDateTime))
+      : serverTimestamp();
+    await updateDoc(docRef, { ...finalData, endTime });
+  },
+
+  // Batch write: sends multiple events in a single network request (deterministic IDs for idempotency)
+  async flushEvents(userId: string, sessionId: string, events: Record<string, any>[], startIndex: number) {
+    if (events.length === 0) return;
+    const batch = writeBatch(db);
+    const eventsRef = collection(db, 'users', userId, 'sessions', sessionId, 'events');
+    for (let i = 0; i < events.length; i++) {
+      const eventDocRef = doc(eventsRef, `evt-${String(startIndex + i).padStart(4, '0')}`);
+      batch.set(eventDocRef, { ...events[i], recordedAt: serverTimestamp() });
+    }
+    await batch.commit();
+  },
+
+  async getUserSettings(userId: string): Promise<Record<string, any> | null> {
+    const docRef = doc(db, 'users', userId, 'settings', 'current');
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists() ? docSnap.data() : null;
+  },
+
+  async saveUserSettings(userId: string, settings: Record<string, any>) {
+    const docRef = doc(db, 'users', userId, 'settings', 'current');
+    await setDoc(docRef, {
+      ...settings,
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  async updateSession(userId: string, sessionId: string, data: Record<string, any>) {
+    const docRef = doc(db, 'users', userId, 'sessions', sessionId);
+    await updateDoc(docRef, data);
+  },
+
+  // Count sessions whose sessionId field starts with today's date prefix (YYYYMMDD).
+  // Used to generate collision-free session IDs across browser restarts.
+  async countTodaySessions(userId: string, datePrefix: string): Promise<number> {
+    const sessionsRef = collection(db, 'users', userId, 'sessions');
+    // sessionId format is "YYYYMMDD-##-uid7". Query for IDs starting with today's date.
+    // Lexicographic range: "20260227" <= sessionId < "20260228"
+    const endPrefix = datePrefix.slice(0, -1) + String.fromCharCode(datePrefix.charCodeAt(datePrefix.length - 1) + 1);
+    const q = query(
+      sessionsRef,
+      where('sessionId', '>=', datePrefix),
+      where('sessionId', '<', endPrefix),
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.size;
+  },
+
+  async getRecentSessions(userId: string, maxResults = 30): Promise<{ id: string; [key: string]: any }[]> {
+    const sessionsRef = collection(db, 'users', userId, 'sessions');
+    const q = query(sessionsRef, orderBy('startTime', 'desc'), limit(maxResults));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  async checkIsAdmin(userId: string): Promise<boolean> {
+    const docRef = doc(db, 'Config', 'admins');
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return false;
+    const data = docSnap.data();
+    return data[userId] === true;
+  },
+
+  /** @deprecated Use getSystemSettings(system).hospitalAdmins instead */
+  async checkIsHospitalAdmin(userId: string): Promise<boolean> {
+    const docRef = doc(db, 'Config', 'hospitalAdmins');
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return false;
+    const data = docSnap.data();
+    return data[userId] === true;
+  },
+
+  /** @deprecated Use getSystemSettings(system).itAccess instead */
+  async checkIsITAccess(userId: string): Promise<boolean> {
+    const docRef = doc(db, 'Config', 'itAccess');
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return false;
+    const data = docSnap.data();
+    return data[userId] === true;
+  },
+
+  async getSystemSettings(system: string): Promise<{
+    admins: Record<string, boolean>;
+    presidents: Record<string, boolean>;
+    hospitalAdmins: Record<string, boolean>;
+    itAccess: Record<string, boolean>;
+    hospitalAdminIndividualAccess: boolean;
+    adminIndividualAccess: boolean;
+  }> {
+    const docRef = doc(db, 'Config', 'systemSettings', system);
+    const docSnap = await getDoc(docRef);
+    const defaults = {
+      admins: {} as Record<string, boolean>,
+      presidents: {} as Record<string, boolean>,
+      hospitalAdmins: {} as Record<string, boolean>,
+      itAccess: {} as Record<string, boolean>,
+      hospitalAdminIndividualAccess: false,
+      adminIndividualAccess: false,
+    };
+    if (!docSnap.exists()) return defaults;
+    const data = docSnap.data();
+    return {
+      admins: (data.admins && typeof data.admins === 'object') ? data.admins : {},
+      presidents: (data.presidents && typeof data.presidents === 'object') ? data.presidents : {},
+      hospitalAdmins: (data.hospitalAdmins && typeof data.hospitalAdmins === 'object') ? data.hospitalAdmins : {},
+      itAccess: (data.itAccess && typeof data.itAccess === 'object') ? data.itAccess : {},
+      hospitalAdminIndividualAccess: data.hospitalAdminIndividualAccess === true,
+      adminIndividualAccess: data.adminIndividualAccess === true,
+    };
+  },
+
+  async getUserProfile(userId: string): Promise<{ firstName?: string; lastName?: string; credentials?: string; email?: string; timezone?: string } | null> {
+    const docRef = doc(db, 'users', userId);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    const data = docSnap.data();
+    return {
+      firstName: data.firstName || undefined,
+      lastName: data.lastName || undefined,
+      credentials: data.credentials || undefined,
+      email: data.email || undefined,
+      timezone: data.timezone || undefined,
+    };
+  },
+
+  async updateUserProfile(userId: string, data: Record<string, any>) {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, data);
+  },
+
+  // ── Report Query Functions ────────────────────────────────────────────────
+
+  async getSessionsInRange(userId: string, startDate: Date, endDate: Date): Promise<StoredSession[]> {
+    const sessionsRef = collection(db, 'users', userId, 'sessions');
+    const startTs = Timestamp.fromDate(startDate);
+    const endTs = Timestamp.fromDate(endDate);
+    const q = query(
+      sessionsRef,
+      where('startTime', '>=', startTs),
+      where('startTime', '<', endTs),
+      orderBy('startTime', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StoredSession));
+  },
+
+  async getAllSessionsForSystem(system: string, startDate: Date, endDate: Date): Promise<StoredSession[]> {
+    const sessionsGroup = collectionGroup(db, 'sessions');
+    const startTs = Timestamp.fromDate(startDate);
+    const endTs = Timestamp.fromDate(endDate);
+    const q = query(
+      sessionsGroup,
+      where('system', '==', system),
+      where('startTime', '>=', startTs),
+      where('startTime', '<', endTs),
+      orderBy('startTime', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StoredSession));
+  },
+
+  async getGroupStats(system: string, startDate: Date, endDate: Date): Promise<GroupStats[]> {
+    const statsRef = collection(db, 'Config', 'groupStats', system);
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endStr = endDate.toISOString().slice(0, 10);
+    const q = query(
+      statsRef,
+      where('date', '>=', startStr),
+      where('date', '<=', endStr),
+      orderBy('date', 'asc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => d.data() as GroupStats);
+  },
+
+  async getCompositeStats(startDate: Date, endDate: Date): Promise<CompositeStats[]> {
+    const statsRef = collection(db, 'Config', 'compositeStats');
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endStr = endDate.toISOString().slice(0, 10);
+    const q = query(
+      statsRef,
+      where('date', '>=', startStr),
+      where('date', '<=', endStr),
+      orderBy('date', 'asc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => d.data() as CompositeStats);
+  },
+
+  async getWorkstationStats(system: string, startDate: Date, endDate: Date): Promise<WorkstationStats[]> {
+    const statsRef = collection(db, 'Config', 'workstationStats', system);
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endStr = endDate.toISOString().slice(0, 10);
+    const q = query(
+      statsRef,
+      where('date', '>=', startStr),
+      where('date', '<=', endStr),
+      orderBy('date', 'asc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => d.data() as WorkstationStats);
+  },
+
+  async writeGroupStats(system: string, date: string, stats: GroupStats): Promise<void> {
+    const docRef = doc(db, 'Config', 'groupStats', system, date);
+    await setDoc(docRef, stats);
+  },
+
+  async writeCompositeStats(date: string, stats: CompositeStats): Promise<void> {
+    const docRef = doc(db, 'Config', 'compositeStats', date);
+    await setDoc(docRef, stats);
+  },
+
+  async writeWorkstationStats(system: string, date: string, stats: WorkstationStats): Promise<void> {
+    const docRef = doc(db, 'Config', 'workstationStats', system, date);
+    await setDoc(docRef, stats);
+  },
+
+  async getAllGroupStatsForDate(date: string): Promise<GroupStats[]> {
+    // Get all known systems from config/systems, then fetch each system's groupStats for this date
+    const systemsDoc = await getDoc(doc(db, 'Config', 'Systems'));
+    if (!systemsDoc.exists()) return [];
+    const systemNames = Object.keys(systemsDoc.data());
+
+    const results: GroupStats[] = [];
+    for (const system of systemNames) {
+      const statsDoc = await getDoc(doc(db, 'Config', 'groupStats', system, date));
+      if (statsDoc.exists()) {
+        results.push(statsDoc.data() as GroupStats);
+      }
+    }
+    return results;
+  },
+
+  async groupStatsExists(system: string, date: string): Promise<boolean> {
+    const docRef = doc(db, 'Config', 'groupStats', system, date);
+    const docSnap = await getDoc(docRef);
+    return docSnap.exists();
+  },
+
+  // ── Role Request Functions ──────────────────────────────────────────────────
+
+  async createRoleRequest(userId: string, data: { displayName: string; email: string; requestedRole: string }) {
+    const docRef = doc(db, 'roleRequests', userId);
+    await setDoc(docRef, {
+      ...data,
+      requestedAt: serverTimestamp(),
+    });
+  },
+
+  async getRoleRequests(): Promise<Array<{ uid: string; displayName: string; email: string; requestedRole: string; requestedAt: any }>> {
+    const colRef = collection(db, 'roleRequests');
+    const snapshot = await getDocs(colRef);
+    return snapshot.docs.map(d => ({ uid: d.id, ...d.data() } as { uid: string; displayName: string; email: string; requestedRole: string; requestedAt: any }));
+  },
+
+  async dismissRoleRequest(userId: string) {
+    const docRef = doc(db, 'roleRequests', userId);
+    await deleteDoc(docRef);
+  },
+
+  // ── Stale GAR Marker Functions ────────────────────────────────────────────
+
+  // Orphaned session recovery: find sessions missing endTime (crash/power loss)
+  async getOrphanedSessions(userId: string): Promise<{ id: string; [key: string]: any }[]> {
+    // Firestore can't query for missing fields directly, so we fetch recent sessions
+    // and filter client-side for docs where endTime is absent.
+    const sessions = await this.getRecentSessions(userId, 30);
+    return sessions.filter(s => !s.endTime);
+  },
+
+  // Orphaned session recovery: read all events from a session's events subcollection
+  async getSessionEvents(userId: string, sessionId: string): Promise<Record<string, any>[]> {
+    const eventsRef = collection(db, 'users', userId, 'sessions', sessionId, 'events');
+    const q = query(eventsRef, orderBy('__name__'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => d.data());
+  },
+
+  async writeStaleMarker(system: string, date: string, reportedBy: string) {
+    const markerId = `${system}_${date}`;
+    const docRef = doc(db, 'staleGAR', markerId);
+    await setDoc(docRef, {
+      system,
+      date,
+      reportedBy,
+      reportedAt: serverTimestamp(),
+    });
+  },
+
+  async getStaleMarkers(system: string): Promise<Array<{ id: string; system: string; date: string }>> {
+    const colRef = collection(db, 'staleGAR');
+    const q = query(colRef, where('system', '==', system));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; system: string; date: string }));
+  },
+
+  async deleteStaleMarker(markerId: string) {
+    const docRef = doc(db, 'staleGAR', markerId);
+    await deleteDoc(docRef);
+  },
+};

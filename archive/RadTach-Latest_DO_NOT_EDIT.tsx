@@ -41,6 +41,7 @@ interface StudyEvent {
   rvu: number;
   pauseTime: number;
   pauseUsed: boolean;
+  swapped?: boolean;
 }
 
 interface InterstitialEvent {
@@ -83,6 +84,7 @@ interface SessionData {
   breakEvents: number;
   doubleTapTime: number;
   doubleTapEvents: number;
+  swapEvents: number;
   totalRVU: number;
 }
 
@@ -705,6 +707,7 @@ export default function RadTach() {
       breakEvents: breaksTaken,
       doubleTapTime: doubleTapTime,
       doubleTapEvents: doubleTapEvents,
+      swapEvents: sessionEvents.filter(e => e.type === 'STUDY' && (e as StudyEvent).swapped).length,
       totalRVU: totalRVU,
     };
     return { session: sessionData, events: sessionEvents };
@@ -729,6 +732,96 @@ export default function RadTach() {
   const handleCloseWithoutCopy = () => {
     resetSession();
     setShowStopSessionDialog(false);
+  };
+
+  // Text session report for post-session screen
+  const renderSessionReport = () => {
+    const studies = sessionEvents.filter(e => e.type === 'STUDY') as StudyEvent[];
+    const interstitials = sessionEvents.filter(e => e.type === 'INTERSTITIAL') as InterstitialEvent[];
+    const admins = sessionEvents.filter(e => e.type === 'ADMIN') as TimerEvent[];
+    const commsEvts = sessionEvents.filter(e => e.type === 'COMMS') as TimerEvent[];
+    const breaks = sessionEvents.filter(e => e.type === 'BREAK') as TimerEvent[];
+    const doubleTaps = sessionEvents.filter(e => e.type === 'DOUBLE_TAP') as TimerEvent[];
+    const swapCount = studies.filter(s => s.swapped).length;
+
+    const totalStudyTime = studies.reduce((sum, s) => sum + s.elapsedTime, 0);
+    const totalInterstitialTime = interstitials.reduce((sum, e) => sum + e.duration, 0);
+    const totalAdminTimeSec = admins.reduce((sum, e) => sum + e.duration, 0);
+    const totalCommsTimeSec = commsEvts.reduce((sum, e) => sum + e.duration, 0);
+    const totalBreakTimeSec = breaks.reduce((sum, e) => sum + e.duration, 0);
+    const totalPauseTimeSec = studies.reduce((sum, s) => sum + s.pauseTime, 0);
+    const totalDoubleTapTimeSec = doubleTaps.reduce((sum, e) => sum + e.duration, 0);
+    const sessionRVU = studies.reduce((sum, s) => sum + s.rvu, 0);
+    const sessionHours = sessionTime / 3600;
+    const rvuHr = sessionHours > 0 ? sessionRVU / sessionHours : 0;
+
+    // RVU/hr by modality
+    const modalityMap: Record<string, { count: number; rvu: number; time: number }> = {};
+    studies.forEach(s => {
+      if (!modalityMap[s.modality]) modalityMap[s.modality] = { count: 0, rvu: 0, time: 0 };
+      modalityMap[s.modality].count++;
+      modalityMap[s.modality].rvu += s.rvu;
+      modalityMap[s.modality].time += s.elapsedTime;
+    });
+
+    // Streak calculation: longest streak from events
+    let longestStreak = 0;
+    let tempStreak = 0;
+    studies.forEach(s => {
+      if (s.variance <= 0) {
+        tempStreak++;
+        if (tempStreak > longestStreak) longestStreak = tempStreak;
+      } else {
+        tempStreak = 0;
+      }
+    });
+
+    const fmtShort = (secs: number) => {
+      const m = Math.floor(Math.abs(secs) / 60);
+      const s = Math.abs(secs) % 60;
+      const sign = secs < 0 ? '-' : '';
+      return `${sign}${m}:${s.toString().padStart(2, '0')}`;
+    };
+
+    return (
+      <div className="text-left text-sm font-mono bg-gray-900 rounded p-3 mb-4 max-h-64 overflow-y-auto">
+        <div className="text-gray-400 mb-2">
+          {sessionStartDateTime?.split('T')[0]} | Duration: {fmtShort(sessionTime)} | {generateSessionId()}
+        </div>
+        <div className="text-white mb-2">
+          Studies: {studies.length} | RVU: {sessionRVU.toFixed(1)} | RVU/hr: {rvuHr.toFixed(1)}{swapCount > 0 ? ` | Swaps: ${swapCount}` : ''}
+        </div>
+        <div className="text-gray-300 mb-2 border-t border-gray-700 pt-2">
+          <div>Study time{' '.padEnd(6)}{fmtShort(totalStudyTime)}</div>
+          <div>Interstitial{' '.padEnd(3)}{fmtShort(totalInterstitialTime)}</div>
+          {totalAdminTimeSec > 0 && <div>Admin{' '.padEnd(10)}{fmtShort(totalAdminTimeSec)} ({admins.length})</div>}
+          {totalCommsTimeSec > 0 && <div>Comms{' '.padEnd(10)}{fmtShort(totalCommsTimeSec)} ({commsEvts.length})</div>}
+          {totalBreakTimeSec > 0 && <div>Break{' '.padEnd(10)}{fmtShort(totalBreakTimeSec)} ({breaks.length})</div>}
+          {totalPauseTimeSec > 0 && <div>Pause{' '.padEnd(10)}{fmtShort(totalPauseTimeSec)}</div>}
+          {totalDoubleTapTimeSec > 0 && <div>Double Tap{' '.padEnd(5)}{fmtShort(totalDoubleTapTimeSec)} ({doubleTaps.length})</div>}
+        </div>
+        <div className="text-gray-300 mb-2 border-t border-gray-700 pt-2">
+          Cumulative variance: <span className={cumulativeVariance <= 0 ? 'text-green-400' : 'text-red-400'}>{cumulativeVariance <= 0 ? '' : '+'}{fmtShort(cumulativeVariance)}</span>
+        </div>
+        {Object.keys(modalityMap).length > 0 && (
+          <div className="border-t border-gray-700 pt-2">
+            <div className="text-gray-400 mb-1">Modality breakdown:</div>
+            {Object.entries(modalityMap).sort((a, b) => b[1].count - a[1].count).map(([mod, data]) => {
+              const modHrs = data.time / 3600;
+              const modRvuHr = modHrs > 0 ? data.rvu / modHrs : 0;
+              return (
+                <div key={mod} className="text-gray-300">
+                  {mod.padEnd(8)} {String(data.count).padStart(2)}× | {data.rvu.toFixed(1)} RVU | {fmtShort(data.time)} | {modRvuHr.toFixed(1)}/hr
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="border-t border-gray-700 pt-2 text-gray-300">
+          Streak: {currentStreak} (best: {longestStreak})
+        </div>
+      </div>
+    );
   };
 
   // Reset session state (Issue #1)
@@ -847,8 +940,34 @@ export default function RadTach() {
     }
     
     setIsRunning(false);
-    const variance = currentTime - currentParTime;
-    
+
+    // ── Auto-swap: forgotten timer start recovery ────────────────────
+    let effectiveTime = currentTime;
+    let wasSwapped = false;
+    if (currentTime > 0 && currentTime < 5) {
+      const events = [...sessionEvents];
+      let lastInterIdx = -1;
+      for (let i = events.length - 1; i >= 0; i--) {
+        if (events[i].type === 'INTERSTITIAL') { lastInterIdx = i; break; }
+      }
+      if (lastInterIdx >= 0) {
+        const inter = events[lastInterIdx] as InterstitialEvent;
+        effectiveTime = inter.duration;
+        wasSwapped = true;
+        // Replace interstitial duration with 10s default gap
+        events[lastInterIdx] = {
+          ...inter,
+          duration: 10,
+          endTimeSession: inter.startTimeSession + 10,
+        };
+        setSessionEvents(events);
+        // Adjust cumulative interstitial counter
+        setInterstitialTime(prev => prev - (inter.duration - 10));
+      }
+    }
+
+    const variance = effectiveTime - currentParTime;
+
     // Update streak counter
     if (variance <= 0) {
       // Study completed at or below par time - increase streak
@@ -857,13 +976,13 @@ export default function RadTach() {
       // Study completed over par time - reset streak
       setCurrentStreak(0);
     }
-    
+
     // Save study info for undo (Issue #21: include elapsedTime for interstitial recovery)
     setLastStudy({
       variance: variance,
       rvu: currentStudyRVU,
       streakBefore: currentStreak,
-      elapsedTime: currentTime
+      elapsedTime: effectiveTime,
     });
     
     setCumulativeVariance(prev => prev + variance);
@@ -901,11 +1020,12 @@ export default function RadTach() {
         modality: selectedModality,
         complications: [...selectedComplications],
         parTime: currentParTime,
-        elapsedTime: currentTime,
+        elapsedTime: effectiveTime,
         variance: variance,
         rvu: currentStudyRVU,
         pauseTime: studyPauseTime,
         pauseUsed: studyPauseTime > 0,
+        swapped: wasSwapped,
       };
       setSessionEvents(prev => [...prev, studyEvent]);
     }
@@ -2118,14 +2238,11 @@ export default function RadTach() {
       {/* Stop Session Dialog (Issue #1) */}
       {showStopSessionDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-lg">
             <h2 className="text-2xl font-bold text-white mb-4">Session Complete</h2>
-            <p className="text-gray-200 mb-2">
+            {renderSessionReport()}
+            <p className="text-gray-200 mb-4">
               Copy session data to clipboard?
-            </p>
-            <p className="text-gray-400 text-sm mb-6">
-              Session: {generateSessionId()}<br />
-              Studies: {studiesCompleted} | RVU: {totalRVU.toFixed(1)} | Time: {formatTime(sessionTime)}
             </p>
             <div className="flex gap-4">
               <button
