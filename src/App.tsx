@@ -1316,7 +1316,11 @@ function RadTachInner() {
     const checkOrphans = async () => {
       try {
         // Flush IDB first — pending endSession writes may close orphans
-        await flushBuffer(currentUser.uid);
+        try {
+          await flushBuffer(currentUser.uid);
+        } catch {
+          // IDB flush failed — continue with orphan check anyway
+        }
 
         const orphans = await firestoreService.getOrphanedSessions(currentUser.uid);
         if (orphans.length === 0) {
