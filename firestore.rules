@@ -20,17 +20,23 @@ service cloud.firestore {
       allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
       allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
 
-      // Sessions: any authenticated user can create/update (offline buffer cross-user flush)
-      // Read and delete remain restricted to owner + admin
+      // Sessions: owner writes freely; cross-user flush (offline buffer replay) requires
+      // _flushedBy == caller's UID so the audit trail is enforced server-side.
       match /sessions/{sessionId} {
         allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-        allow create, update: if request.auth != null;
+        allow create, update: if request.auth != null && (
+          request.auth.uid == userId ||
+          request.resource.data._flushedBy == request.auth.uid
+        );
         allow delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
 
-        // Events within sessions: same rules as sessions
+        // Events within sessions: same cross-user flush rule
         match /events/{eventId} {
           allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-          allow create, update: if request.auth != null;
+          allow create, update: if request.auth != null && (
+            request.auth.uid == userId ||
+            request.resource.data._flushedBy == request.auth.uid
+          );
           allow delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
         }
       }
@@ -55,11 +61,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Stale GAR markers: any authenticated user can create (offline buffer replay),
+    // Stale GAR markers: write-once (create only, no update — prevents system field mutation),
     // any authenticated user can read, global admins + per-system admins + per-system presidents can delete (after GAR recomputation)
     match /staleGAR/{markerId} {
       allow read: if request.auth != null;
-      allow create, update: if request.auth != null;
+      allow create: if request.auth != null;
       allow delete: if request.auth != null && (
         isAdmin() ||
         get(/databases/$(database)/documents/systems/$(resource.data.system)).data.admins[request.auth.uid] == true ||

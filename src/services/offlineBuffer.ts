@@ -395,8 +395,16 @@ async function doFlush(currentAuthUid?: string): Promise<FlushResult> {
       try {
         // Audit trail: stamp cross-user flushes so they're attributable
         if (currentAuthUid && w.userId !== currentAuthUid) {
+          const flushedAt = new Date().toISOString();
           w.payload._flushedBy = currentAuthUid;
-          w.payload._flushedAt = new Date().toISOString();
+          w.payload._flushedAt = flushedAt;
+          // flushEvents writes each event as a separate doc — stamp each one
+          if (w.operation === 'flushEvents' && Array.isArray(w.payload.events)) {
+            for (const evt of w.payload.events) {
+              evt._flushedBy = currentAuthUid;
+              evt._flushedAt = flushedAt;
+            }
+          }
         }
         await executeWrite(w);
         // For late createSession/endSession writes, create a stale GAR marker
