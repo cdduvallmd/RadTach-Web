@@ -1,6 +1,6 @@
 // Hook: Resolve user role from Firestore config documents
 // Priority: globalAdmin > admin > president > hospitalAdmin > it > radiologist
-// Now reads only 2 documents: config/admins (global) + config/systemSettings/{system} (per-system roles + toggles)
+// Now reads only 2 documents: Config/admins (global) + systems/{system} (per-system roles + toggles)
 
 import { useState, useEffect } from 'react';
 import { firestoreService } from '../services/firestore';

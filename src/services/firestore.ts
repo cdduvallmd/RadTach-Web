@@ -29,31 +29,51 @@ export const firestoreService = {
   },
 
   // Lookup system → returns { key, offices } or null if system not found
-  // Case-insensitive, whitespace-trimmed: handles invisible chars in Firestore field names
+  // Reads from systems/{system}.offices first, falls back to legacy Config/Systems path
   async getSystemOffices(systemName: string): Promise<{ key: string; offices: string[] } | null> {
-    const docRef = doc(db, 'Config', 'Systems');
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return null;
-    const data = docSnap.data();
+    // New path: systems/{system}
+    const systemDocRef = doc(db, 'systems', systemName);
+    const systemSnap = await getDoc(systemDocRef);
+    if (systemSnap.exists()) {
+      const data = systemSnap.data();
+      if (Array.isArray(data.offices)) {
+        return { key: systemName, offices: data.offices };
+      }
+    }
+    // Legacy fallback: Config/Systems (case-insensitive key match)
+    const legacyRef = doc(db, 'Config', 'Systems');
+    const legacySnap = await getDoc(legacyRef);
+    if (!legacySnap.exists()) return null;
+    const legacyData = legacySnap.data();
     const normalizedInput = systemName.trim().toLowerCase();
-    const matchedKey = Object.keys(data).find(k => k.trim().toLowerCase() === normalizedInput);
+    const matchedKey = Object.keys(legacyData).find(k => k.trim().toLowerCase() === normalizedInput);
     if (!matchedKey) return null;
-    const offices = data[matchedKey];
+    const offices = legacyData[matchedKey];
     if (!Array.isArray(offices)) return null;
     return { key: matchedKey.trim(), offices };
   },
 
   // Lookup system → returns rotation list or null if system not found
-  // Case-insensitive, whitespace-trimmed: same matching as getSystemOffices
+  // Reads from systems/{system}.rotations first, falls back to legacy Config/Rotation path
   async getSystemRotations(systemName: string): Promise<string[] | null> {
-    const docRef = doc(db, 'Config', 'Rotation');
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return null;
-    const data = docSnap.data();
+    // New path: systems/{system}
+    const systemDocRef = doc(db, 'systems', systemName);
+    const systemSnap = await getDoc(systemDocRef);
+    if (systemSnap.exists()) {
+      const data = systemSnap.data();
+      if (Array.isArray(data.rotations)) {
+        return data.rotations;
+      }
+    }
+    // Legacy fallback: Config/Rotation (case-insensitive key match)
+    const legacyRef = doc(db, 'Config', 'Rotation');
+    const legacySnap = await getDoc(legacyRef);
+    if (!legacySnap.exists()) return null;
+    const legacyData = legacySnap.data();
     const normalizedInput = systemName.trim().toLowerCase();
-    const matchedKey = Object.keys(data).find(k => k.trim().toLowerCase() === normalizedInput);
+    const matchedKey = Object.keys(legacyData).find(k => k.trim().toLowerCase() === normalizedInput);
     if (!matchedKey) return null;
-    const rotations = data[matchedKey];
+    const rotations = legacyData[matchedKey];
     return Array.isArray(rotations) ? rotations : null;
   },
 
@@ -141,24 +161,6 @@ export const firestoreService = {
     return data[userId] === true;
   },
 
-  /** @deprecated Use getSystemSettings(system).hospitalAdmins instead */
-  async checkIsHospitalAdmin(userId: string): Promise<boolean> {
-    const docRef = doc(db, 'Config', 'hospitalAdmins');
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return false;
-    const data = docSnap.data();
-    return data[userId] === true;
-  },
-
-  /** @deprecated Use getSystemSettings(system).itAccess instead */
-  async checkIsITAccess(userId: string): Promise<boolean> {
-    const docRef = doc(db, 'Config', 'itAccess');
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return false;
-    const data = docSnap.data();
-    return data[userId] === true;
-  },
-
   async getSystemSettings(system: string): Promise<{
     admins: Record<string, boolean>;
     presidents: Record<string, boolean>;
@@ -167,7 +169,7 @@ export const firestoreService = {
     hospitalAdminIndividualAccess: boolean;
     adminIndividualAccess: boolean;
   }> {
-    const docRef = doc(db, 'Config', 'systemSettings', system);
+    const docRef = doc(db, 'systems', system);
     const docSnap = await getDoc(docRef);
     const defaults = {
       admins: {} as Record<string, boolean>,

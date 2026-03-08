@@ -7,7 +7,7 @@ import { computeSessionSummary } from './utils/sessionSummary';
 import type { SessionSummary } from './utils/sessionSummary';
 import Reports from './components/Reports';
 import { triggerGARAggregation } from './utils/garTrigger';
-import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, bufferedSaveUserSettings, flushBuffer, hasPendingEndSession } from './services/offlineBuffer';
+import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, bufferedSaveUserSettings, flushBuffer, hasPendingEndSession, addLocalEvent, getLocalEvents, clearLocalEvents } from './services/offlineBuffer';
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
 
@@ -1142,7 +1142,7 @@ function RadTachInner() {
   }, [currentUser]);
 
   // Phase 8: Check admin status when user authenticates
-  // Checks both global admin (config/admins) and per-system admin (config/systemSettings/{system})
+  // Checks both global admin (Config/admins) and per-system admin (systems/{system})
   useEffect(() => {
     if (!FIREBASE_ENABLED || !currentUser) {
       setIsAdmin(false);
@@ -1279,6 +1279,12 @@ function RadTachInner() {
       });
   };
 
+  // IDB: write every event locally for crash-proof recovery
+  const recordEventLocally = (event: SessionEvent) => {
+    if (!FIREBASE_ENABLED || !localSessionKeyRef.current) return;
+    addLocalEvent(localSessionKeyRef.current, event as Record<string, any>).catch(() => {});
+  };
+
   // Firebase: flush events every 5 completed studies (human-cadence, no fixed interval)
   useEffect(() => {
     if (!FIREBASE_ENABLED || !firestoreSessionId || studiesCompleted === 0) return;
@@ -1347,7 +1353,9 @@ function RadTachInner() {
         // Load first orphan's events and build preview
         const first = realOrphans[0];
         try {
-          const events = await firestoreService.getSessionEvents(currentUser.uid, first.id);
+          const firestoreEvents = await firestoreService.getSessionEvents(currentUser.uid, first.id);
+          const localEvents = await getLocalEvents(first.id).catch(() => [] as Record<string, any>[]);
+          const events = localEvents.length >= firestoreEvents.length ? localEvents : firestoreEvents;
           const reconstructed = reconstructSessionData(first, events);
           setRecoveryPreview({ events, reconstructed, loading: false, error: null });
         } catch {
@@ -1370,7 +1378,9 @@ function RadTachInner() {
     if (!currentUser) return;
     setRecoveryPreview(prev => prev ? { ...prev, loading: true, error: null } : { events: [], reconstructed: reconstructSessionData(orphan, []), loading: true, error: null });
     try {
-      const events = await firestoreService.getSessionEvents(currentUser.uid, orphan.id);
+      const firestoreEvents = await firestoreService.getSessionEvents(currentUser.uid, orphan.id);
+      const localEvents = await getLocalEvents(orphan.id).catch(() => [] as Record<string, any>[]);
+      const events = localEvents.length >= firestoreEvents.length ? localEvents : firestoreEvents;
       const reconstructed = reconstructSessionData(orphan, events);
       setRecoveryPreview({ events, reconstructed, loading: false, error: null });
     } catch {
@@ -1411,6 +1421,7 @@ function RadTachInner() {
     } catch {
       // If recovery write fails, skip this orphan and move on
     }
+    clearLocalEvents(orphan.id).catch(() => {});
     setRecoveryInProgress(false);
     await advanceRecovery();
   };
@@ -1435,6 +1446,7 @@ function RadTachInner() {
     } catch {
       // If discard write fails, skip and move on
     }
+    clearLocalEvents(orphan.id).catch(() => {});
     setRecoveryInProgress(false);
     await advanceRecovery();
   };
@@ -1733,37 +1745,43 @@ function RadTachInner() {
     const now = getCurrentDateTime();
 
     if (isAdminTimeRunning && adminStartTime !== null) {
-      finalEvents.push({
+      const evt = {
         type: 'ADMIN',
         startTimeSession: adminStartTime.session,
         startTimeSystem: adminStartTime.system,
         endTimeSession: sessionTime,
         endTimeSystem: now,
         duration: sessionTime - adminStartTime.session,
-      } as TimerEvent);
+      } as TimerEvent;
+      finalEvents.push(evt);
+      recordEventLocally(evt);
     }
     if (isCommsTimeRunning && commsStartTime !== null) {
-      finalEvents.push({
+      const evt = {
         type: 'COMMS',
         startTimeSession: commsStartTime.session,
         startTimeSystem: commsStartTime.system,
         endTimeSession: sessionTime,
         endTimeSystem: now,
         duration: sessionTime - commsStartTime.session,
-      } as TimerEvent);
+      } as TimerEvent;
+      finalEvents.push(evt);
+      recordEventLocally(evt);
     }
     if (isBreakTimeRunning && breakStartTime !== null) {
-      finalEvents.push({
+      const evt = {
         type: 'BREAK',
         startTimeSession: breakStartTime.session,
         startTimeSystem: breakStartTime.system,
         endTimeSession: sessionTime,
         endTimeSystem: now,
         duration: sessionTime - breakStartTime.session,
-      } as TimerEvent);
+      } as TimerEvent;
+      finalEvents.push(evt);
+      recordEventLocally(evt);
     }
     if (isDoubleTapRunning && doubleTapStartTime !== null) {
-      finalEvents.push({
+      const evt = {
         type: 'DOUBLE_TAP',
         startTimeSession: doubleTapStartTime.session,
         startTimeSystem: doubleTapStartTime.system,
@@ -1771,17 +1789,21 @@ function RadTachInner() {
         endTimeSystem: now,
         duration: sessionTime - doubleTapStartTime.session,
         associatedModality: lastStudyModality,
-      } as TimerEvent);
+      } as TimerEvent;
+      finalEvents.push(evt);
+      recordEventLocally(evt);
     }
     if (isInterstitialRunning && interstitialStartTime !== null) {
-      finalEvents.push({
+      const evt = {
         type: 'INTERSTITIAL',
         startTimeSession: interstitialStartTime.session,
         startTimeSystem: interstitialStartTime.system,
         endTimeSession: sessionTime,
         endTimeSystem: now,
         duration: sessionTime - interstitialStartTime.session,
-      } as InterstitialEvent);
+      } as InterstitialEvent;
+      finalEvents.push(evt);
+      recordEventLocally(evt);
     }
 
     // Phase 8: Preserve session data for Reports before resetting
@@ -1807,6 +1829,7 @@ function RadTachInner() {
         .then(() => bufferedSaveUserSettings(currentUser!.uid, {
           parTimes, rvuValues, stealthMode, autoStartEnabled, useHMSFormat,
         }))
+        .then(() => clearLocalEvents(key).catch(() => {}))
         .then(() => flushBuffer(currentUser!.uid))
         .then(result => {
           if (result && result.remaining > 0) {
@@ -1911,6 +1934,7 @@ function RadTachInner() {
           duration: sessionTime - interstitialStartTime.session,
         };
         setSessionEvents(prev => [...prev, interstitialEvent]);
+        recordEventLocally(interstitialEvent);
 
         setInterstitialStartTime(null);
       }
@@ -2030,6 +2054,7 @@ function RadTachInner() {
         swapped: wasSwapped,
       };
       setSessionEvents(prev => [...prev, studyEvent]);
+      recordEventLocally(studyEvent);
       setWasDrafted(false);
     }
 
@@ -2136,6 +2161,7 @@ function RadTachInner() {
           duration: sessionTime - adminStartTime.session,
         };
         setSessionEvents(prev => [...prev, adminEvent]);
+        recordEventLocally(adminEvent);
 
         setAdminStartTime(null);
       }
@@ -2182,6 +2208,7 @@ function RadTachInner() {
           duration: sessionTime - commsStartTime.session,
         };
         setSessionEvents(prev => [...prev, commsEvent]);
+        recordEventLocally(commsEvent);
 
         setCommsStartTime(null);
       }
@@ -2239,6 +2266,7 @@ function RadTachInner() {
           duration: correctedSessionTime - breakStartTime.session,
         };
         setSessionEvents(prev => [...prev, breakEvent]);
+        recordEventLocally(breakEvent);
 
         setBreakStartTime(null);
       }
@@ -2277,6 +2305,7 @@ function RadTachInner() {
           associatedModality: lastStudyModality,
         };
         setSessionEvents(prev => [...prev, doubleTapEvent]);
+        recordEventLocally(doubleTapEvent);
 
         setDoubleTapStartTime(null);
       }

@@ -18,11 +18,19 @@ export interface FlushResult {
   canRead: boolean;
 }
 
+export interface LocalEvent {
+  id?: number;
+  sessionKey: string;
+  event: Record<string, any>;
+  createdAt: number;
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const DB_NAME = 'radtach-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'pendingWrites';
+const LOCAL_EVENTS_STORE = 'localEvents';
 const TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
 const LOCK_KEY = 'radtach_flush_lock';
 const LOCK_TTL = 10000; // 10 seconds
@@ -46,6 +54,10 @@ export async function openBuffer(): Promise<IDBDatabase> {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      }
+      if (!db.objectStoreNames.contains(LOCAL_EVENTS_STORE)) {
+        const store = db.createObjectStore(LOCAL_EVENTS_STORE, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('sessionKey', 'sessionKey', { unique: false });
       }
     };
     request.onsuccess = () => {
@@ -113,6 +125,48 @@ export async function getPendingCount(): Promise<number> {
 export async function hasPendingEndSession(sessionKey: string): Promise<boolean> {
   const all = await getAllPendingWrites();
   return all.some(w => w.operation === 'endSession' && w.sessionKey === sessionKey);
+}
+
+// ── Local Event Log (crash-proof event storage) ─────────────────────────────
+
+export async function addLocalEvent(sessionKey: string, event: Record<string, any>): Promise<void> {
+  const db = await openBuffer();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_EVENTS_STORE, 'readwrite');
+    tx.objectStore(LOCAL_EVENTS_STORE).add({ sessionKey, event, createdAt: Date.now() });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getLocalEvents(sessionKey: string): Promise<Record<string, any>[]> {
+  const db = await openBuffer();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_EVENTS_STORE, 'readonly');
+    const index = tx.objectStore(LOCAL_EVENTS_STORE).index('sessionKey');
+    const request = index.getAll(sessionKey);
+    request.onsuccess = () => resolve((request.result as LocalEvent[]).map(r => r.event));
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function clearLocalEvents(sessionKey: string): Promise<void> {
+  const db = await openBuffer();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_EVENTS_STORE, 'readwrite');
+    const store = tx.objectStore(LOCAL_EVENTS_STORE);
+    const index = store.index('sessionKey');
+    const request = index.openCursor(sessionKey);
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+      }
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
 // ── Multi-Tab Lock ───────────────────────────────────────────────────────────
