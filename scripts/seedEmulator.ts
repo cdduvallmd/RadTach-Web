@@ -27,7 +27,7 @@ import { fileURLToPath } from 'url';
 const app = initializeApp({
   apiKey: 'fake-api-key',
   authDomain: 'localhost',
-  projectId: 'demo-radtach',
+  projectId: 'radtach',
 });
 
 const auth = getAuth(app);
@@ -487,11 +487,21 @@ async function main() {
   for (const profile of profiles) {
     const email = `${profile.initials.toLowerCase()}@test.radtach.com`;
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email, 'Test123!');
-      userUIDs.push(cred.user.uid);
+      let uid: string;
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, 'Test123!');
+        uid = cred.user.uid;
+        console.log(`Created user: ${profile.name} (${email}) → ${uid}`);
+      } catch (createErr: unknown) {
+        // User already exists in auth emulator — sign in instead
+        const cred = await signInWithEmailAndPassword(auth, email, 'Test123!');
+        uid = cred.user.uid;
+        console.log(`Existing user: ${profile.name} (${email}) → ${uid}`);
+      }
+      userUIDs.push(uid);
 
       // Create user profile
-      await setDoc(doc(db, 'users', cred.user.uid), {
+      await setDoc(doc(db, 'users', uid), {
         email,
         timezone: 'America/Chicago',
         firstName: profile.firstName,
@@ -501,18 +511,16 @@ async function main() {
       });
 
       // Create default settings
-      await setDoc(doc(db, 'users', cred.user.uid, 'settings', 'current'), {
+      await setDoc(doc(db, 'users', uid, 'settings', 'current'), {
         parTimes: DEFAULT_PAR_TIMES,
         rvuValues: DEFAULT_RVU_VALUES,
         stealthMode: false,
         useHMSFormat: false,
         updatedAt: Timestamp.now(),
       });
-
-      console.log(`Created user: ${profile.name} (${email}) → ${cred.user.uid}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`Failed to create user ${profile.name}: ${msg}`);
+      console.error(`Failed to create/login user ${profile.name}: ${msg}`);
       userUIDs.push(`fallback-${profile.initials.toLowerCase()}`);
     }
   }
@@ -538,7 +546,7 @@ async function main() {
   for (const uid of Object.keys(adminMap)) {
     adminFields[uid] = { booleanValue: true };
   }
-  const restUrl = `http://127.0.0.1:8080/v1/projects/demo-radtach/databases/(default)/documents/Config/admins`;
+  const restUrl = `http://127.0.0.1:8080/v1/projects/radtach/databases/(default)/documents/Config/admins`;
   const resp = await fetch(restUrl, {
     method: 'PATCH',
     headers: {
@@ -553,20 +561,29 @@ async function main() {
   }
   console.log('  Config/admins bootstrapped via REST API (admin = Andrew Brown)');
 
+  // Primary: systems/{system} — offices, rotations, role maps
+  await setDoc(doc(db, 'systems', SYSTEM_NAME), {
+    offices: OFFICES,
+    rotations: ROTATIONS,
+    admins: adminMap,
+    presidents: {},
+    hospitalAdmins: {},
+    itAccess: {},
+    hospitalAdminIndividualAccess: false,
+    adminIndividualAccess: false,
+  });
+  console.log('  systems/Test System created');
+
+  // Legacy fallback (kept for migration testing — delete these to verify new path works)
   await setDoc(doc(db, 'Config', 'Systems'), {
     [SYSTEM_NAME]: OFFICES,
   });
-  console.log('  Config/Systems created');
+  console.log('  Config/Systems created (legacy)');
 
   await setDoc(doc(db, 'Config', 'Rotation'), {
     [SYSTEM_NAME]: ROTATIONS,
   });
-  console.log('  Config/Rotation created');
-
-  // NOTE: Per-system role document (systemSettings) is NOT created here.
-  // The systemSettings path is currently broken in production code (3-segment doc ref).
-  // See FUTURE_DIRECTIONS.md "Fix Per-System Role Infrastructure" for the planned fix.
-  // For now, Andrew Brown gets full access via Config/admins (global admin).
+  console.log('  Config/Rotation created (legacy)');
 
   console.log('Config documents created.');
 
@@ -580,6 +597,10 @@ async function main() {
     const profile = profiles[docIdx];
     const uid = userUIDs[docIdx];
     let sessionCount = 0;
+
+    // Sign in as this user so writes pass the _flushedBy rule (request.auth.uid == userId)
+    const email = `${profile.initials.toLowerCase()}@test.radtach.com`;
+    await signInWithEmailAndPassword(auth, email, 'Test123!');
 
     for (let dayIdx = 0; dayIdx < 30; dayIdx++) {
       const date = getWorkday(dayIdx);
