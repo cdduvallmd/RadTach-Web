@@ -29,52 +29,22 @@ export const firestoreService = {
   },
 
   // Lookup system → returns { key, offices } or null if system not found
-  // Reads from systems/{system}.offices first, falls back to legacy Config/Systems path
   async getSystemOffices(systemName: string): Promise<{ key: string; offices: string[] } | null> {
-    // New path: systems/{system}
-    const systemDocRef = doc(db, 'systems', systemName);
-    const systemSnap = await getDoc(systemDocRef);
-    if (systemSnap.exists()) {
-      const data = systemSnap.data();
-      if (Array.isArray(data.offices)) {
-        return { key: systemName, offices: data.offices };
-      }
-    }
-    // Legacy fallback: Config/Systems (case-insensitive key match)
-    const legacyRef = doc(db, 'Config', 'Systems');
-    const legacySnap = await getDoc(legacyRef);
-    if (!legacySnap.exists()) return null;
-    const legacyData = legacySnap.data();
-    const normalizedInput = systemName.trim().toLowerCase();
-    const matchedKey = Object.keys(legacyData).find(k => k.trim().toLowerCase() === normalizedInput);
-    if (!matchedKey) return null;
-    const offices = legacyData[matchedKey];
-    if (!Array.isArray(offices)) return null;
-    return { key: matchedKey.trim(), offices };
+    const docRef = doc(db, 'systems', systemName);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    const data = docSnap.data();
+    if (!Array.isArray(data.offices)) return null;
+    return { key: systemName, offices: data.offices };
   },
 
   // Lookup system → returns rotation list or null if system not found
-  // Reads from systems/{system}.rotations first, falls back to legacy Config/Rotation path
   async getSystemRotations(systemName: string): Promise<string[] | null> {
-    // New path: systems/{system}
-    const systemDocRef = doc(db, 'systems', systemName);
-    const systemSnap = await getDoc(systemDocRef);
-    if (systemSnap.exists()) {
-      const data = systemSnap.data();
-      if (Array.isArray(data.rotations)) {
-        return data.rotations;
-      }
-    }
-    // Legacy fallback: Config/Rotation (case-insensitive key match)
-    const legacyRef = doc(db, 'Config', 'Rotation');
-    const legacySnap = await getDoc(legacyRef);
-    if (!legacySnap.exists()) return null;
-    const legacyData = legacySnap.data();
-    const normalizedInput = systemName.trim().toLowerCase();
-    const matchedKey = Object.keys(legacyData).find(k => k.trim().toLowerCase() === normalizedInput);
-    if (!matchedKey) return null;
-    const rotations = legacyData[matchedKey];
-    return Array.isArray(rotations) ? rotations : null;
+    const docRef = doc(db, 'systems', systemName);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    const data = docSnap.data();
+    return Array.isArray(data.rotations) ? data.rotations : null;
   },
 
   async createSession(userId: string, sessionKey: string, sessionData: Record<string, any>) {
