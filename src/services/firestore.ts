@@ -226,7 +226,7 @@ export const firestoreService = {
   },
 
   async getCompositeStats(startDate: Date, endDate: Date): Promise<CompositeStats[]> {
-    const statsRef = collection(db, 'Config', 'compositeStats');
+    const statsRef = collection(db, 'Config', 'compositeStats', 'daily');
     const startStr = startDate.toISOString().slice(0, 10);
     const endStr = endDate.toISOString().slice(0, 10);
     const q = query(
@@ -259,7 +259,7 @@ export const firestoreService = {
   },
 
   async writeCompositeStats(date: string, stats: CompositeStats): Promise<void> {
-    const docRef = doc(db, 'Config', 'compositeStats', date);
+    const docRef = doc(db, 'Config', 'compositeStats', 'daily', date);
     await setDoc(docRef, stats);
   },
 
@@ -269,14 +269,13 @@ export const firestoreService = {
   },
 
   async getAllGroupStatsForDate(date: string): Promise<GroupStats[]> {
-    // Get all known systems from config/systems, then fetch each system's groupStats for this date
-    const systemsDoc = await getDoc(doc(db, 'Config', 'Systems'));
-    if (!systemsDoc.exists()) return [];
-    const systemNames = Object.keys(systemsDoc.data());
+    // Get all known systems from systems collection, then fetch each system's groupStats for this date
+    const systemsSnap = await getDocs(collection(db, 'systems'));
+    if (systemsSnap.empty) return [];
 
     const results: GroupStats[] = [];
-    for (const system of systemNames) {
-      const statsDoc = await getDoc(doc(db, 'Config', 'groupStats', system, date));
+    for (const systemDoc of systemsSnap.docs) {
+      const statsDoc = await getDoc(doc(db, 'Config', 'groupStats', systemDoc.id, date));
       if (statsDoc.exists()) {
         results.push(statsDoc.data() as GroupStats);
       }
