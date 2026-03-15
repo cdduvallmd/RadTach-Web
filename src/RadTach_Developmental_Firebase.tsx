@@ -7,6 +7,9 @@ import { computeSessionSummary } from './utils/sessionSummary';
 import type { SessionSummary } from './utils/sessionSummary';
 import Reports from './components/Reports';
 import { triggerGARAggregation } from './utils/garTrigger';
+import { calculateComboRvu, getBilateralRvu } from './utils/cptLookup';
+import type { SidecarCommand, RvuSource } from './types/sidecar';
+import type { CptDatabase } from './types/cpt';
 import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, bufferedSaveUserSettings, flushBuffer, hasPendingEndSession, addLocalEvent, getLocalEvents, clearLocalEvents } from './services/offlineBuffer';
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
@@ -445,6 +448,8 @@ interface StudyEvent {
   pauseUsed: boolean;
   drafted: boolean;
   swapped?: boolean;
+  rvuSource?: RvuSource;
+  cpts?: string[];
 }
 
 interface InterstitialEvent {
@@ -624,6 +629,22 @@ function RadTachInner() {
   // Auto-start tracking
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
 
+  // CPT database (loaded once at init)
+  const [cptDatabase, setCptDatabase] = useState<CptDatabase | null>(null);
+
+  // Sidecar/HL7 override state — when non-null, accurate per-exam RVU replaces modality defaults
+  const [cptOverride, setCptOverride] = useState<{
+    cpts: string[];
+    rvu: number;
+    breakdown: Array<{ cpt: string; description: string; raw: number; adjusted: number }>;
+    bilateral: boolean;
+    source: RvuSource;
+    examDesc: string;
+  } | null>(null);
+
+  // RVU-modifying complications — locked when cptOverride is active
+  const RVU_MODIFYING_COMPLICATIONS: Complication[] = ['CTA', 'Bilateral', 'Vascular', '+1 Section', '+2 Section'];
+
   // Session management (Issue #1)
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [sessionStartDateTime, setSessionStartDateTime] = useState<string | null>(null);
@@ -755,6 +776,9 @@ function RadTachInner() {
   };
   
   const calculateRVU = () => {
+    // CPT override takes precedence (Sidecar/HL7)
+    if (cptOverride) return cptOverride.rvu;
+
     if (!selectedModality) return 0;
 
     const modalityRVU = rvuValues[selectedModality];
@@ -1141,6 +1165,12 @@ function RadTachInner() {
     return () => { cancelled = true; };
   }, [currentUser]);
 
+  // Load CPT database (one-time, for Sidecar/HL7 RVU lookups)
+  useEffect(() => {
+    if (!FIREBASE_ENABLED || !currentUser) return;
+    firestoreService.getCptDatabase().then(setCptDatabase).catch(console.error);
+  }, [currentUser]);
+
   // Phase 8: Check admin status when user authenticates
   // Checks both global admin (Config/admins) and per-system admin (systems/{system})
   useEffect(() => {
@@ -1189,6 +1219,26 @@ function RadTachInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedModality, autoStartEnabled]);
+
+  // ── Sidecar / HL7 command doc listener ──────────────────────────────────
+  useEffect(() => {
+    if (!FIREBASE_ENABLED || !currentUser || !isSessionActive) return;
+    const unsub = firestoreService.listenToCommandDoc(currentUser.uid, (cmd: SidecarCommand | null) => {
+      if (!cmd || cmd.ack) return;          // already processed
+      if (cmd.source === 'radtach') return; // ignore our own writes
+
+      if (cmd.action === 'start') {
+        processSidecarStart(cmd);
+      } else if (cmd.action === 'stop') {
+        processSidecarStop();
+      }
+
+      // Ack the command
+      firestoreService.ackCommandDoc(currentUser.uid).catch(console.error);
+    });
+    return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, isSessionActive, cptDatabase]);
 
   // Format time as MM:SS
   const formatTime = (seconds: number, forceShort: boolean = false): string => {
@@ -1951,6 +2001,81 @@ function RadTachInner() {
     }
   };
   
+  // ── Sidecar / HL7 command processing ──────────────────────────────────────
+
+  const processSidecarStart = (cmd: SidecarCommand) => {
+    // If a study is already running, complete it first (same as clicking a new modality)
+    if (selectedModality && (isRunning || currentTime > 0)) {
+      completeStudy();
+    }
+
+    // Map modality string to Modality type
+    const validModalities: Modality[] = ['XR', 'FL', 'CT', 'US', 'MR', 'NM', 'MA', 'PET-CT'];
+    const mappedModality = cmd.modality
+      ? validModalities.find(m => m === cmd.modality?.toUpperCase()) || null
+      : null;
+
+    // Look up CPT(s) from database
+    if (cmd.cpts && cmd.cpts.length > 0 && cptDatabase?.entries) {
+      let rvu: number;
+      let breakdown: Array<{ cpt: string; description: string; raw: number; adjusted: number }>;
+      let cpts = [...cmd.cpts];
+
+      if (cmd.bilateral) {
+        // Apply bilateral logic to each CPT
+        const bilateralResults = cpts.map(cpt => getBilateralRvu(cptDatabase.entries, cpt));
+        cpts = bilateralResults.map(r => r.cpt);
+        rvu = +bilateralResults.reduce((sum, r) => sum + r.rvu, 0).toFixed(2);
+        breakdown = bilateralResults.map(r => {
+          const entry = cptDatabase.entries[r.cpt];
+          return {
+            cpt: r.cpt,
+            description: entry?.description || `CPT ${r.cpt}`,
+            raw: r.rvu,
+            adjusted: r.rvu,
+          };
+        });
+      } else {
+        const combo = calculateComboRvu(cptDatabase.entries, cpts);
+        rvu = combo.total;
+        breakdown = combo.breakdown;
+      }
+
+      setCptOverride({
+        cpts,
+        rvu,
+        breakdown,
+        bilateral: cmd.bilateral || false,
+        source: cmd.source === 'hl7' ? 'hl7' : 'sidecar',
+        examDesc: cmd.examDesc || breakdown.map(b => b.description).join(' + '),
+      });
+
+      // Auto-light complications
+      const autoComplications: Complication[] = [];
+      if (cmd.bilateral) autoComplications.push('Bilateral');
+      // Check if any CPT implies CTA
+      const hasCta = cpts.some(cpt => {
+        const entry = cptDatabase.entries[cpt];
+        return entry?.protocol === 'CTA' || entry?.protocol === 'MRA';
+      });
+      if (hasCta) autoComplications.push('CTA');
+      if (autoComplications.length > 0) {
+        setSelectedComplications(autoComplications);
+      }
+    }
+
+    // Set modality (triggers auto-start if AUTO mode is enabled)
+    if (mappedModality) {
+      setSelectedModality(mappedModality);
+    }
+  };
+
+  const processSidecarStop = () => {
+    if (selectedModality && (isRunning || currentTime > 0)) {
+      completeStudy();
+    }
+  };
+
   // Complete study
   const completeStudy = () => {
     if (!selectedModality) {
@@ -2052,6 +2177,7 @@ function RadTachInner() {
         pauseUsed: studyPauseTime > 0,
         drafted: wasDrafted,
         swapped: wasSwapped,
+        ...(cptOverride ? { rvuSource: cptOverride.source, cpts: cptOverride.cpts } : {}),
       };
       setSessionEvents(prev => [...prev, studyEvent]);
       recordEventLocally(studyEvent);
@@ -2075,6 +2201,12 @@ function RadTachInner() {
     setIsPaused(false); // Issue #2: Clear pause state
     setSelectedModality(null);
     setSelectedComplications([]);
+
+    // Write "completed" to command doc if Sidecar/HL7 was driving this study
+    if (cptOverride && currentUser) {
+      firestoreService.writeCommandCompleted(currentUser.uid).catch(console.error);
+    }
+    setCptOverride(null);
 
     // Check if break prompt should be shown (FIXED: only prompt if 60 min since last decline)
     const timeInMinutes = timeSinceLastBreak / 60;
@@ -4604,12 +4736,19 @@ function RadTachInner() {
         
         {/* Modality Selection */}
         <div className="bg-gray-800 rounded-lg pt-3 pb-1.5 px-6 mb-2">
-          <h2 className="text-xl font-semibold text-white mb-2">Modality</h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xl font-semibold text-white">Modality</h2>
+            {cptOverride && (
+              <span className="text-sm font-mono px-2 py-0.5 rounded" style={{ backgroundColor: '#92400e', color: '#fbbf24' }}>
+                {cptOverride.source.toUpperCase()}: {cptOverride.examDesc} — {cptOverride.rvu.toFixed(2)} RVU
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-8 gap-3">
             {modalities.map(modality => (
               <button
                 key={modality}
-                onClick={() => setSelectedModality(modality)}
+                onClick={() => { setCptOverride(null); setSelectedModality(modality); }}
                 className={`py-4 px-4 rounded-lg font-medium text-sm transition-colors ${
                   stealthMode
                     ? selectedModality === modality
@@ -4630,23 +4769,35 @@ function RadTachInner() {
         <div className="bg-gray-800 rounded-lg pt-3 pb-1.5 px-6 mb-2">
           <h2 className="text-xl font-semibold text-white mb-2">Complications (Optional)</h2>
           <div className="grid grid-cols-5 gap-3">
-            {complications.map(complication => (
-              <button
-                key={complication}
-                onClick={() => toggleComplication(complication)}
-                className={`py-4 px-4 rounded-lg font-medium text-sm transition-colors ${
-                  stealthMode
-                    ? selectedComplications.includes(complication)
-                      ? 'bg-gray-700 text-white border-2 border-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600 border-2 border-gray-700'
-                    : selectedComplications.includes(complication)
-                    ? 'bg-orange-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                {complication}
-              </button>
-            ))}
+            {complications.map(complication => {
+              const isRvuModifying = RVU_MODIFYING_COMPLICATIONS.includes(complication);
+              const isLocked = cptOverride !== null && isRvuModifying;
+              const isSelected = selectedComplications.includes(complication);
+              const isAutoLit = isLocked && isSelected; // auto-lit by Sidecar (bilateral/CTA)
+
+              return (
+                <button
+                  key={complication}
+                  onClick={() => { if (!isLocked) toggleComplication(complication); }}
+                  disabled={isLocked}
+                  className={`py-4 px-4 rounded-lg font-medium text-sm transition-colors ${
+                    isLocked
+                      ? isAutoLit
+                        ? 'bg-amber-700 text-amber-200 cursor-not-allowed opacity-80'
+                        : 'bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
+                      : stealthMode
+                        ? isSelected
+                          ? 'bg-gray-700 text-white border-2 border-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600 border-2 border-gray-700'
+                        : isSelected
+                        ? 'bg-orange-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  {complication}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

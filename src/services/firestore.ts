@@ -16,8 +16,11 @@ import {
   limit,
   where,
   Timestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import type { StoredSession, GroupStats, CompositeStats, WorkstationStats } from '../types/reports';
+import type { CptDatabase } from '../types/cpt';
+import type { SidecarCommand } from '../types/sidecar';
 
 export const firestoreService = {
   async createUserProfile(userId: string, data: { timezone: string; email: string; firstName: string; lastName: string; credentials?: string }) {
@@ -349,5 +352,45 @@ export const firestoreService = {
   async deleteStaleMarker(markerId: string) {
     const docRef = doc(db, 'staleGAR', markerId);
     await deleteDoc(docRef);
+  },
+
+  // ── CPT Database Functions ──────────────────────────────────────────────────
+
+  async getCptDatabase(): Promise<CptDatabase | null> {
+    const docRef = doc(db, 'Config', 'cptDatabase');
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    return docSnap.data() as CptDatabase;
+  },
+
+  async writeCptDatabase(database: CptDatabase): Promise<void> {
+    const docRef = doc(db, 'Config', 'cptDatabase');
+    await setDoc(docRef, database);
+  },
+
+  // ── Sidecar / HL7 Command Doc Functions ─────────────────────────────────
+
+  // Listen to command doc — returns unsubscribe function
+  listenToCommandDoc(userId: string, callback: (cmd: SidecarCommand | null) => void): () => void {
+    const docRef = doc(db, 'users', userId, 'commands', 'current');
+    return onSnapshot(docRef, (snap) => {
+      callback(snap.exists() ? snap.data() as SidecarCommand : null);
+    });
+  },
+
+  // Acknowledge command (receiver sets ack: true)
+  async ackCommandDoc(userId: string): Promise<void> {
+    const docRef = doc(db, 'users', userId, 'commands', 'current');
+    await updateDoc(docRef, { ack: true });
+  },
+
+  // Write "completed" action (RadTach → Sidecar)
+  async writeCommandCompleted(userId: string): Promise<void> {
+    const docRef = doc(db, 'users', userId, 'commands', 'current');
+    await setDoc(docRef, {
+      action: 'completed' as const,
+      source: 'radtach' as const,
+      timestamp: serverTimestamp(),
+    });
   },
 };

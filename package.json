@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "seed": "npx tsx scripts/seedEmulator.ts",
-    "seed:refresh": "npx tsx scripts/refreshDates.ts"
+    "seed:refresh": "npx tsx scripts/refreshDates.ts",
+    "seed:cpt": "npx tsx scripts/seedCptDatabase.ts"
   },
   "dependencies": {
     "date-fns": "^4.1.0",
