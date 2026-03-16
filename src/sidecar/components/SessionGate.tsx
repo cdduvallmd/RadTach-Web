@@ -16,7 +16,10 @@ export default function SessionGate() {
   useEffect(() => {
     if (!currentUser) return;
 
-    const handleError = () => setConnectionError(true);
+    const handleError = () => {
+      setConnectionError(true);
+      setState(prev => prev === 'loading' ? 'waiting' : prev);
+    };
 
     const unsubStatus = listenToSessionStatus(currentUser.uid, (active) => {
       setConnectionError(false);
