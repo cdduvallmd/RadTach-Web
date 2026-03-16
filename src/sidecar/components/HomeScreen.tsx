@@ -23,7 +23,6 @@ interface Props {
   searchResults: SearchResult[];
   onSearchSelect: (cpt: string) => void;
   gooseConnected: boolean;
-  hasRecent: boolean;
   onOpenRecent: () => void;
   onOpenCommon: () => void;
 }
@@ -33,7 +32,7 @@ export default function HomeScreen({
   comboCount, onOpenCombo,
   searchQuery, onSearchChange, searchResults, onSearchSelect,
   gooseConnected,
-  hasRecent, onOpenRecent, onOpenCommon,
+  onOpenRecent, onOpenCommon,
 }: Props) {
   const showResults = searchQuery.trim().length > 0;
 
@@ -108,14 +107,12 @@ export default function HomeScreen({
           /* Default view: Recent, Common buttons + Modality grid */
           <>
             <div className="max-w-sm mx-auto space-y-3 mb-4">
-              {hasRecent && (
-                <button
-                  onClick={onOpenRecent}
-                  className="w-full py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold text-lg rounded-xl active:scale-95 transition-transform"
-                >
-                  RECENT
-                </button>
-              )}
+              <button
+                onClick={onOpenRecent}
+                className="w-full py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold text-lg rounded-xl active:scale-95 transition-transform"
+              >
+                RECENT
+              </button>
               <button
                 onClick={onOpenCommon}
                 className="w-full py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold text-lg rounded-xl active:scale-95 transition-transform"

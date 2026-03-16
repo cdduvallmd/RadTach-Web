@@ -244,7 +244,6 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           searchResults={searchResults}
           onSearchSelect={handleSearchSelect}
           gooseConnected={gooseConnected}
-          hasRecent={recentCpts.length > 0}
           onOpenRecent={() => setScreen({ type: 'recent' })}
           onOpenCommon={() => setScreen({ type: 'common' })}
         />
