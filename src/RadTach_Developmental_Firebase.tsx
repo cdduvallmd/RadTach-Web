@@ -751,7 +751,9 @@ function RadTachInner() {
   const pauseTimeRef = useRef<number | null>(null); // Issue #2: Pause timer
   const doubleTapTimeRef = useRef<number | null>(null); // Issue #3: Double Tap timer
   const sessionStartMsRef = useRef<number>(0); // Wall-clock ms at session start (for drift correction)
-  
+  const processSidecarStartRef = useRef<(cmd: SidecarCommand) => void>(() => {});
+  const processSidecarStopRef = useRef<() => void>(() => {});
+
   // Calculate current par time based on selections
   const calculateParTime = () => {
     if (!selectedModality) return 0;
@@ -1228,9 +1230,9 @@ function RadTachInner() {
       if (cmd.source === 'radtach') return; // ignore our own writes
 
       if (cmd.action === 'start') {
-        processSidecarStart(cmd);
+        processSidecarStartRef.current(cmd);
       } else if (cmd.action === 'stop') {
-        processSidecarStop();
+        processSidecarStopRef.current();
       }
 
       // Ack the command
@@ -1708,6 +1710,7 @@ function RadTachInner() {
           else if (result.remaining > 0) health.reportFailure(result.canRead);
         }
       });
+      firestoreService.writeSessionStatus(currentUser!.uid, true).catch(console.error);
     }
     // Reset all counters
     setSessionTime(0);
@@ -1893,6 +1896,10 @@ function RadTachInner() {
       lastFlushedIndex.current = 0;
       localSessionKeyRef.current = null;
       setFirestoreSessionId(null);
+      // Write session_ended BEFORE sessionActive:false so Sidecar sees ended state before status change
+      firestoreService.writeSessionEnded(currentUser!.uid)
+        .then(() => firestoreService.writeSessionStatus(currentUser!.uid, false))
+        .catch(console.error);
     }
 
     setIsSessionActive(false);
@@ -2021,25 +2028,15 @@ function RadTachInner() {
       let breakdown: Array<{ cpt: string; description: string; raw: number; adjusted: number }>;
       let cpts = [...cmd.cpts];
 
-      if (cmd.bilateral) {
-        // Apply bilateral logic to each CPT
-        const bilateralResults = cpts.map(cpt => getBilateralRvu(cptDatabase.entries, cpt));
-        cpts = bilateralResults.map(r => r.cpt);
-        rvu = +bilateralResults.reduce((sum, r) => sum + r.rvu, 0).toFixed(2);
-        breakdown = bilateralResults.map(r => {
-          const entry = cptDatabase.entries[r.cpt];
-          return {
-            cpt: r.cpt,
-            description: entry?.description || `CPT ${r.cpt}`,
-            raw: r.rvu,
-            adjusted: r.rvu,
-          };
-        });
-      } else {
-        const combo = calculateComboRvu(cptDatabase.entries, cpts);
-        rvu = combo.total;
-        breakdown = combo.breakdown;
-      }
+      // Apply per-CPT bilateral flags (bilateralFlags[]), falling back to cmd.bilateral for all
+      const flags = cmd.bilateralFlags || cpts.map(() => cmd.bilateral || false);
+      const effectiveCpts = cpts.map((cpt, i) =>
+        flags[i] ? getBilateralRvu(cptDatabase.entries, cpt).cpt : cpt
+      );
+      const combo = calculateComboRvu(cptDatabase.entries, effectiveCpts);
+      rvu = combo.total;
+      breakdown = combo.breakdown;
+      cpts = effectiveCpts;
 
       setCptOverride({
         cpts,
@@ -2075,6 +2072,8 @@ function RadTachInner() {
       completeStudy();
     }
   };
+  processSidecarStartRef.current = processSidecarStart;
+  processSidecarStopRef.current = processSidecarStop;
 
   // Complete study
   const completeStudy = () => {

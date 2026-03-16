@@ -393,4 +393,20 @@ export const firestoreService = {
       timestamp: serverTimestamp(),
     });
   },
+
+  // ── Session Status (Sidecar gating) ──────────────────────────────────────
+
+  async writeSessionStatus(userId: string, active: boolean): Promise<void> {
+    const docRef = doc(db, 'users', userId, 'status', 'current');
+    await setDoc(docRef, { sessionActive: active, updatedAt: serverTimestamp() });
+  },
+
+  async writeSessionEnded(userId: string): Promise<void> {
+    const docRef = doc(db, 'users', userId, 'commands', 'current');
+    await setDoc(docRef, {
+      action: 'session_ended' as const,
+      source: 'radtach' as const,
+      timestamp: serverTimestamp(),
+    });
+  },
 };

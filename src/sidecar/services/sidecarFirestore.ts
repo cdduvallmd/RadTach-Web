@@ -1,0 +1,70 @@
+import { db } from '../../services/firebase';
+import {
+  doc,
+  setDoc,
+  onSnapshot,
+  serverTimestamp,
+} from 'firebase/firestore';
+import type { SidecarCommand } from '../../types/sidecar';
+
+export function listenToSessionStatus(
+  uid: string,
+  callback: (active: boolean) => void,
+  onError?: (err: Error) => void,
+): () => void {
+  const docRef = doc(db, 'users', uid, 'status', 'current');
+  return onSnapshot(docRef, (snap) => {
+    if (snap.exists()) {
+      callback(snap.data().sessionActive === true);
+    } else {
+      callback(false);
+    }
+  }, (err) => {
+    console.error('Session status listener error:', err);
+    onError?.(err);
+  });
+}
+
+export function listenToCommandDoc(
+  uid: string,
+  callback: (cmd: SidecarCommand | null) => void,
+  onError?: (err: Error) => void,
+): () => void {
+  const docRef = doc(db, 'users', uid, 'commands', 'current');
+  return onSnapshot(docRef, (snap) => {
+    callback(snap.exists() ? (snap.data() as SidecarCommand) : null);
+  }, (err) => {
+    console.error('Command doc listener error:', err);
+    onError?.(err);
+  });
+}
+
+export async function writeStartCommand(
+  uid: string,
+  cpts: string[],
+  modality: string,
+  examDesc: string,
+  bilateralFlags: boolean[],
+): Promise<void> {
+  const docRef = doc(db, 'users', uid, 'commands', 'current');
+  const anyBilateral = bilateralFlags.some(b => b);
+  await setDoc(docRef, {
+    action: 'start' as const,
+    cpts,
+    modality,
+    examDesc,
+    bilateral: anyBilateral,         // backward-compat: true if any exam is bilateral
+    bilateralFlags,                  // per-CPT flags (parallel to cpts[])
+    source: 'sidecar' as const,
+    timestamp: serverTimestamp(),
+  });
+}
+
+export async function writeStopCommand(uid: string): Promise<void> {
+  const docRef = doc(db, 'users', uid, 'commands', 'current');
+  await setDoc(docRef, {
+    action: 'stop' as const,
+    source: 'sidecar' as const,
+    timestamp: serverTimestamp(),
+  });
+}
