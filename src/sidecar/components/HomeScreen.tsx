@@ -1,5 +1,6 @@
 import SignReportButton from './SignReportButton';
 import type { SearchResult } from '../utils/cptSearch';
+import type { CptEntry } from '../../types/cpt';
 
 const MODALITY_COLORS: Record<string, string> = {
   CT: '#3b82f6',    // blue
@@ -23,6 +24,45 @@ interface Props {
   searchResults: SearchResult[];
   onSearchSelect: (cpt: string) => void;
   gooseConnected: boolean;
+  commonCpts: string[];
+  recentCpts: string[];
+  entries: Record<string, CptEntry>;
+}
+
+function QuickList({ label, cpts, entries, onSelect }: {
+  label: string;
+  cpts: string[];
+  entries: Record<string, CptEntry>;
+  onSelect: (cpt: string) => void;
+}) {
+  const valid = cpts.filter(c => entries[c]);
+  if (valid.length === 0) return null;
+
+  return (
+    <div className="max-w-sm mx-auto mb-4">
+      <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-2">{label}</p>
+      <div className="space-y-1.5">
+        {valid.map(cpt => {
+          const e = entries[cpt];
+          return (
+            <button
+              key={cpt}
+              onClick={() => onSelect(cpt)}
+              className="w-full text-left px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all flex items-center gap-2"
+            >
+              <span
+                className="text-xs font-bold px-1.5 py-0.5 rounded shrink-0"
+                style={{ backgroundColor: MODALITY_COLORS[e.modality] || '#6b7280', color: 'white' }}
+              >
+                {e.modality}
+              </span>
+              <span className="text-white text-sm truncate">{e.description}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function HomeScreen({
@@ -30,6 +70,7 @@ export default function HomeScreen({
   comboCount, onOpenCombo,
   searchQuery, onSearchChange, searchResults, onSearchSelect,
   gooseConnected,
+  commonCpts, recentCpts, entries,
 }: Props) {
   const showResults = searchQuery.trim().length > 0;
 
@@ -101,8 +142,11 @@ export default function HomeScreen({
             )}
           </div>
         ) : (
-          /* Modality grid (default view) */
+          /* Default view: Recent, Common, Modality grid */
           <>
+            <QuickList label="Recent" cpts={recentCpts} entries={entries} onSelect={onSearchSelect} />
+            <QuickList label="Common" cpts={commonCpts} entries={entries} onSelect={onSearchSelect} />
+
             <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
               {modalities.map(mod => (
                 <button

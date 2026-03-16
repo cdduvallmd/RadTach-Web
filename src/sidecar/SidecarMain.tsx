@@ -32,6 +32,21 @@ interface Props {
   testMode?: boolean;
 }
 
+// Seed list — replace with usage-frequency data when available
+const COMMON_CPTS = ['70450', '74177', '71046', '70553'];
+const RECENT_KEY = 'sidecar_recent';
+const MAX_RECENT = 5;
+
+function loadRecent(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+  } catch { return []; }
+}
+
+function saveRecent(cpts: string[]) {
+  localStorage.setItem(RECENT_KEY, JSON.stringify(cpts.slice(0, MAX_RECENT)));
+}
+
 export default function SidecarMain({ gooseConnected, testMode = false }: Props) {
   const { currentUser } = useAuth();
   const [screen, setScreen] = useState<Screen>({ type: 'home' });
@@ -40,6 +55,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const [selectedExams, setSelectedExams] = useState<SelectedExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [recentCpts, setRecentCpts] = useState<string[]>(loadRecent);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +94,15 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     const examDesc = exams.length === 1
       ? exams[0].entry.description
       : exams.map(e => e.entry.description).join(' + ');
+
+    // Track recent (first CPT of the exam set, deduplicated)
+    const primaryCpt = exams[0].cpt;
+    setRecentCpts(prev => {
+      const next = [primaryCpt, ...prev.filter(c => c !== primaryCpt)].slice(0, MAX_RECENT);
+      saveRecent(next);
+      return next;
+    });
+
     if (testMode) {
       // Skip Firestore write — just navigate
       setScreen({ type: 'active', examDesc });
@@ -216,6 +241,9 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           searchResults={searchResults}
           onSearchSelect={handleSearchSelect}
           gooseConnected={gooseConnected}
+          commonCpts={COMMON_CPTS}
+          recentCpts={recentCpts}
+          entries={cptDb.entries}
         />
       );
 
