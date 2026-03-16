@@ -98,8 +98,14 @@ export default function SessionGate() {
           </div>
         )}
         <button
+          onClick={() => setState('active')}
+          className="mt-8 px-5 py-2 border border-gray-600 text-gray-400 hover:text-white hover:border-gray-400 rounded-lg text-sm"
+        >
+          Test Mode
+        </button>
+        <button
           onClick={logout}
-          className="mt-12 text-gray-500 hover:text-gray-300 text-sm underline"
+          className="mt-4 text-gray-500 hover:text-gray-300 text-sm underline"
         >
           Sign out
         </button>
