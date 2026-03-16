@@ -12,9 +12,12 @@ import ProtocolScreen from './components/ProtocolScreen';
 import LeafScreen from './components/LeafScreen';
 import ComboBuilder from './components/ComboBuilder';
 import ActiveStudy from './components/ActiveStudy';
+import CptListScreen from './components/CptListScreen';
 
 type Screen =
   | { type: 'home' }
+  | { type: 'common' }
+  | { type: 'recent' }
   | { type: 'bodyPart'; modality: string }
   | { type: 'protocol'; modality: string; bodyPart: string }
   | { type: 'leaf'; entry: CptEntry; cpt: string }
@@ -241,9 +244,33 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           searchResults={searchResults}
           onSearchSelect={handleSearchSelect}
           gooseConnected={gooseConnected}
-          commonCpts={COMMON_CPTS}
-          recentCpts={recentCpts}
+          hasRecent={recentCpts.length > 0}
+          onOpenRecent={() => setScreen({ type: 'recent' })}
+          onOpenCommon={() => setScreen({ type: 'common' })}
+        />
+      );
+
+    case 'recent':
+      return (
+        <CptListScreen
+          title="Recent"
+          cpts={recentCpts}
           entries={cptDb.entries}
+          onSelect={handleSearchSelect}
+          onBack={() => setScreen({ type: 'home' })}
+          onSignReport={handleSignReport}
+        />
+      );
+
+    case 'common':
+      return (
+        <CptListScreen
+          title="Common"
+          cpts={COMMON_CPTS}
+          entries={cptDb.entries}
+          onSelect={handleSearchSelect}
+          onBack={() => setScreen({ type: 'home' })}
+          onSignReport={handleSignReport}
         />
       );
 
