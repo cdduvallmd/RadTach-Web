@@ -28,11 +28,11 @@ export interface SelectedExam {
 }
 
 interface Props {
-  onGooseMessage?: (msg: GooseMessage) => void;
   gooseConnected: boolean;
+  testMode?: boolean;
 }
 
-export default function SidecarMain({ gooseConnected }: Props) {
+export default function SidecarMain({ gooseConnected, testMode = false }: Props) {
   const { currentUser } = useAuth();
   const [screen, setScreen] = useState<Screen>({ type: 'home' });
   const [cptDb, setCptDb] = useState<CptDatabase | null>(null);
@@ -74,14 +74,21 @@ export default function SidecarMain({ gooseConnected }: Props) {
   }, [currentUser]);
 
   const handleStart = useCallback(async (exams: SelectedExam[]) => {
-    if (!currentUser || exams.length === 0 || sending) return;
+    if (exams.length === 0 || sending) return;
+    const examDesc = exams.length === 1
+      ? exams[0].entry.description
+      : exams.map(e => e.entry.description).join(' + ');
+    if (testMode) {
+      // Skip Firestore write — just navigate
+      setScreen({ type: 'active', examDesc });
+      setSelectedExams([]);
+      return;
+    }
+    if (!currentUser) return;
     setSending(true);
     try {
       const cpts = exams.map(e => e.cpt);
       const modality = exams[0].entry.modality;
-      const examDesc = exams.length === 1
-        ? exams[0].entry.description
-        : exams.map(e => e.entry.description).join(' + ');
       const bilateralFlags = exams.map(e => e.bilateral);
       await writeStartCommand(currentUser.uid, cpts, modality, examDesc, bilateralFlags);
       setScreen({ type: 'active', examDesc });
@@ -89,9 +96,14 @@ export default function SidecarMain({ gooseConnected }: Props) {
     } finally {
       setSending(false);
     }
-  }, [currentUser, sending]);
+  }, [currentUser, sending, testMode]);
 
   const handleSignReport = useCallback(async () => {
+    if (testMode) {
+      // Skip Firestore write — just navigate
+      setScreen({ type: 'home' });
+      return;
+    }
     if (!currentUser || sending) return;
     setSending(true);
     try {
@@ -100,7 +112,7 @@ export default function SidecarMain({ gooseConnected }: Props) {
     } finally {
       setSending(false);
     }
-  }, [currentUser, sending]);
+  }, [currentUser, sending, testMode]);
 
   const handleAddExam = useCallback((cpt: string, entry: CptEntry, bilateral: boolean) => {
     setSelectedExams(prev => [...prev, { cpt, entry, bilateral }]);

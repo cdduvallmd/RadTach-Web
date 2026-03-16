@@ -11,6 +11,7 @@ export default function SessionGate() {
   const [state, setState] = useState<SessionState>('loading');
   const [connectionError, setConnectionError] = useState(false);
   const [gooseConnected, setGooseConnected] = useState(false);
+  const [testMode, setTestMode] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -98,7 +99,7 @@ export default function SessionGate() {
           </div>
         )}
         <button
-          onClick={() => setState('active')}
+          onClick={() => { setTestMode(true); setState('active'); }}
           className="mt-8 px-5 py-2 border border-gray-600 text-gray-400 hover:text-white hover:border-gray-400 rounded-lg text-sm"
         >
           Test Mode
@@ -142,5 +143,5 @@ export default function SessionGate() {
   }
 
   // state === 'active'
-  return <SidecarMain gooseConnected={gooseConnected} />;
+  return <SidecarMain gooseConnected={gooseConnected} testMode={testMode} />;
 }
