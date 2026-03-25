@@ -5,6 +5,7 @@ import { listenToCommandDoc, writeStartCommand, writeStopCommand } from './servi
 import { buildCptTree, type ModalityGroup, type TreeLeaf } from './utils/buildCptTree';
 import { searchCpts, type SearchResult } from './utils/cptSearch';
 import type { CptDatabase, CptEntry } from '../types/cpt';
+import type { GpciValues } from '../utils/gpciLookup';
 import type { GooseMessage } from './services/gooseWebSocket';
 import HomeScreen from './components/HomeScreen';
 import BodyPartScreen from './components/BodyPartScreen';
@@ -30,6 +31,11 @@ export interface SelectedExam {
   bilateral: boolean;
 }
 
+export interface RecentEntry {
+  cpts: string[];
+  bilateralFlags: boolean[];
+}
+
 interface Props {
   gooseConnected: boolean;
   testMode?: boolean;
@@ -40,14 +46,22 @@ const COMMON_CPTS = ['70450', '74177', '71046', '70553'];
 const RECENT_KEY = 'sidecar_recent';
 const MAX_RECENT = 5;
 
-function loadRecent(): string[] {
+function loadRecent(): RecentEntry[] {
   try {
-    return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+    const raw = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+    if (!Array.isArray(raw)) return [];
+    // Migrate old string[] format → RecentEntry[]
+    return raw.map((item: unknown) => {
+      if (typeof item === 'string') {
+        return { cpts: [item], bilateralFlags: [false] };
+      }
+      return item as RecentEntry;
+    });
   } catch { return []; }
 }
 
-function saveRecent(cpts: string[]) {
-  localStorage.setItem(RECENT_KEY, JSON.stringify(cpts.slice(0, MAX_RECENT)));
+function saveRecent(entries: RecentEntry[]) {
+  localStorage.setItem(RECENT_KEY, JSON.stringify(entries.slice(0, MAX_RECENT)));
 }
 
 export default function SidecarMain({ gooseConnected, testMode = false }: Props) {
@@ -58,7 +72,8 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const [selectedExams, setSelectedExams] = useState<SelectedExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [recentCpts, setRecentCpts] = useState<string[]>(loadRecent);
+  const [recentEntries, setRecentEntries] = useState<RecentEntry[]>(loadRecent);
+  const [gpciValues, setGpciValues] = useState<GpciValues | null>(null);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,6 +95,19 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     });
   }, []);
 
+  // Load GPCI values from user settings
+  useEffect(() => {
+    if (!currentUser) return;
+    firestoreService.getUserSettings(currentUser.uid).then(settings => {
+      if (settings?.gpciValues && typeof settings.gpciValues === 'object') {
+        const g = settings.gpciValues as { work?: number; pe?: number; mp?: number; localityName?: string };
+        if (typeof g.work === 'number' && typeof g.pe === 'number' && typeof g.mp === 'number') {
+          setGpciValues(g as GpciValues);
+        }
+      }
+    }).catch(console.error);
+  }, [currentUser]);
+
   // Listen for "completed" from RadTach → auto-return to home
   useEffect(() => {
     if (!currentUser) return;
@@ -98,10 +126,15 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       ? exams[0].entry.description
       : exams.map(e => e.entry.description).join(' + ');
 
-    // Track recent (first CPT of the exam set, deduplicated)
-    const primaryCpt = exams[0].cpt;
-    setRecentCpts(prev => {
-      const next = [primaryCpt, ...prev.filter(c => c !== primaryCpt)].slice(0, MAX_RECENT);
+    // Track recent (full combo, deduplicated by sorted CPT set)
+    const entry: RecentEntry = {
+      cpts: exams.map(e => e.cpt),
+      bilateralFlags: exams.map(e => e.bilateral),
+    };
+    setRecentEntries(prev => {
+      const key = (e: RecentEntry) => [...e.cpts].sort().join(',');
+      const entryKey = key(entry);
+      const next = [entry, ...prev.filter(e => key(e) !== entryKey)].slice(0, MAX_RECENT);
       saveRecent(next);
       return next;
     });
@@ -181,6 +214,26 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     }
   }, [cptDb]);
 
+  // Recent entry selection — single CPT → LeafScreen, combo → ComboBuilder
+  const handleRecentSelect = useCallback((entry: RecentEntry) => {
+    if (!cptDb) return;
+    if (entry.cpts.length === 1) {
+      const e = cptDb.entries[entry.cpts[0]];
+      if (e) setScreen({ type: 'leaf', entry: e, cpt: entry.cpts[0] });
+    } else {
+      const exams: SelectedExam[] = entry.cpts
+        .map((cpt, i) => {
+          const e = cptDb.entries[cpt];
+          return e ? { cpt, entry: e, bilateral: entry.bilateralFlags[i] } : null;
+        })
+        .filter((e): e is SelectedExam => e !== null);
+      if (exams.length > 0) {
+        setSelectedExams(exams);
+        setScreen({ type: 'combo' });
+      }
+    }
+  }, [cptDb]);
+
   // Handle Goose WebSocket messages (called from SessionGate)
   const handleGooseMessage = useCallback((msg: GooseMessage) => {
     if (msg.action === 'stop') {
@@ -235,7 +288,20 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       return (
         <HomeScreen
           modalities={tree.map(m => m.modality)}
-          onSelectModality={mod => setScreen({ type: 'bodyPart', modality: mod })}
+          onSelectModality={mod => {
+            // Skip body part screen if modality has only one body part (e.g., MA → Breast)
+            const group = tree.find(m => m.modality === mod);
+            if (group && group.bodyParts.length === 1) {
+              const bp = group.bodyParts[0];
+              if (bp.isLeaf) {
+                setScreen({ type: 'leaf', entry: bp.leafEntry!.entry, cpt: bp.leafEntry!.cpt });
+              } else {
+                setScreen({ type: 'protocol', modality: mod, bodyPart: bp.bodyPart });
+              }
+            } else {
+              setScreen({ type: 'bodyPart', modality: mod });
+            }
+          }}
           onSignReport={handleSignReport}
           comboCount={selectedExams.length}
           onOpenCombo={() => setScreen({ type: 'combo' })}
@@ -253,9 +319,9 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       return (
         <CptListScreen
           title="Recent"
-          cpts={recentCpts}
+          recentEntries={recentEntries}
           entries={cptDb.entries}
-          onSelect={handleSearchSelect}
+          onSelectRecent={handleRecentSelect}
           onBack={() => setScreen({ type: 'home' })}
           onSignReport={handleSignReport}
         />
@@ -297,8 +363,17 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           modality={screen.modality}
           bodyPart={screen.bodyPart}
           protocols={bpGroup?.protocols ?? []}
+          gpci={gpciValues ?? undefined}
           onSelectLeaf={(leaf: TreeLeaf) => setScreen({ type: 'leaf', entry: leaf.entry, cpt: leaf.cpt })}
-          onBack={() => setScreen({ type: 'bodyPart', modality: screen.modality })}
+          onBack={() => {
+            // Skip body part screen on back if modality has only one body part
+            const group = tree.find(m => m.modality === screen.modality);
+            if (group && group.bodyParts.length === 1) {
+              setScreen({ type: 'home' });
+            } else {
+              setScreen({ type: 'bodyPart', modality: screen.modality });
+            }
+          }}
           onSignReport={handleSignReport}
         />
       );
@@ -310,6 +385,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           cpt={screen.cpt}
           entry={screen.entry}
           entries={cptDb.entries}
+          gpci={gpciValues ?? undefined}
           onStart={(bilateral) => handleStart([{ cpt: screen.cpt, entry: screen.entry, bilateral }])}
           onAdd={(bilateral) => {
             handleAddExam(screen.cpt, screen.entry, bilateral);
@@ -317,11 +393,13 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           onBack={() => {
             const mod = screen.entry.modality;
             const bp = screen.entry.bodyPart;
-            // Check if this body part has multiple protocols
             const mg = tree.find(m => m.modality === mod);
             const bpg = mg?.bodyParts.find(b => b.bodyPart === bp);
             if (bpg && !bpg.isLeaf) {
               setScreen({ type: 'protocol', modality: mod, bodyPart: bp });
+            } else if (mg && mg.bodyParts.length === 1) {
+              // Single body part modality (e.g., MA → Breast) — skip back to home
+              setScreen({ type: 'home' });
             } else {
               setScreen({ type: 'bodyPart', modality: mod });
             }
@@ -336,6 +414,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
         <ComboBuilder
           exams={selectedExams}
           entries={cptDb.entries}
+          gpci={gpciValues ?? undefined}
           onRemove={handleRemoveExam}
           onAddMore={() => setScreen({ type: 'home' })}
           onStart={() => handleStart(selectedExams)}

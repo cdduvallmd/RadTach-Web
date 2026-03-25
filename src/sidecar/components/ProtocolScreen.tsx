@@ -1,16 +1,19 @@
 import type { ProtocolGroup, TreeLeaf } from '../utils/buildCptTree';
+import type { GpciValues } from '../../utils/gpciLookup';
+import { adjustedPcRvu } from '../../utils/gpciLookup';
 import SignReportButton from './SignReportButton';
 
 interface Props {
   modality: string;
   bodyPart: string;
   protocols: ProtocolGroup[];
+  gpci?: GpciValues;
   onSelectLeaf: (leaf: TreeLeaf) => void;
   onBack: () => void;
   onSignReport: () => void;
 }
 
-export default function ProtocolScreen({ modality, bodyPart, protocols, onSelectLeaf, onBack, onSignReport }: Props) {
+export default function ProtocolScreen({ modality, bodyPart, protocols, gpci, onSelectLeaf, onBack, onSignReport }: Props) {
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       <div className="flex-1 pb-24">
@@ -35,24 +38,27 @@ export default function ProtocolScreen({ modality, bodyPart, protocols, onSelect
               )}
 
               {/* Leaves within protocol */}
-              {proto.leaves.map(leaf => (
-                <button
-                  key={leaf.cpt}
-                  onClick={() => onSelectLeaf(leaf)}
-                  className="w-full px-4 py-4 flex items-center justify-between text-left active:bg-gray-800 transition-colors"
-                >
-                  <div className="flex-1 mr-3">
-                    <span className="text-white text-base">{leaf.entry.description}</span>
-                    {leaf.entry.variant && (
-                      <span className="text-gray-400 text-sm ml-2">({leaf.entry.variant})</span>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-gray-400 text-sm">{leaf.cpt}</div>
-                    <div className="text-blue-400 text-sm">{leaf.entry.pcRvu} RVU</div>
-                  </div>
-                </button>
-              ))}
+              {proto.leaves.map(leaf => {
+                const rvu = gpci ? adjustedPcRvu(leaf.entry, gpci) : leaf.entry.pcRvu;
+                return (
+                  <button
+                    key={leaf.cpt}
+                    onClick={() => onSelectLeaf(leaf)}
+                    className="w-full px-4 py-4 flex items-center justify-between text-left active:bg-gray-800 transition-colors"
+                  >
+                    <div className="flex-1 mr-3">
+                      <span className="text-white text-base">{leaf.entry.description}</span>
+                      {leaf.entry.variant && (
+                        <span className="text-gray-400 text-sm ml-2">({leaf.entry.variant})</span>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-gray-400 text-sm">{leaf.cpt}</div>
+                      <div className="text-blue-400 text-sm">{rvu} RVU</div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           ))}
         </div>

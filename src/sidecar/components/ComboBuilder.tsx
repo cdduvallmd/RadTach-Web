@@ -1,11 +1,13 @@
 import type { CptEntry } from '../../types/cpt';
 import type { SelectedExam } from '../SidecarMain';
+import type { GpciValues } from '../../utils/gpciLookup';
 import { calculateComboRvu, getBilateralRvu } from '../../utils/cptLookup';
 import SignReportButton from './SignReportButton';
 
 interface Props {
   exams: SelectedExam[];
   entries: Record<string, CptEntry>;
+  gpci?: GpciValues;
   onRemove: (index: number) => void;
   onAddMore: () => void;
   onStart: () => void;
@@ -13,16 +15,16 @@ interface Props {
   disabled?: boolean;
 }
 
-export default function ComboBuilder({ exams, entries, onRemove, onAddMore, onStart, onSignReport, disabled }: Props) {
+export default function ComboBuilder({ exams, entries, gpci, onRemove, onAddMore, onStart, onSignReport, disabled }: Props) {
   // Build effective CPT list (bilateral swaps to paired code if applicable)
   const effectiveCpts = exams.map(e => {
     if (e.bilateral) {
-      return getBilateralRvu(entries, e.cpt).cpt;
+      return getBilateralRvu(entries, e.cpt, gpci).cpt;
     }
     return e.cpt;
   });
 
-  const { total, breakdown } = calculateComboRvu(entries, effectiveCpts);
+  const { total, breakdown } = calculateComboRvu(entries, effectiveCpts, gpci);
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
@@ -71,7 +73,12 @@ export default function ComboBuilder({ exams, entries, onRemove, onAddMore, onSt
         <div className="px-4 py-4 border-t border-gray-700">
           <div className="flex items-center justify-between">
             <span className="text-gray-300 font-semibold text-lg">Total</span>
-            <span className="text-blue-400 font-bold text-2xl">{total} RVU</span>
+            <div className="text-right">
+              <span className="text-blue-400 font-bold text-2xl">{total} RVU</span>
+              {gpci && (
+                <p className="text-cyan-500 text-xs">GPCI adjusted</p>
+              )}
+            </div>
           </div>
         </div>
 

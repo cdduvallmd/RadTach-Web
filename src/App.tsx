@@ -8,6 +8,8 @@ import type { SessionSummary } from './utils/sessionSummary';
 import Reports from './components/Reports';
 import { triggerGARAggregation } from './utils/garTrigger';
 import { calculateComboRvu, getBilateralRvu } from './utils/cptLookup';
+import { lookupGpci } from './utils/gpciLookup';
+import type { GpciValues } from './utils/gpciLookup';
 import type { SidecarCommand, RvuSource } from './types/sidecar';
 import type { CptDatabase } from './types/cpt';
 import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, bufferedSaveUserSettings, flushBuffer, hasPendingEndSession, addLocalEvent, getLocalEvents, clearLocalEvents } from './services/offlineBuffer';
@@ -450,6 +452,8 @@ interface StudyEvent {
   swapped?: boolean;
   rvuSource?: RvuSource;
   cpts?: string[];
+  rvuDerivedMode?: boolean;
+  targetRvuPerHour?: number;
 }
 
 interface InterstitialEvent {
@@ -597,7 +601,11 @@ function RadTachInner() {
   const [rvuValues, setRVUValues] = useState<RVUConfig>(defaultRVUValues);
   const [stealthMode, setStealthMode] = useState(false);
   const [useHMSFormat, setUseHMSFormat] = useState(false);
-  
+  const [rvuDerivedMode, setRvuDerivedMode] = useState(false);
+  const [targetRvuPerHour, setTargetRvuPerHour] = useState(8);
+  const [gpciZip, setGpciZip] = useState('');
+  const [gpciValues, setGpciValues] = useState<GpciValues | null>(null);
+
   const [totalRVU, setTotalRVU] = useState(0);
   const [rvuPerHour, setRvuPerHour] = useState(0);
 
@@ -644,6 +652,8 @@ function RadTachInner() {
 
   // RVU-modifying complications — locked when cptOverride is active
   const RVU_MODIFYING_COMPLICATIONS: Complication[] = ['CTA', 'Bilateral', 'Vascular', '+1 Section', '+2 Section'];
+  // Non-RVU complications — still add par time in RVU-derived mode (case complexity not in RVU)
+  const NON_RVU_COMPLICATIONS: Complication[] = ['Age >70', 'Cancer Follow', 'Prior Surg Hx', 'Complex Hx'];
 
   // Session management (Issue #1)
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -698,6 +708,7 @@ function RadTachInner() {
   const [showSessionStartDialog, setShowSessionStartDialog] = useState(false);
   const [systemInput, setSystemInput] = useState(() => localStorage.getItem('radtach_lastSystem') || '');
   const [officeList, setOfficeList] = useState<string[]>([]);
+  const [officeZips, setOfficeZips] = useState<Record<string, string>>({});
   const [selectedOffice, setSelectedOffice] = useState(() => localStorage.getItem('radtach_lastOffice') || '');
   const [rotationList, setRotationList] = useState<string[]>([]);
   const [selectedRotation, setSelectedRotation] = useState(() => localStorage.getItem('radtach_lastRotation') || '');
@@ -757,23 +768,41 @@ function RadTachInner() {
   // Calculate current par time based on selections
   const calculateParTime = () => {
     if (!selectedModality) return 0;
-    
-    let total = parTimes[selectedModality] || 0;
+
+    let total: number;
     let hasBilateral = false;
-    
-    selectedComplications.forEach(comp => {
-      if (comp === 'Bilateral') {
-        hasBilateral = true;
-      } else {
-        total += parTimes[comp] || 0;
-      }
-    });
-    
+
+    if (rvuDerivedMode && cptOverride) {
+      // RVU-derived: base from formula, only add non-RVU complication adders
+      total = Math.round((cptOverride.rvu / targetRvuPerHour) * 3600 - 8);
+      if (total < 0) total = 0;
+
+      selectedComplications.forEach(comp => {
+        if (comp === 'Bilateral') {
+          hasBilateral = true;
+        } else if (NON_RVU_COMPLICATIONS.includes(comp)) {
+          total += parTimes[comp] || 0;
+        }
+        // RVU-modifying complications already reflected in cptOverride.rvu — skip
+      });
+    } else {
+      // Standard modality-based par time
+      total = parTimes[selectedModality] || 0;
+
+      selectedComplications.forEach(comp => {
+        if (comp === 'Bilateral') {
+          hasBilateral = true;
+        } else {
+          total += parTimes[comp] || 0;
+        }
+      });
+    }
+
     // Apply Bilateral multiplier last (after all additions)
     if (hasBilateral) {
       total *= 2;
     }
-    
+
     return total;
   };
   
@@ -1058,6 +1087,20 @@ function RadTachInner() {
       if (savedUseHMSFormat !== null) {
         setUseHMSFormat(JSON.parse(savedUseHMSFormat));
       }
+      const savedGpciZip = localStorage.getItem('radtach_gpciZip');
+      if (savedGpciZip) {
+        setGpciZip(savedGpciZip);
+        const gpci = lookupGpci(savedGpciZip);
+        if (gpci) setGpciValues(gpci);
+      }
+      const savedRvuDerivedMode = localStorage.getItem('radtach_rvuDerivedMode');
+      if (savedRvuDerivedMode !== null) {
+        setRvuDerivedMode(JSON.parse(savedRvuDerivedMode));
+      }
+      const savedTargetRvuPerHour = localStorage.getItem('radtach_targetRvuPerHour');
+      if (savedTargetRvuPerHour !== null) {
+        setTargetRvuPerHour(parseFloat(savedTargetRvuPerHour));
+      }
     } catch (error: unknown) {
       console.error('Error loading settings from localStorage:', error);
     }
@@ -1108,6 +1151,33 @@ function RadTachInner() {
     }
   }, [useHMSFormat]);
 
+  // Save GPCI ZIP to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('radtach_gpciZip', gpciZip);
+    } catch (error: unknown) {
+      console.error('Error saving gpciZip to localStorage:', error);
+    }
+  }, [gpciZip]);
+
+  // Save rvuDerivedMode to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('radtach_rvuDerivedMode', JSON.stringify(rvuDerivedMode));
+    } catch (error: unknown) {
+      console.error('Error saving rvuDerivedMode to localStorage:', error);
+    }
+  }, [rvuDerivedMode]);
+
+  // Save targetRvuPerHour to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('radtach_targetRvuPerHour', String(targetRvuPerHour));
+    } catch (error: unknown) {
+      console.error('Error saving targetRvuPerHour to localStorage:', error);
+    }
+  }, [targetRvuPerHour]);
+
   // Phase 6: Load settings from Firestore on auth (overrides localStorage with source-of-truth)
   useEffect(() => {
     if (!FIREBASE_ENABLED || !currentUser) return;
@@ -1141,6 +1211,17 @@ function RadTachInner() {
           }
           if (typeof settings.useHMSFormat === 'boolean') {
             setUseHMSFormat(settings.useHMSFormat);
+          }
+          if (typeof settings.gpciZip === 'string' && settings.gpciZip) {
+            setGpciZip(settings.gpciZip);
+            const gpci = lookupGpci(settings.gpciZip);
+            if (gpci) setGpciValues(gpci);
+          }
+          if (typeof settings.rvuDerivedMode === 'boolean') {
+            setRvuDerivedMode(settings.rvuDerivedMode);
+          }
+          if (typeof settings.targetRvuPerHour === 'number') {
+            setTargetRvuPerHour(settings.targetRvuPerHour);
           }
         }
 
@@ -1642,10 +1723,21 @@ function RadTachInner() {
           // Use canonical key from Firestore (fixes case-sensitivity)
           setSystemInput(officeResult.key);
           setOfficeList(officeResult.offices);
+          const zips = officeResult.officeZips || {};
+          setOfficeZips(zips);
           setSystemVerified(true);
           // If previously selected office is in the list, keep it; otherwise clear
-          if (!officeResult.offices.includes(selectedOffice)) {
-            setSelectedOffice(officeResult.offices[0] || '');
+          const effectiveOffice = officeResult.offices.includes(selectedOffice)
+            ? selectedOffice
+            : (officeResult.offices[0] || '');
+          if (effectiveOffice !== selectedOffice) {
+            setSelectedOffice(effectiveOffice);
+          }
+          // Auto-set GPCI from office ZIP
+          const officeZip = zips[effectiveOffice];
+          if (officeZip) {
+            setGpciZip(officeZip);
+            setGpciValues(lookupGpci(officeZip));
           }
           // Set rotation list (may be null if not configured yet)
           const rots = rotations || ['Unassigned'];
@@ -1672,6 +1764,10 @@ function RadTachInner() {
     localStorage.setItem('radtach_lastSystem', systemInput.trim());
     localStorage.setItem('radtach_lastOffice', selectedOffice);
     localStorage.setItem('radtach_lastRotation', selectedRotation);
+    // Eagerly save GPCI to Firestore so Sidecar has it immediately
+    if (currentUser && gpciValues) {
+      firestoreService.saveUserSettings(currentUser.uid, { gpciZip, gpciValues }).catch(console.error);
+    }
     setShowSessionStartDialog(false);
     startSessionWithOffice(selectedOffice);
   };
@@ -1881,6 +1977,7 @@ function RadTachInner() {
       ).then(() => bufferedEndSession(currentUser!.uid, key, { ...data.session, summary }))
         .then(() => bufferedSaveUserSettings(currentUser!.uid, {
           parTimes, rvuValues, stealthMode, autoStartEnabled, useHMSFormat,
+          gpciZip, gpciValues, rvuDerivedMode, targetRvuPerHour,
         }))
         .then(() => clearLocalEvents(key).catch(() => {}))
         .then(() => flushBuffer(currentUser!.uid))
@@ -2030,10 +2127,11 @@ function RadTachInner() {
 
       // Apply per-CPT bilateral flags (bilateralFlags[]), falling back to cmd.bilateral for all
       const flags = cmd.bilateralFlags || cpts.map(() => cmd.bilateral || false);
+      const gpci = gpciValues ?? undefined;
       const effectiveCpts = cpts.map((cpt, i) =>
-        flags[i] ? getBilateralRvu(cptDatabase.entries, cpt).cpt : cpt
+        flags[i] ? getBilateralRvu(cptDatabase.entries, cpt, gpci).cpt : cpt
       );
-      const combo = calculateComboRvu(cptDatabase.entries, effectiveCpts);
+      const combo = calculateComboRvu(cptDatabase.entries, effectiveCpts, gpci);
       rvu = combo.total;
       breakdown = combo.breakdown;
       cpts = effectiveCpts;
@@ -2177,6 +2275,7 @@ function RadTachInner() {
         drafted: wasDrafted,
         swapped: wasSwapped,
         ...(cptOverride ? { rvuSource: cptOverride.source, cpts: cptOverride.cpts } : {}),
+        ...(rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour } : {}),
       };
       setSessionEvents(prev => [...prev, studyEvent]);
       recordEventLocally(studyEvent);
@@ -3199,47 +3298,141 @@ function RadTachInner() {
             </div>
             
             <div className="space-y-6">
+              {/* Par Time Mode Toggle */}
               <div>
-                <h3 className="text-lg font-semibold text-white mb-3">Modalities</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  {modalities.map(modality => (
-                    <div key={modality} className="flex items-center justify-between bg-gray-700 p-3 rounded">
-                      <label className="text-white font-medium">{modality}</label>
-                      <div className="flex items-center">
-                        <input
-                          type="number"
-                          min="0"
-                          value={parTimes[modality]}
-                          onChange={(e) => updateParTime(modality, e.target.value)}
-                          className="w-20 px-2 py-1 bg-gray-600 text-white rounded text-center"
-                        />
-                        <span className="text-gray-300 ml-2">sec</span>
-                      </div>
-                    </div>
-                  ))}
+                <h3 className="text-lg font-semibold text-white mb-3">Par Time Mode</h3>
+                <div className="flex space-x-2 mb-4">
+                  <button
+                    onClick={() => setRvuDerivedMode(false)}
+                    className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
+                      !rvuDerivedMode
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-gray-600 hover:bg-gray-500 text-gray-300'
+                    }`}
+                  >
+                    Modality
+                  </button>
+                  <button
+                    onClick={() => setRvuDerivedMode(true)}
+                    className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
+                      rvuDerivedMode
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-gray-600 hover:bg-gray-500 text-gray-300'
+                    }`}
+                  >
+                    RVU/hr Derived
+                  </button>
                 </div>
               </div>
-              
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-3">Complications</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  {complications.map(complication => (
-                    <div key={complication} className="flex items-center justify-between bg-gray-700 p-3 rounded">
-                      <label className="text-white font-medium">{complication}</label>
-                      <div className="flex items-center">
-                        <input
-                          type="number"
-                          min="0"
-                          value={parTimes[complication]}
-                          onChange={(e) => updateParTime(complication, e.target.value)}
-                          className="w-20 px-2 py-1 bg-gray-600 text-white rounded text-center"
-                        />
-                        <span className="text-gray-300 ml-2">sec</span>
-                      </div>
+
+              {rvuDerivedMode ? (
+                <>
+                  {/* RVU/hr Derived Mode Controls */}
+                  <div className="bg-gray-700 p-4 rounded">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-white font-medium text-lg">Target: {targetRvuPerHour.toFixed(1)} RVU/hr</span>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="12"
+                      step="0.5"
+                      value={targetRvuPerHour}
+                      onChange={(e) => setTargetRvuPerHour(parseFloat(e.target.value))}
+                      className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                    <div className="flex justify-between text-sm text-gray-400 mt-1">
+                      <span>5</span>
+                      <span>8.5</span>
+                      <span>12</span>
+                    </div>
+
+                    <div className="mt-4 space-y-1">
+                      <p className="text-sm text-gray-300">
+                        CT Abd/Pel (2.55 RVU) → {formatTime(Math.round((2.55 / targetRvuPerHour) * 3600 - 8), true)}
+                      </p>
+                      <p className="text-sm text-gray-300">
+                        CT Head (0.91 RVU) → {formatTime(Math.round((0.91 / targetRvuPerHour) * 3600 - 8), true)}
+                      </p>
+                      <p className="text-sm text-gray-300">
+                        XR Chest (0.32 RVU) → {formatTime(Math.max(0, Math.round((0.32 / targetRvuPerHour) * 3600 - 8)), true)}
+                      </p>
+                    </div>
+
+                    <div className="mt-4 p-3 bg-gray-800 rounded text-sm text-gray-400">
+                      <p>Requires Sidecar CPT data. Manual modality mode uses standard par times as fallback.</p>
+                    </div>
+                  </div>
+
+                  {/* Non-RVU Complications (always active) */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-3">Non-RVU Complications</h3>
+                    <p className="text-sm text-gray-400 mb-3">Case complexity not captured by RVU value</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      {NON_RVU_COMPLICATIONS.map(comp => (
+                        <div key={comp} className="flex items-center justify-between bg-gray-700 p-3 rounded">
+                          <label className="text-white font-medium">{comp}</label>
+                          <div className="flex items-center">
+                            <input
+                              type="number"
+                              min="0"
+                              value={parTimes[comp]}
+                              onChange={(e) => updateParTime(comp, e.target.value)}
+                              className="w-20 px-2 py-1 bg-gray-600 text-white rounded text-center"
+                            />
+                            <span className="text-gray-300 ml-2">sec</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Standard Modality-Based Par Times */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-3">Modalities</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {modalities.map(modality => (
+                        <div key={modality} className="flex items-center justify-between bg-gray-700 p-3 rounded">
+                          <label className="text-white font-medium">{modality}</label>
+                          <div className="flex items-center">
+                            <input
+                              type="number"
+                              min="0"
+                              value={parTimes[modality]}
+                              onChange={(e) => updateParTime(modality, e.target.value)}
+                              className="w-20 px-2 py-1 bg-gray-600 text-white rounded text-center"
+                            />
+                            <span className="text-gray-300 ml-2">sec</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-3">Complications</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {complications.map(complication => (
+                        <div key={complication} className="flex items-center justify-between bg-gray-700 p-3 rounded">
+                          <label className="text-white font-medium">{complication}</label>
+                          <div className="flex items-center">
+                            <input
+                              type="number"
+                              min="0"
+                              value={parTimes[complication]}
+                              onChange={(e) => updateParTime(complication, e.target.value)}
+                              className="w-20 px-2 py-1 bg-gray-600 text-white rounded text-center"
+                            />
+                            <span className="text-gray-300 ml-2">sec</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
               
               <div>
                 <h3 className="text-lg font-semibold text-white mb-3">Display Options</h3>
@@ -4175,13 +4368,24 @@ function RadTachInner() {
                 <label className="block text-gray-300 text-sm mb-1">Office / Workstation</label>
                 <select
                   value={selectedOffice}
-                  onChange={(e) => setSelectedOffice(e.target.value)}
+                  onChange={(e) => {
+                    const office = e.target.value;
+                    setSelectedOffice(office);
+                    const zip = officeZips[office];
+                    if (zip) {
+                      setGpciZip(zip);
+                      setGpciValues(lookupGpci(zip));
+                    }
+                  }}
                   className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
                 >
                   {officeList.map(office => (
                     <option key={office} value={office}>{office}</option>
                   ))}
                 </select>
+                {gpciValues && officeZips[selectedOffice] && (
+                  <p className="text-cyan-400 text-xs mt-1">GPCI: {gpciValues.localityName}</p>
+                )}
               </div>
             )}
 

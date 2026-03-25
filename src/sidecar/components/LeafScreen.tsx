@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { CptEntry } from '../../types/cpt';
+import type { GpciValues } from '../../utils/gpciLookup';
+import { adjustedPcRvu } from '../../utils/gpciLookup';
 import { getBilateralRvu } from '../../utils/cptLookup';
 import SignReportButton from './SignReportButton';
 
@@ -7,6 +9,7 @@ interface Props {
   cpt: string;
   entry: CptEntry;
   entries: Record<string, CptEntry>;
+  gpci?: GpciValues;
   onStart: (bilateral: boolean) => void;
   onAdd: (bilateral: boolean) => void;
   onBack: () => void;
@@ -14,12 +17,13 @@ interface Props {
   disabled?: boolean;
 }
 
-export default function LeafScreen({ cpt, entry, entries, onStart, onAdd, onBack, onSignReport, disabled }: Props) {
+export default function LeafScreen({ cpt, entry, entries, gpci, onStart, onAdd, onBack, onSignReport, disabled }: Props) {
   const [bilateral, setBilateral] = useState(false);
 
+  const baseRvu = gpci ? adjustedPcRvu(entry, gpci) : entry.pcRvu;
   const displayRvu = bilateral
-    ? getBilateralRvu(entries, cpt).rvu
-    : entry.pcRvu;
+    ? getBilateralRvu(entries, cpt, gpci).rvu
+    : baseRvu;
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
@@ -42,6 +46,9 @@ export default function LeafScreen({ cpt, entry, entries, onStart, onAdd, onBack
           <div className="text-center py-4">
             <span className="text-4xl font-bold text-blue-400">{displayRvu}</span>
             <span className="text-blue-300 text-lg ml-2">RVU</span>
+            {gpci && (
+              <p className="text-cyan-500 text-xs mt-1">GPCI adjusted</p>
+            )}
           </div>
 
           {/* Bilateral toggle */}

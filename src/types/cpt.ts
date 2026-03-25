@@ -11,6 +11,9 @@ export interface CptEntry {
   bilateralEligible?: boolean;
   variant?: string;
   impliedComplications?: string[];
+  workRvu?: number;
+  facPeRvu?: number;
+  mpRvu?: number;
 }
 
 export interface CptDatabase {

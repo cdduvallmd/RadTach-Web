@@ -1,0 +1,656 @@
+{
+  "1011200": {
+    "name": "ALABAMA",
+    "work": 1,
+    "pe": 0.875,
+    "mp": 0.566
+  },
+  "1021201": {
+    "name": "ATLANTA",
+    "work": 1.003,
+    "pe": 1.016,
+    "mp": 1.201
+  },
+  "1021299": {
+    "name": "REST OF GEORGIA",
+    "work": 1,
+    "pe": 0.892,
+    "mp": 1.192
+  },
+  "1031235": {
+    "name": "TENNESSEE",
+    "work": 1,
+    "pe": 0.909,
+    "mp": 0.537
+  },
+  "1120201": {
+    "name": "SOUTH CAROLINA",
+    "work": 1,
+    "pe": 0.924,
+    "mp": 0.85
+  },
+  "1130200": {
+    "name": "VIRGINIA",
+    "work": 1,
+    "pe": 0.983,
+    "mp": 0.706
+  },
+  "1140216": {
+    "name": "WEST VIRGINIA",
+    "work": 1,
+    "pe": 0.869,
+    "mp": 1.431
+  },
+  "1150200": {
+    "name": "NORTH CAROLINA",
+    "work": 1,
+    "pe": 0.933,
+    "mp": 0.639
+  },
+  "1210201": {
+    "name": "DELAWARE",
+    "work": 1.005,
+    "pe": 0.988,
+    "mp": 0.899
+  },
+  "1220201": {
+    "name": "DC + MD/VA SUBURBS",
+    "work": 1.054,
+    "pe": 1.178,
+    "mp": 1.113
+  },
+  "1230201": {
+    "name": "BALTIMORE/SURR. CNTYS",
+    "work": 1.016,
+    "pe": 1.073,
+    "mp": 1.237
+  },
+  "1230299": {
+    "name": "REST OF MARYLAND",
+    "work": 1.01,
+    "pe": 1.012,
+    "mp": 0.918
+  },
+  "1240201": {
+    "name": "NORTHERN NJ",
+    "work": 1.063,
+    "pe": 1.16,
+    "mp": 1.068
+  },
+  "1240299": {
+    "name": "REST OF NEW JERSEYEDS01",
+    "work": 1.04,
+    "pe": 1.092,
+    "mp": 1.097
+  },
+  "1250201": {
+    "name": "METROPOLITAN PHILADELPHIA",
+    "work": 1.018,
+    "pe": 1.041,
+    "mp": 1.193
+  },
+  "1250299": {
+    "name": "REST OF PENNSYLVANIA",
+    "work": 1,
+    "pe": 0.918,
+    "mp": 0.945
+  },
+  "1310200": {
+    "name": "CONNECTICUT",
+    "work": 1.02,
+    "pe": 1.077,
+    "mp": 1.21
+  },
+  "1320201": {
+    "name": "MANHATTAN",
+    "work": 1.064,
+    "pe": 1.162,
+    "mp": 1.586
+  },
+  "1320202": {
+    "name": "NYC SUBURBS/LONG ISLAND",
+    "work": 1.064,
+    "pe": 1.189,
+    "mp": 1.857
+  },
+  "1320203": {
+    "name": "POUGHKPSIE/N NYC SUBURBS",
+    "work": 1.045,
+    "pe": 1.095,
+    "mp": 1.21
+  },
+  "1328299": {
+    "name": "REST OF NEW YORK",
+    "work": 1,
+    "pe": 0.95,
+    "mp": 0.703
+  },
+  "1329204": {
+    "name": "QUEENS",
+    "work": 1.064,
+    "pe": 1.182,
+    "mp": 1.442
+  },
+  "1411203": {
+    "name": "SOUTHERN MAINE",
+    "work": 1,
+    "pe": 0.991,
+    "mp": 0.631
+  },
+  "1411299": {
+    "name": "REST OF MAINE",
+    "work": 1,
+    "pe": 0.92,
+    "mp": 0.622
+  },
+  "1421201": {
+    "name": "METROPOLITAN BOSTON",
+    "work": 1.041,
+    "pe": 1.194,
+    "mp": 0.89
+  },
+  "1421299": {
+    "name": "REST OF MASSACHUSETTS",
+    "work": 1.016,
+    "pe": 1.053,
+    "mp": 0.797
+  },
+  "1431240": {
+    "name": "NEW HAMPSHIRE",
+    "work": 1,
+    "pe": 1.041,
+    "mp": 0.875
+  },
+  "1441201": {
+    "name": "RHODE ISLAND",
+    "work": 1.019,
+    "pe": 1.033,
+    "mp": 0.892
+  },
+  "1451250": {
+    "name": "VERMONT",
+    "work": 1,
+    "pe": 0.99,
+    "mp": 0.506
+  },
+  "1510200": {
+    "name": "KENTUCKYEDS01",
+    "work": 1,
+    "pe": 0.889,
+    "mp": 0.915
+  },
+  "1520200": {
+    "name": "OHIO",
+    "work": 1,
+    "pe": 0.913,
+    "mp": 1.008
+  },
+  "0111205": {
+    "name": "SAN FRANCISCO-OAKLAND-BERKELEY (SAN FRANCISCO/SAN MATEO/ALAMEDA/CONTRA COSTA CNTY)",
+    "work": 1.095,
+    "pe": 1.41,
+    "mp": 0.425
+  },
+  "0111209": {
+    "name": "SAN JOSE-SUNNYVALE-SANTA CLARA (SANTA CLARA CNTY)",
+    "work": 1.11,
+    "pe": 1.442,
+    "mp": 0.397
+  },
+  "0111251": {
+    "name": "NAPA",
+    "work": 1.063,
+    "pe": 1.318,
+    "mp": 0.508
+  },
+  "0111252": {
+    "name": "SAN FRANCISCO-OAKLAND-BERKELEY (MARIN CNTY)",
+    "work": 1.095,
+    "pe": 1.41,
+    "mp": 0.459
+  },
+  "0111253": {
+    "name": "VALLEJO",
+    "work": 1.063,
+    "pe": 1.318,
+    "mp": 0.459
+  },
+  "0111254": {
+    "name": "BAKERSFIELD",
+    "work": 1.019,
+    "pe": 1.096,
+    "mp": 0.609
+  },
+  "0111255": {
+    "name": "CHICO",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.536
+  },
+  "0111256": {
+    "name": "FRESNO",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.536
+  },
+  "0111257": {
+    "name": "HANFORD-CORCORAN",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.536
+  },
+  "0111258": {
+    "name": "MADERA",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.536
+  },
+  "0111259": {
+    "name": "MERCED",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.536
+  },
+  "0111260": {
+    "name": "MODESTO",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.536
+  },
+  "0111261": {
+    "name": "REDDING",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.536
+  },
+  "0111262": {
+    "name": "RIVERSIDE-SAN BERNARDINO-ONTARIO",
+    "work": 1.018,
+    "pe": 1.096,
+    "mp": 0.853
+  },
+  "0111263": {
+    "name": "SACRAMENTO-ROSEVILLE-FOLSOM",
+    "work": 1.036,
+    "pe": 1.163,
+    "mp": 0.536
+  },
+  "0111264": {
+    "name": "SALINAS",
+    "work": 1.031,
+    "pe": 1.159,
+    "mp": 0.536
+  },
+  "0111265": {
+    "name": "SAN JOSE-SUNNYVALE-SANTA CLARA (SAN BENITO CNTY)",
+    "work": 1.11,
+    "pe": 1.442,
+    "mp": 0.536
+  },
+  "0111266": {
+    "name": "SANTA CRUZ-WATSONVILLE",
+    "work": 1.021,
+    "pe": 1.215,
+    "mp": 0.536
+  },
+  "0111267": {
+    "name": "SANTA ROSA-PETALUMA",
+    "work": 1.03,
+    "pe": 1.228,
+    "mp": 0.536
+  },
+  "0111268": {
+    "name": "STOCKTON",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.536
+  },
+  "0111269": {
+    "name": "VISALIA",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.536
+  },
+  "0111270": {
+    "name": "YUBA CITYEDS01",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.536
+  },
+  "0111275": {
+    "name": "REST OF CALIFORNIA",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.536
+  },
+  "0118217": {
+    "name": "OXNARD-THOUSAND OAKS-VENTURA",
+    "work": 1.028,
+    "pe": 1.182,
+    "mp": 0.623
+  },
+  "0118218": {
+    "name": "LOS ANGELES-LONG BEACH-ANAHEIM (LOS ANGELES/ORANGE CNTY)",
+    "work": 1.041,
+    "pe": 1.183,
+    "mp": 0.664
+  },
+  "0118271": {
+    "name": "EL CENTRO",
+    "work": 1.017,
+    "pe": 1.096,
+    "mp": 0.541
+  },
+  "0118272": {
+    "name": "SAN DIEGO-CHULA VISTA-CARLSBAD",
+    "work": 1.03,
+    "pe": 1.196,
+    "mp": 0.542
+  },
+  "0118273": {
+    "name": "SAN LUIS OBISPO-PASO ROBLES",
+    "work": 1.017,
+    "pe": 1.139,
+    "mp": 0.536
+  },
+  "0118274": {
+    "name": "SANTA MARIA-SANTA BARBARA",
+    "work": 1.028,
+    "pe": 1.166,
+    "mp": 0.536
+  },
+  "0121201": {
+    "name": "\"HAWAII, GUAM\"",
+    "work": 1,
+    "pe": 1.137,
+    "mp": 0.579
+  },
+  "0131200": {
+    "name": "NEVADA",
+    "work": 1,
+    "pe": 1.001,
+    "mp": 0.833
+  },
+  "0210201": {
+    "name": "ALASKA",
+    "work": 1.5,
+    "pe": 1.065,
+    "mp": 0.551
+  },
+  "0220200": {
+    "name": "IDAHO",
+    "work": 1,
+    "pe": 0.92,
+    "mp": 0.473
+  },
+  "0230201": {
+    "name": "PORTLAND",
+    "work": 1.016,
+    "pe": 1.111,
+    "mp": 0.744
+  },
+  "0230299": {
+    "name": "REST OF OREGON",
+    "work": 1,
+    "pe": 0.996,
+    "mp": 0.703
+  },
+  "0240202": {
+    "name": "SEATTLE (KING CNTY)",
+    "work": 1.05,
+    "pe": 1.227,
+    "mp": 0.817
+  },
+  "0240299": {
+    "name": "REST OF WASHINGTON",
+    "work": 1.013,
+    "pe": 1.053,
+    "mp": 0.761
+  },
+  "0310200": {
+    "name": "ARIZONA",
+    "work": 1,
+    "pe": 0.969,
+    "mp": 0.856
+  },
+  "0320201": {
+    "name": "MONTANA",
+    "work": 1,
+    "pe": 1,
+    "mp": 0.998
+  },
+  "0330201": {
+    "name": "NORTH DAKOTA",
+    "work": 1,
+    "pe": 1,
+    "mp": 0.406
+  },
+  "0340202": {
+    "name": "SOUTH DAKOTA",
+    "work": 1,
+    "pe": 1,
+    "mp": 0.336
+  },
+  "0350209": {
+    "name": "UTAH",
+    "work": 1,
+    "pe": 0.94,
+    "mp": 0.898
+  },
+  "0360221": {
+    "name": "WYOMING",
+    "work": 1,
+    "pe": 1,
+    "mp": 0.74
+  },
+  "0411201": {
+    "name": "COLORADO",
+    "work": 1.012,
+    "pe": 1.064,
+    "mp": 0.781
+  },
+  "0421205": {
+    "name": "NEW MEXICO",
+    "work": 1,
+    "pe": 0.917,
+    "mp": 1.201
+  },
+  "0431200": {
+    "name": "OKLAHOMA",
+    "work": 1,
+    "pe": 0.893,
+    "mp": 0.777
+  },
+  "0441209": {
+    "name": "BRAZORIA",
+    "work": 1.008,
+    "pe": 0.991,
+    "mp": 0.78
+  },
+  "0441211": {
+    "name": "DALLAS",
+    "work": 1.009,
+    "pe": 0.996,
+    "mp": 0.858
+  },
+  "0441215": {
+    "name": "GALVESTON",
+    "work": 1.008,
+    "pe": 0.993,
+    "mp": 0.828
+  },
+  "0441218": {
+    "name": "HOUSTON",
+    "work": 1.008,
+    "pe": 0.993,
+    "mp": 1.376
+  },
+  "0441220": {
+    "name": "BEAUMONT",
+    "work": 1,
+    "pe": 0.91,
+    "mp": 0.929
+  },
+  "0441228": {
+    "name": "FORT WORTH",
+    "work": 1.009,
+    "pe": 0.986,
+    "mp": 0.871
+  },
+  "0441231": {
+    "name": "AUSTIN",
+    "work": 1.002,
+    "pe": 1.058,
+    "mp": 0.886
+  },
+  "0441299": {
+    "name": "REST OF TEXAS",
+    "work": 1,
+    "pe": 0.949,
+    "mp": 0.903
+  },
+  "0510200": {
+    "name": "IOWA",
+    "work": 1,
+    "pe": 0.915,
+    "mp": 0.397
+  },
+  "0520200": {
+    "name": "KANSAS",
+    "work": 1,
+    "pe": 0.904,
+    "mp": 0.504
+  },
+  "0530201": {
+    "name": "METROPOLITAN ST. LOUIS",
+    "work": 1,
+    "pe": 0.952,
+    "mp": 1.002
+  },
+  "0530202": {
+    "name": "METROPOLITAN KANSAS CITYEDS01",
+    "work": 1,
+    "pe": 0.939,
+    "mp": 0.977
+  },
+  "0530299": {
+    "name": "REST OF MISSOURI",
+    "work": 1,
+    "pe": 0.862,
+    "mp": 0.974
+  },
+  "0540200": {
+    "name": "NEBRASKA",
+    "work": 1,
+    "pe": 0.923,
+    "mp": 0.378
+  },
+  "0610212": {
+    "name": "EAST ST. LOUIS",
+    "work": 1,
+    "pe": 0.92,
+    "mp": 2.014
+  },
+  "0610215": {
+    "name": "SUBURBAN CHICAGO",
+    "work": 1.007,
+    "pe": 1.027,
+    "mp": 1.772
+  },
+  "0610216": {
+    "name": "CHICAGO",
+    "work": 1.007,
+    "pe": 1.005,
+    "mp": 2.295
+  },
+  "0610299": {
+    "name": "REST OF ILLINOIS",
+    "work": 1,
+    "pe": 0.913,
+    "mp": 1.563
+  },
+  "0620200": {
+    "name": "MINNESOTA",
+    "work": 1,
+    "pe": 1.029,
+    "mp": 0.296
+  },
+  "0630200": {
+    "name": "WISCONSIN",
+    "work": 1,
+    "pe": 0.958,
+    "mp": 0.308
+  },
+  "0710213": {
+    "name": "ARKANSAS",
+    "work": 1,
+    "pe": 0.859,
+    "mp": 0.515
+  },
+  "0720201": {
+    "name": "NEW ORLEANS",
+    "work": 1,
+    "pe": 0.941,
+    "mp": 1.136
+  },
+  "0720299": {
+    "name": "REST OF LOUISIANA",
+    "work": 1,
+    "pe": 0.885,
+    "mp": 0.958
+  },
+  "0730200": {
+    "name": "MISSISSIPPI",
+    "work": 1,
+    "pe": 0.861,
+    "mp": 0.739
+  },
+  "0810200": {
+    "name": "INDIANA",
+    "work": 1,
+    "pe": 0.927,
+    "mp": 0.486
+  },
+  "0820201": {
+    "name": "DETROIT",
+    "work": 1,
+    "pe": 0.965,
+    "mp": 1.686
+  },
+  "0820299": {
+    "name": "REST OF MICHIGAN",
+    "work": 1,
+    "pe": 0.913,
+    "mp": 1.129
+  },
+  "0910203": {
+    "name": "FORT LAUDERDALE",
+    "work": 1,
+    "pe": 1.013,
+    "mp": 1.808
+  },
+  "0910204": {
+    "name": "MIAMI",
+    "work": 1,
+    "pe": 1.041,
+    "mp": 2.529
+  },
+  "0910299": {
+    "name": "REST OF FLORIDA",
+    "work": 1,
+    "pe": 0.956,
+    "mp": 1.503
+  },
+  "0920220": {
+    "name": "PUERTO RICO",
+    "work": 1,
+    "pe": 1.011,
+    "mp": 0.985
+  },
+  "0920250": {
+    "name": "VIRGIN ISLANDS",
+    "work": 1,
+    "pe": 1.011,
+    "mp": 0.985
+  }
+}

@@ -16,6 +16,8 @@ interface StudyEvent {
   pauseTime: number;
   pauseUsed: boolean;
   drafted: boolean;
+  rvuDerivedMode?: boolean;
+  targetRvuPerHour?: number;
 }
 
 interface InterstitialEvent {
@@ -124,6 +126,13 @@ export interface SessionSummary {
   modalityTransitionPenalty: {
     avgInterstitialSameModality: number | null;
     avgInterstitialDifferentModality: number | null;
+  };
+  // RVU/hr derived mode summary
+  rvuDerivedSummary?: {
+    targetRvuPerHour: number;
+    achievedRvuPerHour: number;
+    studiesInDerivedMode: number;
+    totalStudies: number;
   };
 }
 
@@ -297,6 +306,23 @@ export function computeSessionSummary(
   // ── 7L: Modality transition penalty ───────────────────────────────────
   const modalityTransitionPenalty = computeModalityTransitionPenalty(sortedStudies, interstitials);
 
+  // ── RVU/hr derived mode summary ─────────────────────────────────────
+  const derivedStudies = studies.filter(s => s.rvuDerivedMode);
+  let rvuDerivedSummary: SessionSummary['rvuDerivedSummary'];
+  if (derivedStudies.length > 0) {
+    const totalDerivedRvu = derivedStudies.reduce((sum, s) => sum + s.rvu, 0);
+    const totalDerivedTime = derivedStudies.reduce((sum, s) => sum + s.elapsedTime, 0);
+    const achievedRvuPerHour = totalDerivedTime > 0 ? totalDerivedRvu / (totalDerivedTime / 3600) : 0;
+    // Use the target from the last RVU-derived study (most recent setting)
+    const lastTarget = derivedStudies[derivedStudies.length - 1].targetRvuPerHour || 8;
+    rvuDerivedSummary = {
+      targetRvuPerHour: lastTarget,
+      achievedRvuPerHour,
+      studiesInDerivedMode: derivedStudies.length,
+      totalStudies: studies.length,
+    };
+  }
+
   return {
     studiesByModality,
     rvuPerHourByModality,
@@ -316,6 +342,7 @@ export function computeSessionSummary(
     interruptionRecoveryCost,
     complicationStacking,
     modalityTransitionPenalty,
+    ...(rvuDerivedSummary ? { rvuDerivedSummary } : {}),
   };
 }
 

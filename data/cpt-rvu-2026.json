@@ -1,7 +1,7 @@
 {
   "year": 2026,
-  "updatedAt": "2026-03-14",
-  "source": "CMS MPFS 2026 Final Rule (CMS-1832-F) \u2014 PPRRVU2026_Jan_nonQPP",
+  "updatedAt": "2026-03-25",
+  "source": "CMS MPFS 2026 Final Rule (CMS-1832-F) — PPRRVU2026_Jan_nonQPP",
   "entries": {
     "70010": {
       "cpt": "70010",
@@ -12,7 +12,10 @@
       "defaultAeTitle": "FL HEAD",
       "modality": "FL",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.16,
+      "facPeRvu": 0,
+      "mpRvu": 0
     },
     "70015": {
       "cpt": "70015",
@@ -23,7 +26,10 @@
       "defaultAeTitle": "FL HEAD",
       "modality": "FL",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.16,
+      "facPeRvu": 0.41,
+      "mpRvu": 0.07
     },
     "70030": {
       "cpt": "70030",
@@ -34,7 +40,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.18,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "70100": {
       "cpt": "70100",
@@ -45,7 +54,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.18,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "70110": {
       "cpt": "70110",
@@ -56,7 +68,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.24,
+      "facPeRvu": 0.1,
+      "mpRvu": 0.01
     },
     "70120": {
       "cpt": "70120",
@@ -67,7 +82,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.18,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "70130": {
       "cpt": "70130",
@@ -78,7 +96,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.33,
+      "facPeRvu": 0.13,
+      "mpRvu": 0.02
     },
     "70134": {
       "cpt": "70134",
@@ -89,7 +110,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.33,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.01
     },
     "70140": {
       "cpt": "70140",
@@ -100,7 +124,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.19,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "70150": {
       "cpt": "70150",
@@ -111,7 +138,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.25,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.01
     },
     "70160": {
       "cpt": "70160",
@@ -122,18 +152,24 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.17,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "70170": {
       "cpt": "70170",
       "description": "X-ray exam of tear duct",
       "pcRvu": 0.42,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL HEAD",
       "modality": "FL",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.29,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.02
     },
     "70190": {
       "cpt": "70190",
@@ -144,7 +180,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.2,
+      "facPeRvu": 0.1,
+      "mpRvu": 0.01
     },
     "70200": {
       "cpt": "70200",
@@ -155,7 +194,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.27,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.01
     },
     "70210": {
       "cpt": "70210",
@@ -166,7 +208,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.17,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "70220": {
       "cpt": "70220",
@@ -177,7 +222,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.21,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "70240": {
       "cpt": "70240",
@@ -188,7 +236,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.19,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "70250": {
       "cpt": "70250",
@@ -199,7 +250,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.18,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "70260": {
       "cpt": "70260",
@@ -210,7 +264,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.27,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.01
     },
     "70300": {
       "cpt": "70300",
@@ -221,7 +278,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.1,
+      "facPeRvu": 0.05,
+      "mpRvu": 0.01
     },
     "70310": {
       "cpt": "70310",
@@ -232,7 +292,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.16,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "70320": {
       "cpt": "70320",
@@ -243,7 +306,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.21,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.02
     },
     "70328": {
       "cpt": "70328",
@@ -254,7 +320,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.18,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "70330": {
       "cpt": "70330",
@@ -265,7 +334,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.23,
+      "facPeRvu": 0.1,
+      "mpRvu": 0.01
     },
     "70332": {
       "cpt": "70332",
@@ -276,18 +348,24 @@
       "defaultAeTitle": "FL HEAD",
       "modality": "FL",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.19,
+      "mpRvu": 0.03
     },
     "70336": {
       "cpt": "70336",
       "description": "Magnetic image jaw joint",
-      "pcRvu": 2.0,
+      "pcRvu": 2,
       "tcRvu": 5.76,
       "globalRvu": 7.76,
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.44,
+      "facPeRvu": 0.49,
+      "mpRvu": 0.07
     },
     "70350": {
       "cpt": "70350",
@@ -298,7 +376,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.17,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "70355": {
       "cpt": "70355",
@@ -309,7 +390,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.2,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "70360": {
       "cpt": "70360",
@@ -320,18 +404,24 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.18,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "70370": {
       "cpt": "70370",
       "description": "Throat x-ray & fluoroscopy",
       "pcRvu": 0.46,
       "tcRvu": 2.54,
-      "globalRvu": 3.0,
+      "globalRvu": 3,
       "defaultAeTitle": "FL HEAD",
       "modality": "FL",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.31,
+      "facPeRvu": 0.13,
+      "mpRvu": 0.02
     },
     "70371": {
       "cpt": "70371",
@@ -342,7 +432,10 @@
       "defaultAeTitle": "XR HEAD COMPLETE",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "Complete"
+      "protocol": "Complete",
+      "workRvu": 0.82,
+      "facPeRvu": 0.37,
+      "mpRvu": 0.04
     },
     "70380": {
       "cpt": "70380",
@@ -353,7 +446,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.17,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "70390": {
       "cpt": "70390",
@@ -364,7 +460,10 @@
       "defaultAeTitle": "XR HEAD",
       "modality": "XR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.37,
+      "facPeRvu": 0.13,
+      "mpRvu": 0.02
     },
     "70450": {
       "cpt": "70450",
@@ -375,7 +474,10 @@
       "defaultAeTitle": "CT HEAD WO",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 0.83,
+      "facPeRvu": 0.3,
+      "mpRvu": 0.05
     },
     "70460": {
       "cpt": "70460",
@@ -386,7 +488,10 @@
       "defaultAeTitle": "CT HEAD W",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.1,
+      "facPeRvu": 0.39,
+      "mpRvu": 0.07
     },
     "70470": {
       "cpt": "70470",
@@ -397,7 +502,10 @@
       "defaultAeTitle": "CT HEAD WO W",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.24,
+      "facPeRvu": 0.44,
+      "mpRvu": 0.07
     },
     "70471": {
       "cpt": "70471",
@@ -408,7 +516,10 @@
       "defaultAeTitle": "CT HEAD W",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 2.5,
+      "facPeRvu": 0.89,
+      "mpRvu": 0.15
     },
     "70472": {
       "cpt": "70472",
@@ -419,7 +530,10 @@
       "defaultAeTitle": "CT HEAD WO W",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 0.77,
+      "facPeRvu": 0.27,
+      "mpRvu": 0.05
     },
     "70473": {
       "cpt": "70473",
@@ -430,7 +544,10 @@
       "defaultAeTitle": "CT HEAD",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1,
+      "facPeRvu": 0.36,
+      "mpRvu": 0.06
     },
     "70480": {
       "cpt": "70480",
@@ -441,7 +558,10 @@
       "defaultAeTitle": "CT HEAD WO",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.25,
+      "facPeRvu": 0.45,
+      "mpRvu": 0.07
     },
     "70481": {
       "cpt": "70481",
@@ -452,7 +572,10 @@
       "defaultAeTitle": "CT HEAD W",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.1,
+      "facPeRvu": 0.39,
+      "mpRvu": 0.07
     },
     "70482": {
       "cpt": "70482",
@@ -463,7 +586,10 @@
       "defaultAeTitle": "CT HEAD WO W",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.24,
+      "facPeRvu": 0.43,
+      "mpRvu": 0.07
     },
     "70486": {
       "cpt": "70486",
@@ -474,7 +600,10 @@
       "defaultAeTitle": "CT HEAD WO",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 0.83,
+      "facPeRvu": 0.31,
+      "mpRvu": 0.05
     },
     "70487": {
       "cpt": "70487",
@@ -485,7 +614,10 @@
       "defaultAeTitle": "CT HEAD W",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.1,
+      "facPeRvu": 0.39,
+      "mpRvu": 0.07
     },
     "70488": {
       "cpt": "70488",
@@ -496,7 +628,10 @@
       "defaultAeTitle": "CT HEAD WO W",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.24,
+      "facPeRvu": 0.44,
+      "mpRvu": 0.07
     },
     "70490": {
       "cpt": "70490",
@@ -507,7 +642,10 @@
       "defaultAeTitle": "CT NECK WO",
       "modality": "CT",
       "bodyPart": "Neck",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.25,
+      "facPeRvu": 0.45,
+      "mpRvu": 0.07
     },
     "70491": {
       "cpt": "70491",
@@ -518,7 +656,10 @@
       "defaultAeTitle": "CT NECK W",
       "modality": "CT",
       "bodyPart": "Neck",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.35,
+      "facPeRvu": 0.48,
+      "mpRvu": 0.07
     },
     "70492": {
       "cpt": "70492",
@@ -529,7 +670,10 @@
       "defaultAeTitle": "CT NECK WO W",
       "modality": "CT",
       "bodyPart": "Neck",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.58,
+      "facPeRvu": 0.55,
+      "mpRvu": 0.08
     },
     "70496": {
       "cpt": "70496",
@@ -540,7 +684,10 @@
       "defaultAeTitle": "CTA HEAD",
       "modality": "CT",
       "bodyPart": "Head",
-      "protocol": "CTA"
+      "protocol": "CTA",
+      "workRvu": 1.71,
+      "facPeRvu": 0.6,
+      "mpRvu": 0.09
     },
     "70498": {
       "cpt": "70498",
@@ -551,7 +698,10 @@
       "defaultAeTitle": "CTA NECK",
       "modality": "CT",
       "bodyPart": "Neck",
-      "protocol": "CTA"
+      "protocol": "CTA",
+      "workRvu": 1.71,
+      "facPeRvu": 0.6,
+      "mpRvu": 0.09
     },
     "70540": {
       "cpt": "70540",
@@ -562,7 +712,10 @@
       "defaultAeTitle": "MR HEAD WO",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.32,
+      "facPeRvu": 0.46,
+      "mpRvu": 0.07
     },
     "70542": {
       "cpt": "70542",
@@ -573,7 +726,10 @@
       "defaultAeTitle": "MR HEAD W",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.58,
+      "facPeRvu": 0.57,
+      "mpRvu": 0.08
     },
     "70543": {
       "cpt": "70543",
@@ -584,7 +740,10 @@
       "defaultAeTitle": "MR HEAD WO",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 2.1,
+      "facPeRvu": 0.74,
+      "mpRvu": 0.12
     },
     "70544": {
       "cpt": "70544",
@@ -595,7 +754,10 @@
       "defaultAeTitle": "MR HEAD WO",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.17,
+      "facPeRvu": 0.41,
+      "mpRvu": 0.07
     },
     "70545": {
       "cpt": "70545",
@@ -606,7 +768,10 @@
       "defaultAeTitle": "MR HEAD W",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.17,
+      "facPeRvu": 0.41,
+      "mpRvu": 0.07
     },
     "70546": {
       "cpt": "70546",
@@ -617,7 +782,10 @@
       "defaultAeTitle": "MR HEAD WO W",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.44,
+      "facPeRvu": 0.51,
+      "mpRvu": 0.08
     },
     "70547": {
       "cpt": "70547",
@@ -628,7 +796,10 @@
       "defaultAeTitle": "MR NECK WO",
       "modality": "MR",
       "bodyPart": "Neck",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.17,
+      "facPeRvu": 0.41,
+      "mpRvu": 0.07
     },
     "70548": {
       "cpt": "70548",
@@ -639,7 +810,10 @@
       "defaultAeTitle": "MR NECK W",
       "modality": "MR",
       "bodyPart": "Neck",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.46,
+      "facPeRvu": 0.52,
+      "mpRvu": 0.08
     },
     "70549": {
       "cpt": "70549",
@@ -650,7 +824,10 @@
       "defaultAeTitle": "MR NECK WO W",
       "modality": "MR",
       "bodyPart": "Neck",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.76,
+      "facPeRvu": 0.62,
+      "mpRvu": 0.09
     },
     "70551": {
       "cpt": "70551",
@@ -661,7 +838,10 @@
       "defaultAeTitle": "MR HEAD WO",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.44,
+      "facPeRvu": 0.51,
+      "mpRvu": 0.08
     },
     "70552": {
       "cpt": "70552",
@@ -672,7 +852,10 @@
       "defaultAeTitle": "MR HEAD W",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.74,
+      "facPeRvu": 0.62,
+      "mpRvu": 0.09
     },
     "70553": {
       "cpt": "70553",
@@ -683,7 +866,10 @@
       "defaultAeTitle": "MR HEAD WO W",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 2.23,
+      "facPeRvu": 0.79,
+      "mpRvu": 0.13
     },
     "70554": {
       "cpt": "70554",
@@ -694,51 +880,66 @@
       "defaultAeTitle": "MR HEAD",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.06,
+      "facPeRvu": 0.74,
+      "mpRvu": 0.13
     },
     "70555": {
       "cpt": "70555",
       "description": "Fmri brain by phys/psych",
       "pcRvu": 3.42,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "MR HEAD",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.48,
+      "facPeRvu": 0.82,
+      "mpRvu": 0.12
     },
     "70557": {
       "cpt": "70557",
       "description": "Mri brain w/o dye",
       "pcRvu": 4.61,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "MR HEAD WO",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 2.83,
+      "facPeRvu": 1.65,
+      "mpRvu": 0.13
     },
     "70558": {
       "cpt": "70558",
       "description": "Mri brain w/dye",
       "pcRvu": 5.08,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "MR HEAD W",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 3.12,
+      "facPeRvu": 1.81,
+      "mpRvu": 0.15
     },
     "70559": {
       "cpt": "70559",
       "description": "Mri brain w/o & w/dye",
       "pcRvu": 4.69,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "MR HEAD WO W",
       "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 3.12,
+      "facPeRvu": 1.29,
+      "mpRvu": 0.28
     },
     "71045": {
       "cpt": "71045",
@@ -749,7 +950,10 @@
       "defaultAeTitle": "XR CHEST",
       "modality": "XR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.18,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "71046": {
       "cpt": "71046",
@@ -760,7 +964,10 @@
       "defaultAeTitle": "XR CHEST",
       "modality": "XR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.21,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "71047": {
       "cpt": "71047",
@@ -771,7 +978,10 @@
       "defaultAeTitle": "XR CHEST",
       "modality": "XR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.26,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.01
     },
     "71048": {
       "cpt": "71048",
@@ -782,7 +992,10 @@
       "defaultAeTitle": "XR CHEST",
       "modality": "XR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.3,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "71100": {
       "cpt": "71100",
@@ -793,7 +1006,10 @@
       "defaultAeTitle": "XR CHEST",
       "modality": "XR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.21,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "71101": {
       "cpt": "71101",
@@ -804,7 +1020,10 @@
       "defaultAeTitle": "XR CHEST",
       "modality": "XR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.26,
+      "facPeRvu": 0.1,
+      "mpRvu": 0.02
     },
     "71110": {
       "cpt": "71110",
@@ -815,7 +1034,10 @@
       "defaultAeTitle": "XR CHEST",
       "modality": "XR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.28,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.01
     },
     "71111": {
       "cpt": "71111",
@@ -826,7 +1048,10 @@
       "defaultAeTitle": "XR CHEST",
       "modality": "XR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.31,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "71120": {
       "cpt": "71120",
@@ -837,7 +1062,10 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.2,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "71130": {
       "cpt": "71130",
@@ -848,7 +1076,10 @@
       "defaultAeTitle": "XR CHEST",
       "modality": "XR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.21,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "71250": {
       "cpt": "71250",
@@ -859,7 +1090,10 @@
       "defaultAeTitle": "CT CHEST WO",
       "modality": "CT",
       "bodyPart": "Chest",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.05,
+      "facPeRvu": 0.37,
+      "mpRvu": 0.06
     },
     "71260": {
       "cpt": "71260",
@@ -870,7 +1104,10 @@
       "defaultAeTitle": "CT CHEST",
       "modality": "CT",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.13,
+      "facPeRvu": 0.41,
+      "mpRvu": 0.07
     },
     "71270": {
       "cpt": "71270",
@@ -881,7 +1118,10 @@
       "defaultAeTitle": "CT CHEST WO",
       "modality": "CT",
       "bodyPart": "Chest",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.22,
+      "facPeRvu": 0.43,
+      "mpRvu": 0.07
     },
     "71271": {
       "cpt": "71271",
@@ -892,7 +1132,10 @@
       "defaultAeTitle": "CT CHEST WO",
       "modality": "CT",
       "bodyPart": "Chest",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.05,
+      "facPeRvu": 0.37,
+      "mpRvu": 0.06
     },
     "71275": {
       "cpt": "71275",
@@ -903,7 +1146,10 @@
       "defaultAeTitle": "CTA CHEST",
       "modality": "CT",
       "bodyPart": "Chest",
-      "protocol": "CTA"
+      "protocol": "CTA",
+      "workRvu": 1.77,
+      "facPeRvu": 0.62,
+      "mpRvu": 0.11
     },
     "71550": {
       "cpt": "71550",
@@ -914,7 +1160,10 @@
       "defaultAeTitle": "MR CHEST WO",
       "modality": "MR",
       "bodyPart": "Chest",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.42,
+      "facPeRvu": 0.5,
+      "mpRvu": 0.07
     },
     "71551": {
       "cpt": "71551",
@@ -925,7 +1174,10 @@
       "defaultAeTitle": "MR CHEST W",
       "modality": "MR",
       "bodyPart": "Chest",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.69,
+      "facPeRvu": 0.6,
+      "mpRvu": 0.09
     },
     "71552": {
       "cpt": "71552",
@@ -936,7 +1188,10 @@
       "defaultAeTitle": "MR CHEST WO W",
       "modality": "MR",
       "bodyPart": "Chest",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 2.2,
+      "facPeRvu": 0.78,
+      "mpRvu": 0.13
     },
     "71555": {
       "cpt": "71555",
@@ -947,7 +1202,10 @@
       "defaultAeTitle": "MR CHEST WO",
       "modality": "MR",
       "bodyPart": "Chest",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.76,
+      "facPeRvu": 0.62,
+      "mpRvu": 0.09
     },
     "72020": {
       "cpt": "72020",
@@ -958,7 +1216,10 @@
       "defaultAeTitle": "XR TL SPINE",
       "modality": "XR",
       "bodyPart": "Spine-TL",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.16,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "72040": {
       "cpt": "72040",
@@ -969,7 +1230,10 @@
       "defaultAeTitle": "XR C SPINE",
       "modality": "XR",
       "bodyPart": "Spine-C",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.21,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "72050": {
       "cpt": "72050",
@@ -980,7 +1244,10 @@
       "defaultAeTitle": "XR C SPINE",
       "modality": "XR",
       "bodyPart": "Spine-C",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.26,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.02
     },
     "72052": {
       "cpt": "72052",
@@ -991,7 +1258,10 @@
       "defaultAeTitle": "XR C SPINE",
       "modality": "XR",
       "bodyPart": "Spine-C",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.29,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "72070": {
       "cpt": "72070",
@@ -1002,7 +1272,10 @@
       "defaultAeTitle": "XR T SPINE",
       "modality": "XR",
       "bodyPart": "Spine-T",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.2,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "72072": {
       "cpt": "72072",
@@ -1013,7 +1286,10 @@
       "defaultAeTitle": "XR T SPINE",
       "modality": "XR",
       "bodyPart": "Spine-T",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.22,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "72074": {
       "cpt": "72074",
@@ -1024,7 +1300,10 @@
       "defaultAeTitle": "XR T SPINE",
       "modality": "XR",
       "bodyPart": "Spine-T",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.24,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "72080": {
       "cpt": "72080",
@@ -1035,7 +1314,10 @@
       "defaultAeTitle": "XR TL SPINE",
       "modality": "XR",
       "bodyPart": "Spine-TL",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.2,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "72081": {
       "cpt": "72081",
@@ -1046,7 +1328,10 @@
       "defaultAeTitle": "XR TL SPINE",
       "modality": "XR",
       "bodyPart": "Spine-TL",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.25,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.02
     },
     "72082": {
       "cpt": "72082",
@@ -1057,7 +1342,10 @@
       "defaultAeTitle": "XR TL SPINE",
       "modality": "XR",
       "bodyPart": "Spine-TL",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.3,
+      "facPeRvu": 0.13,
+      "mpRvu": 0.02
     },
     "72083": {
       "cpt": "72083",
@@ -1068,7 +1356,10 @@
       "defaultAeTitle": "XR TL SPINE",
       "modality": "XR",
       "bodyPart": "Spine-TL",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.34,
+      "facPeRvu": 0.15,
+      "mpRvu": 0.02
     },
     "72084": {
       "cpt": "72084",
@@ -1079,7 +1370,10 @@
       "defaultAeTitle": "XR TL SPINE",
       "modality": "XR",
       "bodyPart": "Spine-TL",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.4,
+      "facPeRvu": 0.17,
+      "mpRvu": 0.02
     },
     "72100": {
       "cpt": "72100",
@@ -1090,7 +1384,10 @@
       "defaultAeTitle": "XR L SPINE",
       "modality": "XR",
       "bodyPart": "Spine-L",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.21,
+      "facPeRvu": 0.1,
+      "mpRvu": 0.01
     },
     "72110": {
       "cpt": "72110",
@@ -1101,7 +1398,10 @@
       "defaultAeTitle": "XR L SPINE",
       "modality": "XR",
       "bodyPart": "Spine-L",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.25,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.02
     },
     "72114": {
       "cpt": "72114",
@@ -1112,7 +1412,10 @@
       "defaultAeTitle": "XR L SPINE",
       "modality": "XR",
       "bodyPart": "Spine-L",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.29,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "72120": {
       "cpt": "72120",
@@ -1123,7 +1426,10 @@
       "defaultAeTitle": "XR L SPINE",
       "modality": "XR",
       "bodyPart": "Spine-L",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.21,
+      "facPeRvu": 0.1,
+      "mpRvu": 0.01
     },
     "72125": {
       "cpt": "72125",
@@ -1134,7 +1440,10 @@
       "defaultAeTitle": "CT C SPINE WO",
       "modality": "CT",
       "bodyPart": "Spine-C",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 0.98,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.06
     },
     "72126": {
       "cpt": "72126",
@@ -1145,7 +1454,10 @@
       "defaultAeTitle": "CT C SPINE W",
       "modality": "CT",
       "bodyPart": "Spine-C",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.19,
+      "facPeRvu": 0.42,
+      "mpRvu": 0.07
     },
     "72127": {
       "cpt": "72127",
@@ -1156,7 +1468,10 @@
       "defaultAeTitle": "CT C SPINE WO W",
       "modality": "CT",
       "bodyPart": "Spine-C",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.24,
+      "facPeRvu": 0.43,
+      "mpRvu": 0.07
     },
     "72128": {
       "cpt": "72128",
@@ -1167,7 +1482,10 @@
       "defaultAeTitle": "CT T SPINE WO",
       "modality": "CT",
       "bodyPart": "Spine-T",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 0.98,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.06
     },
     "72129": {
       "cpt": "72129",
@@ -1178,7 +1496,10 @@
       "defaultAeTitle": "CT T SPINE W",
       "modality": "CT",
       "bodyPart": "Spine-T",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.19,
+      "facPeRvu": 0.42,
+      "mpRvu": 0.07
     },
     "72130": {
       "cpt": "72130",
@@ -1189,7 +1510,10 @@
       "defaultAeTitle": "CT T SPINE WO W",
       "modality": "CT",
       "bodyPart": "Spine-T",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.24,
+      "facPeRvu": 0.44,
+      "mpRvu": 0.07
     },
     "72131": {
       "cpt": "72131",
@@ -1200,7 +1524,10 @@
       "defaultAeTitle": "CT L SPINE WO",
       "modality": "CT",
       "bodyPart": "Spine-L",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 0.98,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.06
     },
     "72132": {
       "cpt": "72132",
@@ -1211,7 +1538,10 @@
       "defaultAeTitle": "CT L SPINE W",
       "modality": "CT",
       "bodyPart": "Spine-L",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.19,
+      "facPeRvu": 0.42,
+      "mpRvu": 0.07
     },
     "72133": {
       "cpt": "72133",
@@ -1222,7 +1552,10 @@
       "defaultAeTitle": "CT L SPINE WO W",
       "modality": "CT",
       "bodyPart": "Spine-L",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.24,
+      "facPeRvu": 0.44,
+      "mpRvu": 0.07
     },
     "72141": {
       "cpt": "72141",
@@ -1233,7 +1566,10 @@
       "defaultAeTitle": "MR C SPINE WO",
       "modality": "MR",
       "bodyPart": "Spine-C",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.44,
+      "facPeRvu": 0.52,
+      "mpRvu": 0.08
     },
     "72142": {
       "cpt": "72142",
@@ -1244,7 +1580,10 @@
       "defaultAeTitle": "MR C SPINE W",
       "modality": "MR",
       "bodyPart": "Spine-C",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.74,
+      "facPeRvu": 0.63,
+      "mpRvu": 0.11
     },
     "72146": {
       "cpt": "72146",
@@ -1255,7 +1594,10 @@
       "defaultAeTitle": "MR T SPINE WO",
       "modality": "MR",
       "bodyPart": "Spine-T",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.44,
+      "facPeRvu": 0.52,
+      "mpRvu": 0.08
     },
     "72147": {
       "cpt": "72147",
@@ -1266,7 +1608,10 @@
       "defaultAeTitle": "MR T SPINE W",
       "modality": "MR",
       "bodyPart": "Spine-T",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.74,
+      "facPeRvu": 0.63,
+      "mpRvu": 0.09
     },
     "72148": {
       "cpt": "72148",
@@ -1277,7 +1622,10 @@
       "defaultAeTitle": "MR L SPINE WO",
       "modality": "MR",
       "bodyPart": "Spine-L",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.44,
+      "facPeRvu": 0.53,
+      "mpRvu": 0.08
     },
     "72149": {
       "cpt": "72149",
@@ -1288,7 +1636,10 @@
       "defaultAeTitle": "MR L SPINE W",
       "modality": "MR",
       "bodyPart": "Spine-L",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.74,
+      "facPeRvu": 0.63,
+      "mpRvu": 0.09
     },
     "72156": {
       "cpt": "72156",
@@ -1299,7 +1650,10 @@
       "defaultAeTitle": "MR C SPINE WO W",
       "modality": "MR",
       "bodyPart": "Spine-C",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 2.23,
+      "facPeRvu": 0.8,
+      "mpRvu": 0.13
     },
     "72157": {
       "cpt": "72157",
@@ -1310,7 +1664,10 @@
       "defaultAeTitle": "MR T SPINE WO W",
       "modality": "MR",
       "bodyPart": "Spine-T",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 2.23,
+      "facPeRvu": 0.8,
+      "mpRvu": 0.13
     },
     "72158": {
       "cpt": "72158",
@@ -1321,7 +1678,10 @@
       "defaultAeTitle": "MR L SPINE WO W",
       "modality": "MR",
       "bodyPart": "Spine-L",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 2.23,
+      "facPeRvu": 0.8,
+      "mpRvu": 0.13
     },
     "72159": {
       "cpt": "72159",
@@ -1332,7 +1692,10 @@
       "defaultAeTitle": "MR T SPINE WO W",
       "modality": "MR",
       "bodyPart": "Spine-T",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.76,
+      "facPeRvu": 0.62,
+      "mpRvu": 0.09
     },
     "72170": {
       "cpt": "72170",
@@ -1343,7 +1706,10 @@
       "defaultAeTitle": "XR PELVIS",
       "modality": "XR",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.17,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "72190": {
       "cpt": "72190",
@@ -1354,7 +1720,10 @@
       "defaultAeTitle": "XR PELVIS",
       "modality": "XR",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.24,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.02
     },
     "72191": {
       "cpt": "72191",
@@ -1365,7 +1734,10 @@
       "defaultAeTitle": "CTA PELVIS",
       "modality": "CT",
       "bodyPart": "Pelvis",
-      "protocol": "CTA"
+      "protocol": "CTA",
+      "workRvu": 1.76,
+      "facPeRvu": 0.6,
+      "mpRvu": 0.11
     },
     "72192": {
       "cpt": "72192",
@@ -1376,7 +1748,10 @@
       "defaultAeTitle": "CT PELVIS WO",
       "modality": "CT",
       "bodyPart": "Pelvis",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.06,
+      "facPeRvu": 0.37,
+      "mpRvu": 0.06
     },
     "72193": {
       "cpt": "72193",
@@ -1387,7 +1762,10 @@
       "defaultAeTitle": "CT PELVIS W",
       "modality": "CT",
       "bodyPart": "Pelvis",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.13,
+      "facPeRvu": 0.4,
+      "mpRvu": 0.07
     },
     "72194": {
       "cpt": "72194",
@@ -1398,18 +1776,24 @@
       "defaultAeTitle": "CT PELVIS WO W",
       "modality": "CT",
       "bodyPart": "Pelvis",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.19,
+      "facPeRvu": 0.42,
+      "mpRvu": 0.07
     },
     "72195": {
       "cpt": "72195",
       "description": "Mri pelvis w/o dye",
-      "pcRvu": 2.0,
+      "pcRvu": 2,
       "tcRvu": 4.81,
       "globalRvu": 6.81,
       "defaultAeTitle": "MR PELVIS WO",
       "modality": "MR",
       "bodyPart": "Pelvis",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.42,
+      "facPeRvu": 0.51,
+      "mpRvu": 0.07
     },
     "72196": {
       "cpt": "72196",
@@ -1420,7 +1804,10 @@
       "defaultAeTitle": "MR PELVIS W",
       "modality": "MR",
       "bodyPart": "Pelvis",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.69,
+      "facPeRvu": 0.6,
+      "mpRvu": 0.09
     },
     "72197": {
       "cpt": "72197",
@@ -1431,7 +1818,10 @@
       "defaultAeTitle": "MR PELVIS WO W",
       "modality": "MR",
       "bodyPart": "Pelvis",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 2.15,
+      "facPeRvu": 0.76,
+      "mpRvu": 0.13
     },
     "72198": {
       "cpt": "72198",
@@ -1442,7 +1832,10 @@
       "defaultAeTitle": "MR PELVIS WO W",
       "modality": "MR",
       "bodyPart": "Pelvis",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 1.76,
+      "facPeRvu": 0.6,
+      "mpRvu": 0.09
     },
     "72200": {
       "cpt": "72200",
@@ -1453,7 +1846,10 @@
       "defaultAeTitle": "XR PELVIS",
       "modality": "XR",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.17,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "72202": {
       "cpt": "72202",
@@ -1464,7 +1860,10 @@
       "defaultAeTitle": "XR PELVIS",
       "modality": "XR",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.22,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "72220": {
       "cpt": "72220",
@@ -1475,7 +1874,10 @@
       "defaultAeTitle": "XR L SPINE",
       "modality": "XR",
       "bodyPart": "Spine-L",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.17,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "72240": {
       "cpt": "72240",
@@ -1486,7 +1888,10 @@
       "defaultAeTitle": "FL C SPINE",
       "modality": "FL",
       "bodyPart": "Spine-C",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.89,
+      "facPeRvu": 0.34,
+      "mpRvu": 0.06
     },
     "72255": {
       "cpt": "72255",
@@ -1497,7 +1902,10 @@
       "defaultAeTitle": "FL T SPINE",
       "modality": "FL",
       "bodyPart": "Spine-T",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.89,
+      "facPeRvu": 0.32,
+      "mpRvu": 0.05
     },
     "72265": {
       "cpt": "72265",
@@ -1508,18 +1916,24 @@
       "defaultAeTitle": "FL L SPINE",
       "modality": "FL",
       "bodyPart": "Spine-L",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.81,
+      "facPeRvu": 0.34,
+      "mpRvu": 0.05
     },
     "72270": {
       "cpt": "72270",
       "description": "Myelogphy 2/> spine regions",
       "pcRvu": 1.8,
       "tcRvu": 2.2,
-      "globalRvu": 4.0,
+      "globalRvu": 4,
       "defaultAeTitle": "XR TL SPINE",
       "modality": "XR",
       "bodyPart": "Spine-TL",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.3,
+      "facPeRvu": 0.43,
+      "mpRvu": 0.07
     },
     "72285": {
       "cpt": "72285",
@@ -1530,7 +1944,10 @@
       "defaultAeTitle": "XR C SPINE",
       "modality": "XR",
       "bodyPart": "Spine-C",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.13,
+      "facPeRvu": 0.54,
+      "mpRvu": 0.04
     },
     "72295": {
       "cpt": "72295",
@@ -1541,18 +1958,25 @@
       "defaultAeTitle": "XR L SPINE",
       "modality": "XR",
       "bodyPart": "Spine-L",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.81,
+      "facPeRvu": 0.36,
+      "mpRvu": 0.04
     },
     "73000": {
       "cpt": "73000",
       "description": "X-ray exam of collar bone",
       "pcRvu": 0.24,
       "tcRvu": 0.76,
-      "globalRvu": 1.0,
+      "globalRvu": 1,
       "defaultAeTitle": "XR SHOULDER",
       "modality": "XR",
       "bodyPart": "Shoulder",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "73010": {
       "cpt": "73010",
@@ -1563,7 +1987,11 @@
       "defaultAeTitle": "XR SHOULDER",
       "modality": "XR",
       "bodyPart": "Shoulder",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.17,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "73020": {
       "cpt": "73020",
@@ -1574,7 +2002,11 @@
       "defaultAeTitle": "XR SHOULDER",
       "modality": "XR",
       "bodyPart": "Shoulder",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.15,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "73030": {
       "cpt": "73030",
@@ -1585,7 +2017,11 @@
       "defaultAeTitle": "XR SHOULDER",
       "modality": "XR",
       "bodyPart": "Shoulder",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.18,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "73040": {
       "cpt": "73040",
@@ -1596,7 +2032,10 @@
       "defaultAeTitle": "FL SHOULDER",
       "modality": "FL",
       "bodyPart": "Shoulder",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.24,
+      "mpRvu": 0.03
     },
     "73050": {
       "cpt": "73050",
@@ -1607,7 +2046,11 @@
       "defaultAeTitle": "XR SHOULDER",
       "modality": "XR",
       "bodyPart": "Shoulder",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.18,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "73060": {
       "cpt": "73060",
@@ -1618,7 +2061,11 @@
       "defaultAeTitle": "XR SHOULDER",
       "modality": "XR",
       "bodyPart": "Shoulder",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "73070": {
       "cpt": "73070",
@@ -1629,7 +2076,11 @@
       "defaultAeTitle": "XR ELBOW",
       "modality": "XR",
       "bodyPart": "Elbow",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "73080": {
       "cpt": "73080",
@@ -1640,7 +2091,11 @@
       "defaultAeTitle": "XR ELBOW",
       "modality": "XR",
       "bodyPart": "Elbow",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.17,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "73085": {
       "cpt": "73085",
@@ -1651,7 +2106,10 @@
       "defaultAeTitle": "FL ELBOW",
       "modality": "FL",
       "bodyPart": "Elbow",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.19,
+      "mpRvu": 0.03
     },
     "73090": {
       "cpt": "73090",
@@ -1662,7 +2120,11 @@
       "defaultAeTitle": "XR ELBOW",
       "modality": "XR",
       "bodyPart": "Elbow",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "73092": {
       "cpt": "73092",
@@ -1673,7 +2135,11 @@
       "defaultAeTitle": "XR ELBOW",
       "modality": "XR",
       "bodyPart": "Elbow",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "73100": {
       "cpt": "73100",
@@ -1684,7 +2150,11 @@
       "defaultAeTitle": "XR WRIST HAND",
       "modality": "XR",
       "bodyPart": "Wrist/Hand",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "73110": {
       "cpt": "73110",
@@ -1695,7 +2165,11 @@
       "defaultAeTitle": "XR WRIST HAND",
       "modality": "XR",
       "bodyPart": "Wrist/Hand",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.17,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "73115": {
       "cpt": "73115",
@@ -1706,7 +2180,10 @@
       "defaultAeTitle": "FL WRIST HAND",
       "modality": "FL",
       "bodyPart": "Wrist/Hand",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.24,
+      "mpRvu": 0.04
     },
     "73120": {
       "cpt": "73120",
@@ -1717,7 +2194,11 @@
       "defaultAeTitle": "XR WRIST HAND",
       "modality": "XR",
       "bodyPart": "Wrist/Hand",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "73130": {
       "cpt": "73130",
@@ -1728,7 +2209,11 @@
       "defaultAeTitle": "XR WRIST HAND",
       "modality": "XR",
       "bodyPart": "Wrist/Hand",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.17,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "73140": {
       "cpt": "73140",
@@ -1739,7 +2224,11 @@
       "defaultAeTitle": "XR WRIST HAND",
       "modality": "XR",
       "bodyPart": "Wrist/Hand",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.13,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "73200": {
       "cpt": "73200",
@@ -1750,7 +2239,11 @@
       "defaultAeTitle": "CT UPPER EXT WO",
       "modality": "CT",
       "bodyPart": "Upper Extremity",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "bilateralEligible": true,
+      "workRvu": 0.98,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.06
     },
     "73201": {
       "cpt": "73201",
@@ -1761,7 +2254,11 @@
       "defaultAeTitle": "CT UPPER EXT W",
       "modality": "CT",
       "bodyPart": "Upper Extremity",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "bilateralEligible": true,
+      "workRvu": 1.13,
+      "facPeRvu": 0.4,
+      "mpRvu": 0.07
     },
     "73202": {
       "cpt": "73202",
@@ -1772,7 +2269,11 @@
       "defaultAeTitle": "CT UPPER EXT WO W",
       "modality": "CT",
       "bodyPart": "Upper Extremity",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "bilateralEligible": true,
+      "workRvu": 1.19,
+      "facPeRvu": 0.41,
+      "mpRvu": 0.07
     },
     "73206": {
       "cpt": "73206",
@@ -1783,7 +2284,11 @@
       "defaultAeTitle": "CTA UPPER EXT",
       "modality": "CT",
       "bodyPart": "Upper Extremity",
-      "protocol": "CTA"
+      "protocol": "CTA",
+      "bilateralEligible": true,
+      "workRvu": 1.76,
+      "facPeRvu": 0.6,
+      "mpRvu": 0.11
     },
     "73218": {
       "cpt": "73218",
@@ -1794,7 +2299,11 @@
       "defaultAeTitle": "MR UPPER EXT WO",
       "modality": "MR",
       "bodyPart": "Upper Extremity",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "bilateralEligible": true,
+      "workRvu": 1.32,
+      "facPeRvu": 0.49,
+      "mpRvu": 0.07
     },
     "73219": {
       "cpt": "73219",
@@ -1805,7 +2314,11 @@
       "defaultAeTitle": "MR UPPER EXT W",
       "modality": "MR",
       "bodyPart": "Upper Extremity",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "bilateralEligible": true,
+      "workRvu": 1.58,
+      "facPeRvu": 0.58,
+      "mpRvu": 0.08
     },
     "73220": {
       "cpt": "73220",
@@ -1816,7 +2329,11 @@
       "defaultAeTitle": "MR UPPER EXT WO W",
       "modality": "MR",
       "bodyPart": "Upper Extremity",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "bilateralEligible": true,
+      "workRvu": 2.1,
+      "facPeRvu": 0.76,
+      "mpRvu": 0.12
     },
     "73221": {
       "cpt": "73221",
@@ -1827,7 +2344,11 @@
       "defaultAeTitle": "MR SHOULDER WO",
       "modality": "MR",
       "bodyPart": "Joint-Upper",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "bilateralEligible": true,
+      "workRvu": 1.32,
+      "facPeRvu": 0.5,
+      "mpRvu": 0.07
     },
     "73222": {
       "cpt": "73222",
@@ -1838,7 +2359,11 @@
       "defaultAeTitle": "MR SHOULDER W",
       "modality": "MR",
       "bodyPart": "Joint-Upper",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "bilateralEligible": true,
+      "workRvu": 1.58,
+      "facPeRvu": 0.59,
+      "mpRvu": 0.08
     },
     "73223": {
       "cpt": "73223",
@@ -1849,7 +2374,11 @@
       "defaultAeTitle": "MR SHOULDER WO W",
       "modality": "MR",
       "bodyPart": "Joint-Upper",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "bilateralEligible": true,
+      "workRvu": 2.1,
+      "facPeRvu": 0.76,
+      "mpRvu": 0.12
     },
     "73225": {
       "cpt": "73225",
@@ -1860,7 +2389,11 @@
       "defaultAeTitle": "MR UPPER EXT WO W",
       "modality": "MR",
       "bodyPart": "Upper Extremity",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "bilateralEligible": true,
+      "workRvu": 1.69,
+      "facPeRvu": 0.54,
+      "mpRvu": 0.11
     },
     "73501": {
       "cpt": "73501",
@@ -1871,7 +2404,11 @@
       "defaultAeTitle": "XR HIP",
       "modality": "XR",
       "bodyPart": "Hip",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.18,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "73502": {
       "cpt": "73502",
@@ -1882,7 +2419,11 @@
       "defaultAeTitle": "XR HIP",
       "modality": "XR",
       "bodyPart": "Hip",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.21,
+      "facPeRvu": 0.1,
+      "mpRvu": 0.01
     },
     "73503": {
       "cpt": "73503",
@@ -1893,7 +2434,11 @@
       "defaultAeTitle": "XR HIP",
       "modality": "XR",
       "bodyPart": "Hip",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.26,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "73521": {
       "cpt": "73521",
@@ -1904,7 +2449,11 @@
       "defaultAeTitle": "XR HIP",
       "modality": "XR",
       "bodyPart": "Hip",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.21,
+      "facPeRvu": 0.1,
+      "mpRvu": 0.01
     },
     "73522": {
       "cpt": "73522",
@@ -1915,7 +2464,11 @@
       "defaultAeTitle": "XR HIP",
       "modality": "XR",
       "bodyPart": "Hip",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.28,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "73523": {
       "cpt": "73523",
@@ -1926,7 +2479,11 @@
       "defaultAeTitle": "XR HIP",
       "modality": "XR",
       "bodyPart": "Hip",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.3,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "73525": {
       "cpt": "73525",
@@ -1937,7 +2494,10 @@
       "defaultAeTitle": "FL HIP",
       "modality": "FL",
       "bodyPart": "Hip",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.28,
+      "mpRvu": 0.04
     },
     "73551": {
       "cpt": "73551",
@@ -1948,7 +2508,11 @@
       "defaultAeTitle": "XR HIP",
       "modality": "XR",
       "bodyPart": "Hip",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "73552": {
       "cpt": "73552",
@@ -1959,7 +2523,11 @@
       "defaultAeTitle": "XR HIP",
       "modality": "XR",
       "bodyPart": "Hip",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.18,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "73560": {
       "cpt": "73560",
@@ -1970,7 +2538,11 @@
       "defaultAeTitle": "XR KNEE",
       "modality": "XR",
       "bodyPart": "Knee",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "73562": {
       "cpt": "73562",
@@ -1981,7 +2553,11 @@
       "defaultAeTitle": "XR KNEE",
       "modality": "XR",
       "bodyPart": "Knee",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.18,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "73564": {
       "cpt": "73564",
@@ -1992,7 +2568,11 @@
       "defaultAeTitle": "XR KNEE",
       "modality": "XR",
       "bodyPart": "Knee",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.21,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.01
     },
     "73565": {
       "cpt": "73565",
@@ -2003,7 +2583,11 @@
       "defaultAeTitle": "XR KNEE",
       "modality": "XR",
       "bodyPart": "Knee",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "73580": {
       "cpt": "73580",
@@ -2014,7 +2598,10 @@
       "defaultAeTitle": "FL KNEE",
       "modality": "FL",
       "bodyPart": "Knee",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.58,
+      "facPeRvu": 0.3,
+      "mpRvu": 0.07
     },
     "73590": {
       "cpt": "73590",
@@ -2025,7 +2612,11 @@
       "defaultAeTitle": "XR KNEE",
       "modality": "XR",
       "bodyPart": "Knee",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "73592": {
       "cpt": "73592",
@@ -2036,7 +2627,11 @@
       "defaultAeTitle": "XR KNEE",
       "modality": "XR",
       "bodyPart": "Knee",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "73600": {
       "cpt": "73600",
@@ -2047,7 +2642,11 @@
       "defaultAeTitle": "XR ANKLE FOOT",
       "modality": "XR",
       "bodyPart": "Ankle/Foot",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "73610": {
       "cpt": "73610",
@@ -2058,7 +2657,11 @@
       "defaultAeTitle": "XR ANKLE FOOT",
       "modality": "XR",
       "bodyPart": "Ankle/Foot",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.17,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "73615": {
       "cpt": "73615",
@@ -2069,7 +2672,10 @@
       "defaultAeTitle": "FL ANKLE FOOT",
       "modality": "FL",
       "bodyPart": "Ankle/Foot",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.27,
+      "mpRvu": 0.04
     },
     "73620": {
       "cpt": "73620",
@@ -2080,7 +2686,11 @@
       "defaultAeTitle": "XR ANKLE FOOT",
       "modality": "XR",
       "bodyPart": "Ankle/Foot",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "73630": {
       "cpt": "73630",
@@ -2091,7 +2701,11 @@
       "defaultAeTitle": "XR ANKLE FOOT",
       "modality": "XR",
       "bodyPart": "Ankle/Foot",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.17,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "73650": {
       "cpt": "73650",
@@ -2102,7 +2716,11 @@
       "defaultAeTitle": "XR ANKLE FOOT",
       "modality": "XR",
       "bodyPart": "Ankle/Foot",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.16,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "73660": {
       "cpt": "73660",
@@ -2113,7 +2731,11 @@
       "defaultAeTitle": "XR ANKLE FOOT",
       "modality": "XR",
       "bodyPart": "Ankle/Foot",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "bilateralEligible": true,
+      "workRvu": 0.13,
+      "facPeRvu": 0.05,
+      "mpRvu": 0.01
     },
     "73700": {
       "cpt": "73700",
@@ -2124,7 +2746,11 @@
       "defaultAeTitle": "CT LOWER EXT WO",
       "modality": "CT",
       "bodyPart": "Lower Extremity",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "bilateralEligible": true,
+      "workRvu": 0.98,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.06
     },
     "73701": {
       "cpt": "73701",
@@ -2135,7 +2761,11 @@
       "defaultAeTitle": "CT LOWER EXT W",
       "modality": "CT",
       "bodyPart": "Lower Extremity",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "bilateralEligible": true,
+      "workRvu": 1.13,
+      "facPeRvu": 0.4,
+      "mpRvu": 0.07
     },
     "73702": {
       "cpt": "73702",
@@ -2146,7 +2776,11 @@
       "defaultAeTitle": "CT LOWER EXT WO W",
       "modality": "CT",
       "bodyPart": "Lower Extremity",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "bilateralEligible": true,
+      "workRvu": 1.19,
+      "facPeRvu": 0.41,
+      "mpRvu": 0.07
     },
     "73706": {
       "cpt": "73706",
@@ -2157,7 +2791,11 @@
       "defaultAeTitle": "CTA LOWER EXT",
       "modality": "CT",
       "bodyPart": "Lower Extremity",
-      "protocol": "CTA"
+      "protocol": "CTA",
+      "bilateralEligible": true,
+      "workRvu": 1.85,
+      "facPeRvu": 0.63,
+      "mpRvu": 0.12
     },
     "73718": {
       "cpt": "73718",
@@ -2168,7 +2806,11 @@
       "defaultAeTitle": "MR LOWER EXT WO",
       "modality": "MR",
       "bodyPart": "Lower Extremity",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "bilateralEligible": true,
+      "workRvu": 1.32,
+      "facPeRvu": 0.47,
+      "mpRvu": 0.07
     },
     "73719": {
       "cpt": "73719",
@@ -2179,7 +2821,11 @@
       "defaultAeTitle": "MR LOWER EXT W",
       "modality": "MR",
       "bodyPart": "Lower Extremity",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "bilateralEligible": true,
+      "workRvu": 1.58,
+      "facPeRvu": 0.56,
+      "mpRvu": 0.08
     },
     "73720": {
       "cpt": "73720",
@@ -2190,7 +2836,11 @@
       "defaultAeTitle": "MR LOWER EXT WO W",
       "modality": "MR",
       "bodyPart": "Lower Extremity",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "bilateralEligible": true,
+      "workRvu": 2.1,
+      "facPeRvu": 0.75,
+      "mpRvu": 0.12
     },
     "73721": {
       "cpt": "73721",
@@ -2201,7 +2851,11 @@
       "defaultAeTitle": "MR KNEE WO",
       "modality": "MR",
       "bodyPart": "Joint-Lower",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "bilateralEligible": true,
+      "workRvu": 1.32,
+      "facPeRvu": 0.49,
+      "mpRvu": 0.07
     },
     "73722": {
       "cpt": "73722",
@@ -2212,7 +2866,11 @@
       "defaultAeTitle": "MR KNEE W",
       "modality": "MR",
       "bodyPart": "Joint-Lower",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "bilateralEligible": true,
+      "workRvu": 1.58,
+      "facPeRvu": 0.59,
+      "mpRvu": 0.08
     },
     "73723": {
       "cpt": "73723",
@@ -2223,7 +2881,11 @@
       "defaultAeTitle": "MR KNEE WO W",
       "modality": "MR",
       "bodyPart": "Joint-Lower",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "bilateralEligible": true,
+      "workRvu": 2.1,
+      "facPeRvu": 0.75,
+      "mpRvu": 0.12
     },
     "73725": {
       "cpt": "73725",
@@ -2234,7 +2896,11 @@
       "defaultAeTitle": "MR LOWER EXT WO",
       "modality": "MR",
       "bodyPart": "Lower Extremity",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "bilateralEligible": true,
+      "workRvu": 1.77,
+      "facPeRvu": 0.6,
+      "mpRvu": 0.11
     },
     "74018": {
       "cpt": "74018",
@@ -2245,7 +2911,10 @@
       "defaultAeTitle": "XR ABDOMEN",
       "modality": "XR",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.18,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "74019": {
       "cpt": "74019",
@@ -2256,7 +2925,10 @@
       "defaultAeTitle": "XR ABDOMEN",
       "modality": "XR",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.22,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "74021": {
       "cpt": "74021",
@@ -2267,7 +2939,10 @@
       "defaultAeTitle": "XR ABDOMEN",
       "modality": "XR",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.26,
+      "facPeRvu": 0.1,
+      "mpRvu": 0.01
     },
     "74022": {
       "cpt": "74022",
@@ -2278,7 +2953,10 @@
       "defaultAeTitle": "XR ABDOMEN COMPLETE",
       "modality": "XR",
       "bodyPart": "Abdomen",
-      "protocol": "Complete"
+      "protocol": "Complete",
+      "workRvu": 0.31,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "74150": {
       "cpt": "74150",
@@ -2289,7 +2967,10 @@
       "defaultAeTitle": "CT ABDOMEN WO",
       "modality": "CT",
       "bodyPart": "Abdomen",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.16,
+      "facPeRvu": 0.41,
+      "mpRvu": 0.07
     },
     "74160": {
       "cpt": "74160",
@@ -2300,7 +2981,10 @@
       "defaultAeTitle": "CT ABDOMEN W",
       "modality": "CT",
       "bodyPart": "Abdomen",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.24,
+      "facPeRvu": 0.44,
+      "mpRvu": 0.07
     },
     "74170": {
       "cpt": "74170",
@@ -2311,7 +2995,10 @@
       "defaultAeTitle": "CT ABDOMEN",
       "modality": "CT",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.37,
+      "facPeRvu": 0.48,
+      "mpRvu": 0.07
     },
     "74174": {
       "cpt": "74174",
@@ -2322,7 +3009,10 @@
       "defaultAeTitle": "CTA ABD PELVIS",
       "modality": "CT",
       "bodyPart": "Abdomen/Pelvis",
-      "protocol": "CTA"
+      "protocol": "CTA",
+      "workRvu": 2.15,
+      "facPeRvu": 0.74,
+      "mpRvu": 0.13
     },
     "74175": {
       "cpt": "74175",
@@ -2333,7 +3023,10 @@
       "defaultAeTitle": "CTA ABDOMEN",
       "modality": "CT",
       "bodyPart": "Abdomen",
-      "protocol": "CTA"
+      "protocol": "CTA",
+      "workRvu": 1.77,
+      "facPeRvu": 0.61,
+      "mpRvu": 0.11
     },
     "74176": {
       "cpt": "74176",
@@ -2344,7 +3037,10 @@
       "defaultAeTitle": "CT ABD PELVIS WO",
       "modality": "CT",
       "bodyPart": "Abdomen/Pelvis",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.7,
+      "facPeRvu": 0.6,
+      "mpRvu": 0.09
     },
     "74177": {
       "cpt": "74177",
@@ -2355,7 +3051,10 @@
       "defaultAeTitle": "CT ABD PELVIS W",
       "modality": "CT",
       "bodyPart": "Abdomen/Pelvis",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.77,
+      "facPeRvu": 0.63,
+      "mpRvu": 0.11
     },
     "74178": {
       "cpt": "74178",
@@ -2366,7 +3065,10 @@
       "defaultAeTitle": "CT ABD PELVIS",
       "modality": "CT",
       "bodyPart": "Abdomen/Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.96,
+      "facPeRvu": 0.7,
+      "mpRvu": 0.12
     },
     "74181": {
       "cpt": "74181",
@@ -2377,7 +3079,10 @@
       "defaultAeTitle": "MR ABDOMEN WO",
       "modality": "MR",
       "bodyPart": "Abdomen",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.42,
+      "facPeRvu": 0.5,
+      "mpRvu": 0.07
     },
     "74182": {
       "cpt": "74182",
@@ -2388,7 +3093,10 @@
       "defaultAeTitle": "MR ABDOMEN W",
       "modality": "MR",
       "bodyPart": "Abdomen",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 1.69,
+      "facPeRvu": 0.59,
+      "mpRvu": 0.09
     },
     "74183": {
       "cpt": "74183",
@@ -2399,7 +3107,10 @@
       "defaultAeTitle": "MR ABDOMEN WO",
       "modality": "MR",
       "bodyPart": "Abdomen",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 2.15,
+      "facPeRvu": 0.76,
+      "mpRvu": 0.13
     },
     "74185": {
       "cpt": "74185",
@@ -2410,18 +3121,24 @@
       "defaultAeTitle": "MR ABDOMEN WO",
       "modality": "MR",
       "bodyPart": "Abdomen",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.76,
+      "facPeRvu": 0.6,
+      "mpRvu": 0.11
     },
     "74190": {
       "cpt": "74190",
       "description": "Peritoneogram rs&i",
       "pcRvu": 0.65,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.47,
+      "facPeRvu": 0.15,
+      "mpRvu": 0.03
     },
     "74210": {
       "cpt": "74210",
@@ -2432,7 +3149,10 @@
       "defaultAeTitle": "FL UGI",
       "modality": "FL",
       "bodyPart": "GI Upper",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.58,
+      "facPeRvu": 0.2,
+      "mpRvu": 0.03
     },
     "74220": {
       "cpt": "74220",
@@ -2443,7 +3163,10 @@
       "defaultAeTitle": "FL UGI",
       "modality": "FL",
       "bodyPart": "GI Upper",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.03
     },
     "74221": {
       "cpt": "74221",
@@ -2454,7 +3177,10 @@
       "defaultAeTitle": "FL UGI",
       "modality": "FL",
       "bodyPart": "GI Upper",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.68,
+      "facPeRvu": 0.24,
+      "mpRvu": 0.04
     },
     "74230": {
       "cpt": "74230",
@@ -2465,18 +3191,24 @@
       "defaultAeTitle": "FL UGI",
       "modality": "FL",
       "bodyPart": "GI Upper",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.52,
+      "facPeRvu": 0.19,
+      "mpRvu": 0.03
     },
     "74235": {
       "cpt": "74235",
       "description": "Remove esophagus obstruction",
       "pcRvu": 1.64,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL UGI",
       "modality": "FL",
       "bodyPart": "GI Upper",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.16,
+      "facPeRvu": 0.41,
+      "mpRvu": 0.07
     },
     "74240": {
       "cpt": "74240",
@@ -2487,7 +3219,10 @@
       "defaultAeTitle": "FL UGI",
       "modality": "FL",
       "bodyPart": "GI Upper",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.78,
+      "facPeRvu": 0.31,
+      "mpRvu": 0.04
     },
     "74246": {
       "cpt": "74246",
@@ -2498,7 +3233,10 @@
       "defaultAeTitle": "FL UGI",
       "modality": "FL",
       "bodyPart": "GI Upper",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.88,
+      "facPeRvu": 0.32,
+      "mpRvu": 0.05
     },
     "74248": {
       "cpt": "74248",
@@ -2507,9 +3245,12 @@
       "tcRvu": 1.42,
       "globalRvu": 2.38,
       "defaultAeTitle": "XR UGI",
-      "modality": "XR",
+      "modality": "FL",
       "bodyPart": "GI Upper",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.68,
+      "facPeRvu": 0.24,
+      "mpRvu": 0.04
     },
     "74250": {
       "cpt": "74250",
@@ -2520,7 +3261,10 @@
       "defaultAeTitle": "FL UGI",
       "modality": "FL",
       "bodyPart": "GI Upper",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.79,
+      "facPeRvu": 0.28,
+      "mpRvu": 0.05
     },
     "74251": {
       "cpt": "74251",
@@ -2531,7 +3275,10 @@
       "defaultAeTitle": "FL UGI",
       "modality": "FL",
       "bodyPart": "GI Upper",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.14,
+      "facPeRvu": 0.4,
+      "mpRvu": 0.07
     },
     "74261": {
       "cpt": "74261",
@@ -2542,7 +3289,10 @@
       "defaultAeTitle": "CT ABD PELVIS",
       "modality": "CT",
       "bodyPart": "Abdomen/Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.34,
+      "facPeRvu": 0.84,
+      "mpRvu": 0.14
     },
     "74262": {
       "cpt": "74262",
@@ -2553,18 +3303,24 @@
       "defaultAeTitle": "CT ABD PELVIS W",
       "modality": "CT",
       "bodyPart": "Abdomen/Pelvis",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 2.44,
+      "facPeRvu": 0.88,
+      "mpRvu": 0.14
     },
     "74263": {
       "cpt": "74263",
       "description": "Ct colonography screening",
       "pcRvu": 3.6,
       "tcRvu": 21.4,
-      "globalRvu": 25.0,
+      "globalRvu": 25,
       "defaultAeTitle": "CT ABD PELVIS SCREEN",
       "modality": "CT",
       "bodyPart": "Abdomen/Pelvis",
-      "protocol": "Screening"
+      "protocol": "Screening",
+      "workRvu": 2.22,
+      "facPeRvu": 1.3,
+      "mpRvu": 0.08
     },
     "74270": {
       "cpt": "74270",
@@ -2575,7 +3331,10 @@
       "defaultAeTitle": "FL LOWER GI",
       "modality": "FL",
       "bodyPart": "GI Lower",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.01,
+      "facPeRvu": 0.36,
+      "mpRvu": 0.06
     },
     "74280": {
       "cpt": "74280",
@@ -2586,7 +3345,10 @@
       "defaultAeTitle": "FL LOWER GI",
       "modality": "FL",
       "bodyPart": "GI Lower",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.23,
+      "facPeRvu": 0.43,
+      "mpRvu": 0.07
     },
     "74283": {
       "cpt": "74283",
@@ -2595,9 +3357,12 @@
       "tcRvu": 5.31,
       "globalRvu": 8.39,
       "defaultAeTitle": "XR ABD PELVIS",
-      "modality": "XR",
+      "modality": "FL",
       "bodyPart": "Abdomen/Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.97,
+      "facPeRvu": 0.99,
+      "mpRvu": 0.12
     },
     "74290": {
       "cpt": "74290",
@@ -2608,106 +3373,136 @@
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.31,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.02
     },
     "74300": {
       "cpt": "74300",
       "description": "X-ray bile ducts/pancreas",
       "pcRvu": 0.39,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.26,
+      "facPeRvu": 0.1,
+      "mpRvu": 0.03
     },
     "74301": {
       "cpt": "74301",
       "description": "X-rays at surgery add-on",
       "pcRvu": 0.28,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "XR ABDOMEN",
       "modality": "XR",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.2,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "74328": {
       "cpt": "74328",
       "description": "X-ray bile duct endoscopy",
       "pcRvu": 0.72,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "CT ABDOMEN",
       "modality": "CT",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.46,
+      "facPeRvu": 0.24,
+      "mpRvu": 0.02
     },
     "74329": {
       "cpt": "74329",
       "description": "X-ray for pancreas endoscopy",
       "pcRvu": 0.73,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "XR ABDOMEN",
       "modality": "XR",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.46,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.02
     },
     "74330": {
       "cpt": "74330",
       "description": "X-ray bile/panc endoscopy",
       "pcRvu": 0.83,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.55,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.03
     },
     "74340": {
       "cpt": "74340",
       "description": "X-ray guide for gi tube",
       "pcRvu": 0.75,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.19,
+      "mpRvu": 0.03
     },
     "74355": {
       "cpt": "74355",
       "description": "X-ray guide intestinal tube",
       "pcRvu": 1.05,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.74,
+      "facPeRvu": 0.27,
+      "mpRvu": 0.04
     },
     "74360": {
       "cpt": "74360",
       "description": "X-ray guide gi dilation",
       "pcRvu": 0.87,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.29,
+      "mpRvu": 0.05
     },
     "74363": {
       "cpt": "74363",
       "description": "X-ray bile duct dilation",
       "pcRvu": 1.15,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "CT ABDOMEN",
       "modality": "CT",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.86,
+      "facPeRvu": 0.22,
+      "mpRvu": 0.07
     },
     "74400": {
       "cpt": "74400",
@@ -2718,7 +3513,10 @@
       "defaultAeTitle": "FL GU",
       "modality": "FL",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.48,
+      "facPeRvu": 0.17,
+      "mpRvu": 0.03
     },
     "74410": {
       "cpt": "74410",
@@ -2729,7 +3527,10 @@
       "defaultAeTitle": "FL GU",
       "modality": "FL",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.48,
+      "facPeRvu": 0.19,
+      "mpRvu": 0.02
     },
     "74415": {
       "cpt": "74415",
@@ -2740,7 +3541,10 @@
       "defaultAeTitle": "FL GU",
       "modality": "FL",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.48,
+      "facPeRvu": 0.17,
+      "mpRvu": 0.03
     },
     "74420": {
       "cpt": "74420",
@@ -2751,7 +3555,10 @@
       "defaultAeTitle": "FL GU",
       "modality": "FL",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.51,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.02
     },
     "74425": {
       "cpt": "74425",
@@ -2762,7 +3569,10 @@
       "defaultAeTitle": "FL GU",
       "modality": "FL",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.5,
+      "facPeRvu": 0.18,
+      "mpRvu": 0.03
     },
     "74430": {
       "cpt": "74430",
@@ -2773,7 +3583,10 @@
       "defaultAeTitle": "FL GU",
       "modality": "FL",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.31,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "74440": {
       "cpt": "74440",
@@ -2784,29 +3597,38 @@
       "defaultAeTitle": "FL GU",
       "modality": "FL",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.37,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.01
     },
     "74445": {
       "cpt": "74445",
       "description": "X-ray exam of penis",
       "pcRvu": 1.61,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "XR GU",
       "modality": "XR",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.11,
+      "facPeRvu": 0.46,
+      "mpRvu": 0.04
     },
     "74450": {
       "cpt": "74450",
       "description": "X-ray urethra/bladder",
       "pcRvu": 0.46,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL GU",
       "modality": "FL",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.32,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "74455": {
       "cpt": "74455",
@@ -2817,18 +3639,24 @@
       "defaultAeTitle": "FL GU",
       "modality": "FL",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.32,
+      "facPeRvu": 0.13,
+      "mpRvu": 0.02
     },
     "74470": {
       "cpt": "74470",
       "description": "X-ray exam of kidney lesion",
       "pcRvu": 0.74,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "XR GU",
       "modality": "XR",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.18,
+      "mpRvu": 0.03
     },
     "74485": {
       "cpt": "74485",
@@ -2839,18 +3667,24 @@
       "defaultAeTitle": "XR GU",
       "modality": "XR",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.81,
+      "facPeRvu": 0.34,
+      "mpRvu": 0.03
     },
     "74712": {
       "cpt": "74712",
       "description": "Mri fetal sngl/1st gestation",
       "pcRvu": 4.16,
-      "tcRvu": 8.0,
+      "tcRvu": 8,
       "globalRvu": 12.16,
       "defaultAeTitle": "MR PELVIS",
       "modality": "MR",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.93,
+      "facPeRvu": 1.06,
+      "mpRvu": 0.17
     },
     "74713": {
       "cpt": "74713",
@@ -2861,7 +3695,10 @@
       "defaultAeTitle": "MR PELVIS",
       "modality": "MR",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.8,
+      "facPeRvu": 0.65,
+      "mpRvu": 0.11
     },
     "74740": {
       "cpt": "74740",
@@ -2872,29 +3709,38 @@
       "defaultAeTitle": "XR GU",
       "modality": "XR",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.37,
+      "facPeRvu": 0.14,
+      "mpRvu": 0.02
     },
     "74742": {
       "cpt": "74742",
       "description": "X-ray fallopian tube",
       "pcRvu": 0.84,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL GU",
       "modality": "FL",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.22,
+      "mpRvu": 0.03
     },
     "74775": {
       "cpt": "74775",
       "description": "X-ray exam of perineum",
       "pcRvu": 0.86,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "XR GU",
       "modality": "XR",
       "bodyPart": "GU",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.6,
+      "facPeRvu": 0.22,
+      "mpRvu": 0.04
     },
     "75557": {
       "cpt": "75557",
@@ -2905,7 +3751,10 @@
       "defaultAeTitle": "MR CHEST",
       "modality": "MR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.29,
+      "facPeRvu": 0.84,
+      "mpRvu": 0.09
     },
     "75559": {
       "cpt": "75559",
@@ -2916,7 +3765,10 @@
       "defaultAeTitle": "MR CHEST",
       "modality": "MR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.88,
+      "facPeRvu": 1.08,
+      "mpRvu": 0.09
     },
     "75561": {
       "cpt": "75561",
@@ -2927,7 +3779,10 @@
       "defaultAeTitle": "MR CHEST W",
       "modality": "MR",
       "bodyPart": "Chest",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 2.54,
+      "facPeRvu": 0.93,
+      "mpRvu": 0.12
     },
     "75563": {
       "cpt": "75563",
@@ -2938,7 +3793,10 @@
       "defaultAeTitle": "MR CHEST",
       "modality": "MR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.93,
+      "facPeRvu": 1.08,
+      "mpRvu": 0.12
     },
     "75565": {
       "cpt": "75565",
@@ -2949,7 +3807,10 @@
       "defaultAeTitle": "MR CHEST",
       "modality": "MR",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.24,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "75571": {
       "cpt": "75571",
@@ -2960,7 +3821,10 @@
       "defaultAeTitle": "CT CHEST WO",
       "modality": "CT",
       "bodyPart": "Chest",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 0.57,
+      "facPeRvu": 0.2,
+      "mpRvu": 0.03
     },
     "75572": {
       "cpt": "75572",
@@ -2971,7 +3835,10 @@
       "defaultAeTitle": "CT CHEST",
       "modality": "CT",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.71,
+      "facPeRvu": 0.62,
+      "mpRvu": 0.07
     },
     "75573": {
       "cpt": "75573",
@@ -2982,7 +3849,10 @@
       "defaultAeTitle": "CT CHEST W",
       "modality": "CT",
       "bodyPart": "Chest",
-      "protocol": "WITH"
+      "protocol": "WITH",
+      "workRvu": 2.49,
+      "facPeRvu": 0.92,
+      "mpRvu": 0.13
     },
     "75574": {
       "cpt": "75574",
@@ -2993,7 +3863,10 @@
       "defaultAeTitle": "CTA HEART",
       "modality": "CT",
       "bodyPart": "Chest",
-      "protocol": "CTA"
+      "protocol": "CTA",
+      "workRvu": 2.34,
+      "facPeRvu": 0.85,
+      "mpRvu": 0.12
     },
     "75577": {
       "cpt": "75577",
@@ -3004,7 +3877,10 @@
       "defaultAeTitle": "CT CHEST",
       "modality": "CT",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.85,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.04
     },
     "75580": {
       "cpt": "75580",
@@ -3015,7 +3891,10 @@
       "defaultAeTitle": "CT CHEST",
       "modality": "CT",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.73,
+      "facPeRvu": 0.27,
+      "mpRvu": 0.03
     },
     "75635": {
       "cpt": "75635",
@@ -3026,73 +3905,94 @@
       "defaultAeTitle": "CTA ABD AORTA RUNOFF",
       "modality": "CT",
       "bodyPart": "Abdomen/Pelvis",
-      "protocol": "CTA"
+      "protocol": "CTA",
+      "workRvu": 2.34,
+      "facPeRvu": 0.79,
+      "mpRvu": 0.15
     },
     "75801": {
       "cpt": "75801",
       "description": "Lymph vessel x-ray arm/leg",
       "pcRvu": 1.31,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL VASCULAR",
       "modality": "FL",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.79,
+      "facPeRvu": 0.4,
+      "mpRvu": 0.12
     },
     "75803": {
       "cpt": "75803",
       "description": "Lymph vessel x-ray arms/legs",
       "pcRvu": 1.62,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL VASCULAR",
       "modality": "FL",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.14,
+      "facPeRvu": 0.41,
+      "mpRvu": 0.07
     },
     "75805": {
       "cpt": "75805",
       "description": "Lymph vessel x-ray trunk",
       "pcRvu": 1.13,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL VASCULAR",
       "modality": "FL",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.79,
+      "facPeRvu": 0.29,
+      "mpRvu": 0.05
     },
     "75807": {
       "cpt": "75807",
       "description": "Lymph vessel x-ray trunk",
       "pcRvu": 1.53,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL VASCULAR",
       "modality": "FL",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.14,
+      "facPeRvu": 0.31,
+      "mpRvu": 0.08
     },
     "75810": {
       "cpt": "75810",
       "description": "Vein x-ray spleen/liver",
       "pcRvu": 1.41,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL VASCULAR",
       "modality": "FL",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.11,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.09
     },
     "75970": {
       "cpt": "75970",
       "description": "Vascular biopsy",
       "pcRvu": 1.1,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL VASCULAR",
       "modality": "FL",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.81,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.06
     },
     "76000": {
       "cpt": "76000",
@@ -3103,7 +4003,10 @@
       "defaultAeTitle": "FL",
       "modality": "FL",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.3,
+      "facPeRvu": 0.13,
+      "mpRvu": 0.03
     },
     "76010": {
       "cpt": "76010",
@@ -3114,7 +4017,10 @@
       "defaultAeTitle": "XR ABDOMEN",
       "modality": "XR",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.18,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "76016": {
       "cpt": "76016",
@@ -3125,7 +4031,10 @@
       "defaultAeTitle": "MR",
       "modality": "MR",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.03
     },
     "76017": {
       "cpt": "76017",
@@ -3136,7 +4045,10 @@
       "defaultAeTitle": "MR",
       "modality": "MR",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.74,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.04
     },
     "76018": {
       "cpt": "76018",
@@ -3147,7 +4059,10 @@
       "defaultAeTitle": "MR",
       "modality": "MR",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.73,
+      "facPeRvu": 0.27,
+      "mpRvu": 0.03
     },
     "76019": {
       "cpt": "76019",
@@ -3158,7 +4073,10 @@
       "defaultAeTitle": "MR",
       "modality": "MR",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.19,
+      "mpRvu": 0.06
     },
     "76080": {
       "cpt": "76080",
@@ -3169,7 +4087,10 @@
       "defaultAeTitle": "XR ABDOMEN",
       "modality": "XR",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.15,
+      "mpRvu": 0.04
     },
     "76098": {
       "cpt": "76098",
@@ -3178,9 +4099,12 @@
       "tcRvu": 0.85,
       "globalRvu": 1.29,
       "defaultAeTitle": "XR BREAST",
-      "modality": "XR",
+      "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.3,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "76100": {
       "cpt": "76100",
@@ -3191,7 +4115,10 @@
       "defaultAeTitle": "XR",
       "modality": "XR",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.57,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.03
     },
     "76120": {
       "cpt": "76120",
@@ -3202,18 +4129,24 @@
       "defaultAeTitle": "XR",
       "modality": "XR",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.37,
+      "facPeRvu": 0.18,
+      "mpRvu": 0.01
     },
     "76125": {
       "cpt": "76125",
       "description": "Cine/video x-rays add-on",
       "pcRvu": 0.42,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL",
       "modality": "FL",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.26,
+      "facPeRvu": 0.13,
+      "mpRvu": 0.03
     },
     "76376": {
       "cpt": "76376",
@@ -3224,7 +4157,10 @@
       "defaultAeTitle": "XR",
       "modality": "XR",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.2,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "76377": {
       "cpt": "76377",
@@ -3235,7 +4171,10 @@
       "defaultAeTitle": "XR",
       "modality": "XR",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.77,
+      "facPeRvu": 0.29,
+      "mpRvu": 0.05
     },
     "76380": {
       "cpt": "76380",
@@ -3246,7 +4185,10 @@
       "defaultAeTitle": "CT",
       "modality": "CT",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.96,
+      "facPeRvu": 0.31,
+      "mpRvu": 0.07
     },
     "76391": {
       "cpt": "76391",
@@ -3257,7 +4199,10 @@
       "defaultAeTitle": "MR",
       "modality": "MR",
       "bodyPart": "Other",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.07,
+      "facPeRvu": 0.37,
+      "mpRvu": 0.06
     },
     "76506": {
       "cpt": "76506",
@@ -3268,7 +4213,10 @@
       "defaultAeTitle": "US HEAD",
       "modality": "US",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.61,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.04
     },
     "76510": {
       "cpt": "76510",
@@ -3279,7 +4227,10 @@
       "defaultAeTitle": "US HEAD",
       "modality": "US",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.68,
+      "facPeRvu": 0.46,
+      "mpRvu": 0.01
     },
     "76511": {
       "cpt": "76511",
@@ -3290,7 +4241,10 @@
       "defaultAeTitle": "US HEAD",
       "modality": "US",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.62,
+      "facPeRvu": 0.42,
+      "mpRvu": 0.01
     },
     "76512": {
       "cpt": "76512",
@@ -3301,7 +4255,10 @@
       "defaultAeTitle": "US HEAD",
       "modality": "US",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.55,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.01
     },
     "76513": {
       "cpt": "76513",
@@ -3312,7 +4269,10 @@
       "defaultAeTitle": "US HEAD",
       "modality": "US",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.37,
+      "mpRvu": 0.01
     },
     "76514": {
       "cpt": "76514",
@@ -3323,7 +4283,10 @@
       "defaultAeTitle": "US HEAD",
       "modality": "US",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.14,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "76516": {
       "cpt": "76516",
@@ -3334,7 +4297,10 @@
       "defaultAeTitle": "US HEAD",
       "modality": "US",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.39,
+      "facPeRvu": 0.27,
+      "mpRvu": 0.01
     },
     "76519": {
       "cpt": "76519",
@@ -3345,7 +4311,10 @@
       "defaultAeTitle": "US HEAD",
       "modality": "US",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.36,
+      "mpRvu": 0.01
     },
     "76529": {
       "cpt": "76529",
@@ -3356,7 +4325,10 @@
       "defaultAeTitle": "US HEAD",
       "modality": "US",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.56,
+      "facPeRvu": 0.38,
+      "mpRvu": 0.02
     },
     "76536": {
       "cpt": "76536",
@@ -3367,29 +4339,38 @@
       "defaultAeTitle": "US THYROID",
       "modality": "US",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.55,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.03
     },
     "76604": {
       "cpt": "76604",
       "description": "Us exam chest",
       "pcRvu": 0.83,
-      "tcRvu": 1.0,
+      "tcRvu": 1,
       "globalRvu": 1.83,
       "defaultAeTitle": "US CHEST",
       "modality": "US",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.58,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.04
     },
     "76641": {
       "cpt": "76641",
       "description": "Ultrasound breast complete",
       "pcRvu": 1.01,
       "tcRvu": 1.99,
-      "globalRvu": 3.0,
+      "globalRvu": 3,
       "defaultAeTitle": "US BREAST COMPLETE",
-      "modality": "US",
+      "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "Complete"
+      "protocol": "Complete",
+      "workRvu": 0.71,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.04
     },
     "76642": {
       "cpt": "76642",
@@ -3398,9 +4379,12 @@
       "tcRvu": 1.56,
       "globalRvu": 2.5,
       "defaultAeTitle": "US BREAST LIMITED",
-      "modality": "US",
+      "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "Limited"
+      "protocol": "Limited",
+      "workRvu": 0.66,
+      "facPeRvu": 0.24,
+      "mpRvu": 0.04
     },
     "76700": {
       "cpt": "76700",
@@ -3411,7 +4395,10 @@
       "defaultAeTitle": "US ABDOMEN COMPLETE",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "Complete"
+      "protocol": "Complete",
+      "workRvu": 0.79,
+      "facPeRvu": 0.29,
+      "mpRvu": 0.04
     },
     "76705": {
       "cpt": "76705",
@@ -3422,7 +4409,10 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.58,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.03
     },
     "76706": {
       "cpt": "76706",
@@ -3433,7 +4423,10 @@
       "defaultAeTitle": "US ABDOMEN SCREEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "Screening"
+      "protocol": "Screening",
+      "workRvu": 0.54,
+      "facPeRvu": 0.19,
+      "mpRvu": 0.04
     },
     "76770": {
       "cpt": "76770",
@@ -3444,7 +4437,10 @@
       "defaultAeTitle": "US RENAL",
       "modality": "US",
       "bodyPart": "Retroperitoneal",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.72,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.04
     },
     "76775": {
       "cpt": "76775",
@@ -3455,7 +4451,10 @@
       "defaultAeTitle": "US RENAL",
       "modality": "US",
       "bodyPart": "Retroperitoneal",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.57,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.03
     },
     "76776": {
       "cpt": "76776",
@@ -3466,7 +4465,10 @@
       "defaultAeTitle": "US RENAL",
       "modality": "US",
       "bodyPart": "Retroperitoneal",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.74,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.04
     },
     "76800": {
       "cpt": "76800",
@@ -3477,7 +4479,10 @@
       "defaultAeTitle": "US TL SPINE",
       "modality": "US",
       "bodyPart": "Spine-TL",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.1,
+      "facPeRvu": 0.6,
+      "mpRvu": 0.23
     },
     "76801": {
       "cpt": "76801",
@@ -3488,7 +4493,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.97,
+      "facPeRvu": 0.37,
+      "mpRvu": 0.05
     },
     "76802": {
       "cpt": "76802",
@@ -3499,7 +4507,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.81,
+      "facPeRvu": 0.33,
+      "mpRvu": 0.04
     },
     "76805": {
       "cpt": "76805",
@@ -3510,7 +4521,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.97,
+      "facPeRvu": 0.39,
+      "mpRvu": 0.05
     },
     "76810": {
       "cpt": "76810",
@@ -3521,7 +4535,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.96,
+      "facPeRvu": 0.4,
+      "mpRvu": 0.05
     },
     "76811": {
       "cpt": "76811",
@@ -3532,7 +4549,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.85,
+      "facPeRvu": 0.78,
+      "mpRvu": 0.08
     },
     "76812": {
       "cpt": "76812",
@@ -3543,7 +4563,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.74,
+      "facPeRvu": 0.74,
+      "mpRvu": 0.08
     },
     "76813": {
       "cpt": "76813",
@@ -3554,7 +4577,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.15,
+      "facPeRvu": 0.48,
+      "mpRvu": 0.06
     },
     "76814": {
       "cpt": "76814",
@@ -3565,7 +4591,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.97,
+      "facPeRvu": 0.4,
+      "mpRvu": 0.05
     },
     "76815": {
       "cpt": "76815",
@@ -3576,7 +4605,10 @@
       "defaultAeTitle": "US PELVIS LIMITED",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "Limited"
+      "protocol": "Limited",
+      "workRvu": 0.63,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.04
     },
     "76816": {
       "cpt": "76816",
@@ -3587,7 +4619,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.83,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.04
     },
     "76817": {
       "cpt": "76817",
@@ -3598,7 +4633,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.73,
+      "facPeRvu": 0.29,
+      "mpRvu": 0.04
     },
     "76818": {
       "cpt": "76818",
@@ -3609,7 +4647,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.02,
+      "facPeRvu": 0.43,
+      "mpRvu": 0.05
     },
     "76819": {
       "cpt": "76819",
@@ -3620,7 +4661,10 @@
       "defaultAeTitle": "US PELVIS WO",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 0.75,
+      "facPeRvu": 0.31,
+      "mpRvu": 0.04
     },
     "76820": {
       "cpt": "76820",
@@ -3631,18 +4675,24 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.49,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.02
     },
     "76821": {
       "cpt": "76821",
       "description": "Middle cerebral artery echo",
-      "pcRvu": 1.0,
+      "pcRvu": 1,
       "tcRvu": 1.7,
       "globalRvu": 2.7,
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.68,
+      "facPeRvu": 0.29,
+      "mpRvu": 0.03
     },
     "76825": {
       "cpt": "76825",
@@ -3653,7 +4703,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.63,
+      "facPeRvu": 0.67,
+      "mpRvu": 0.06
     },
     "76826": {
       "cpt": "76826",
@@ -3664,7 +4717,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.81,
+      "facPeRvu": 0.34,
+      "mpRvu": 0.03
     },
     "76827": {
       "cpt": "76827",
@@ -3675,7 +4731,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.57,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.02
     },
     "76828": {
       "cpt": "76828",
@@ -3686,7 +4745,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.55,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.02
     },
     "76830": {
       "cpt": "76830",
@@ -3697,7 +4759,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.67,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.04
     },
     "76831": {
       "cpt": "76831",
@@ -3708,7 +4773,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.7,
+      "facPeRvu": 0.3,
+      "mpRvu": 0.04
     },
     "76856": {
       "cpt": "76856",
@@ -3719,7 +4787,10 @@
       "defaultAeTitle": "US PELVIS COMPLETE",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "Complete"
+      "protocol": "Complete",
+      "workRvu": 0.67,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.04
     },
     "76857": {
       "cpt": "76857",
@@ -3730,7 +4801,10 @@
       "defaultAeTitle": "US PELVIS LIMITED",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "Limited"
+      "protocol": "Limited",
+      "workRvu": 0.49,
+      "facPeRvu": 0.19,
+      "mpRvu": 0.03
     },
     "76870": {
       "cpt": "76870",
@@ -3741,7 +4815,10 @@
       "defaultAeTitle": "US SCROTUM",
       "modality": "US",
       "bodyPart": "Scrotum",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.62,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.04
     },
     "76872": {
       "cpt": "76872",
@@ -3752,7 +4829,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.65,
+      "facPeRvu": 0.28,
+      "mpRvu": 0.02
     },
     "76873": {
       "cpt": "76873",
@@ -3763,7 +4843,10 @@
       "defaultAeTitle": "US PELVIS",
       "modality": "US",
       "bodyPart": "Pelvis",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.51,
+      "facPeRvu": 0.71,
+      "mpRvu": 0.06
     },
     "76881": {
       "cpt": "76881",
@@ -3774,7 +4857,10 @@
       "defaultAeTitle": "US EXTREMITY COMPLETE",
       "modality": "US",
       "bodyPart": "Extremity",
-      "protocol": "Complete"
+      "protocol": "Complete",
+      "workRvu": 0.88,
+      "facPeRvu": 0.36,
+      "mpRvu": 0.04
     },
     "76882": {
       "cpt": "76882",
@@ -3785,7 +4871,10 @@
       "defaultAeTitle": "US EXTREMITY LIMITED",
       "modality": "US",
       "bodyPart": "Extremity",
-      "protocol": "Limited"
+      "protocol": "Limited",
+      "workRvu": 0.67,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.04
     },
     "76883": {
       "cpt": "76883",
@@ -3796,7 +4885,10 @@
       "defaultAeTitle": "US EXTREMITY",
       "modality": "US",
       "bodyPart": "Extremity",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.18,
+      "facPeRvu": 0.49,
+      "mpRvu": 0.07
     },
     "76885": {
       "cpt": "76885",
@@ -3807,7 +4899,10 @@
       "defaultAeTitle": "US HIP",
       "modality": "US",
       "bodyPart": "Hip",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.72,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.04
     },
     "76886": {
       "cpt": "76886",
@@ -3818,18 +4913,24 @@
       "defaultAeTitle": "US HIP",
       "modality": "US",
       "bodyPart": "Hip",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.6,
+      "facPeRvu": 0.22,
+      "mpRvu": 0.04
     },
     "76932": {
       "cpt": "76932",
       "description": "Echo guide for heart biopsy",
       "pcRvu": 1.02,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.65,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.02
     },
     "76936": {
       "cpt": "76936",
@@ -3840,7 +4941,10 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.94,
+      "facPeRvu": 0.63,
+      "mpRvu": 0.21
     },
     "76937": {
       "cpt": "76937",
@@ -3851,29 +4955,38 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.29,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.03
     },
     "76940": {
       "cpt": "76940",
       "description": "Us guide tissue ablation",
       "pcRvu": 3.07,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.95,
+      "facPeRvu": 0.83,
+      "mpRvu": 0.29
     },
     "76941": {
       "cpt": "76941",
       "description": "Echo guide for transfusion",
       "pcRvu": 1.92,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.31,
+      "facPeRvu": 0.55,
+      "mpRvu": 0.06
     },
     "76942": {
       "cpt": "76942",
@@ -3884,18 +4997,24 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.65,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.03
     },
     "76945": {
       "cpt": "76945",
       "description": "Echo guide villus sampling",
       "pcRvu": 0.96,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.65,
+      "facPeRvu": 0.28,
+      "mpRvu": 0.03
     },
     "76946": {
       "cpt": "76946",
@@ -3906,7 +5025,10 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.37,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.02
     },
     "76948": {
       "cpt": "76948",
@@ -3917,7 +5039,10 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.65,
+      "facPeRvu": 0.28,
+      "mpRvu": 0.03
     },
     "76965": {
       "cpt": "76965",
@@ -3928,18 +5053,24 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.31,
+      "facPeRvu": 0.67,
+      "mpRvu": 0.05
     },
     "76975": {
       "cpt": "76975",
       "description": "Gi endoscopic ultrasound",
       "pcRvu": 1.28,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.79,
+      "facPeRvu": 0.46,
+      "mpRvu": 0.03
     },
     "76977": {
       "cpt": "76977",
@@ -3950,7 +5081,10 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.05,
+      "facPeRvu": 0.02,
+      "mpRvu": 0.01
     },
     "76978": {
       "cpt": "76978",
@@ -3961,7 +5095,10 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.58,
+      "facPeRvu": 0.57,
+      "mpRvu": 0.08
     },
     "76979": {
       "cpt": "76979",
@@ -3972,7 +5109,10 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.83,
+      "facPeRvu": 0.3,
+      "mpRvu": 0.05
     },
     "76981": {
       "cpt": "76981",
@@ -3983,7 +5123,10 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.58,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.03
     },
     "76982": {
       "cpt": "76982",
@@ -3994,7 +5137,10 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.58,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.03
     },
     "76983": {
       "cpt": "76983",
@@ -4005,62 +5151,80 @@
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.46,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.03
     },
     "76984": {
       "cpt": "76984",
       "description": "Dx intraop thoracic aorta us",
       "pcRvu": 0.97,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.13
     },
     "76987": {
       "cpt": "76987",
       "description": "Dx intraop epicar car us chd",
       "pcRvu": 2.85,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.85,
+      "facPeRvu": 0.73,
+      "mpRvu": 0.27
     },
     "76988": {
       "cpt": "76988",
       "description": "Dx ntrop epcr us chd img acq",
       "pcRvu": 2.3,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.17,
+      "facPeRvu": 0.77,
+      "mpRvu": 0.36
     },
     "76989": {
       "cpt": "76989",
       "description": "Dx intraop epcar us chd i&r",
       "pcRvu": 1.12,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.68,
+      "facPeRvu": 0.32,
+      "mpRvu": 0.12
     },
     "76998": {
       "cpt": "76998",
       "description": "Us guide intraop",
       "pcRvu": 1.46,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "US ABDOMEN",
       "modality": "US",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.89,
+      "facPeRvu": 0.41,
+      "mpRvu": 0.16
     },
     "77001": {
       "cpt": "77001",
@@ -4071,7 +5235,10 @@
       "defaultAeTitle": "FL VASCULAR",
       "modality": "FL",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.37,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.04
     },
     "77002": {
       "cpt": "77002",
@@ -4082,7 +5249,10 @@
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.53,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.03
     },
     "77003": {
       "cpt": "77003",
@@ -4093,7 +5263,10 @@
       "defaultAeTitle": "FL TL SPINE",
       "modality": "FL",
       "bodyPart": "Spine-TL",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.22,
+      "mpRvu": 0.04
     },
     "77011": {
       "cpt": "77011",
@@ -4104,7 +5277,10 @@
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.18,
+      "facPeRvu": 0.55,
+      "mpRvu": 0.07
     },
     "77012": {
       "cpt": "77012",
@@ -4115,18 +5291,24 @@
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.46,
+      "facPeRvu": 0.46,
+      "mpRvu": 0.09
     },
     "77013": {
       "cpt": "77013",
       "description": "Ct guide for tissue ablation",
       "pcRvu": 5.3,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 3.89,
+      "facPeRvu": 1.14,
+      "mpRvu": 0.27
     },
     "77021": {
       "cpt": "77021",
@@ -4137,18 +5319,24 @@
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.46,
+      "facPeRvu": 0.58,
+      "mpRvu": 0.06
     },
     "77022": {
       "cpt": "77022",
       "description": "Mri gdn parnchyma tiss abltj",
       "pcRvu": 5.72,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "FL ABDOMEN",
       "modality": "FL",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 4.13,
+      "facPeRvu": 1.37,
+      "mpRvu": 0.22
     },
     "77046": {
       "cpt": "77046",
@@ -4159,7 +5347,10 @@
       "defaultAeTitle": "MAMMO BREAST WO",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.41,
+      "facPeRvu": 0.5,
+      "mpRvu": 0.07
     },
     "77047": {
       "cpt": "77047",
@@ -4171,29 +5362,37 @@
       "modality": "MA",
       "bodyPart": "Breast",
       "protocol": "WITHOUT",
-      "bilateralEligible": true
+      "workRvu": 1.56,
+      "facPeRvu": 0.55,
+      "mpRvu": 0.08
     },
     "77048": {
       "cpt": "77048",
       "description": "Mri breast c-+ w/cad uni",
       "pcRvu": 2.9,
       "tcRvu": 7.1,
-      "globalRvu": 10.0,
+      "globalRvu": 10,
       "defaultAeTitle": "MAMMO BREAST WO W",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 2.05,
+      "facPeRvu": 0.73,
+      "mpRvu": 0.12
     },
     "77049": {
       "cpt": "77049",
       "description": "Mri breast c-+ w/cad bi",
       "pcRvu": 3.17,
-      "tcRvu": 7.0,
+      "tcRvu": 7,
       "globalRvu": 10.17,
       "defaultAeTitle": "MAMMO BREAST WO W",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "WO/W"
+      "protocol": "WO/W",
+      "workRvu": 2.24,
+      "facPeRvu": 0.8,
+      "mpRvu": 0.13
     },
     "77053": {
       "cpt": "77053",
@@ -4204,7 +5403,10 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.35,
+      "facPeRvu": 0.13,
+      "mpRvu": 0.02
     },
     "77054": {
       "cpt": "77054",
@@ -4215,7 +5417,10 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.44,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.03
     },
     "77063": {
       "cpt": "77063",
@@ -4226,7 +5431,10 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.03
     },
     "77065": {
       "cpt": "77065",
@@ -4237,7 +5445,10 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.79,
+      "facPeRvu": 0.29,
+      "mpRvu": 0.05
     },
     "77066": {
       "cpt": "77066",
@@ -4248,7 +5459,10 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.98,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.06
     },
     "77067": {
       "cpt": "77067",
@@ -4259,7 +5473,10 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.74,
+      "facPeRvu": 0.27,
+      "mpRvu": 0.04
     },
     "77071": {
       "cpt": "77071",
@@ -4270,7 +5487,10 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.4,
+      "facPeRvu": 0,
+      "mpRvu": 0
     },
     "77072": {
       "cpt": "77072",
@@ -4281,18 +5501,24 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.19,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "77073": {
       "cpt": "77073",
       "description": "Bone length studies",
       "pcRvu": 0.39,
-      "tcRvu": 1.0,
+      "tcRvu": 1,
       "globalRvu": 1.39,
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.25,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "77074": {
       "cpt": "77074",
@@ -4303,7 +5529,10 @@
       "defaultAeTitle": "XR BONE LIMITED",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "Limited"
+      "protocol": "Limited",
+      "workRvu": 0.43,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.03
     },
     "77075": {
       "cpt": "77075",
@@ -4314,7 +5543,10 @@
       "defaultAeTitle": "XR BONE COMPLETE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "Complete"
+      "protocol": "Complete",
+      "workRvu": 0.54,
+      "facPeRvu": 0.2,
+      "mpRvu": 0.03
     },
     "77076": {
       "cpt": "77076",
@@ -4325,7 +5557,10 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.68,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.04
     },
     "77077": {
       "cpt": "77077",
@@ -4336,7 +5571,10 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.32,
+      "facPeRvu": 0.15,
+      "mpRvu": 0.02
     },
     "77078": {
       "cpt": "77078",
@@ -4347,7 +5585,10 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.24,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "77080": {
       "cpt": "77080",
@@ -4358,7 +5599,10 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.2,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "77081": {
       "cpt": "77081",
@@ -4369,7 +5613,10 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.2,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "77084": {
       "cpt": "77084",
@@ -4380,7 +5627,10 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.56,
+      "facPeRvu": 0.56,
+      "mpRvu": 0.08
     },
     "77085": {
       "cpt": "77085",
@@ -4391,7 +5641,10 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.29,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "77086": {
       "cpt": "77086",
@@ -4402,7 +5655,10 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.17,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "77089": {
       "cpt": "77089",
@@ -4413,7 +5669,10 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.2,
+      "facPeRvu": 0,
+      "mpRvu": 0
     },
     "77092": {
       "cpt": "77092",
@@ -4424,7 +5683,10 @@
       "defaultAeTitle": "XR BONE",
       "modality": "XR",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.2,
+      "facPeRvu": 0,
+      "mpRvu": 0
     },
     "78012": {
       "cpt": "78012",
@@ -4435,7 +5697,10 @@
       "defaultAeTitle": "NM THYROID",
       "modality": "NM",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.19,
+      "facPeRvu": 0.06,
+      "mpRvu": 0.01
     },
     "78013": {
       "cpt": "78013",
@@ -4446,7 +5711,10 @@
       "defaultAeTitle": "NM THYROID",
       "modality": "NM",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.36,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "78014": {
       "cpt": "78014",
@@ -4457,7 +5725,10 @@
       "defaultAeTitle": "NM THYROID",
       "modality": "NM",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.49,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.03
     },
     "78015": {
       "cpt": "78015",
@@ -4468,7 +5739,10 @@
       "defaultAeTitle": "NM THYROID",
       "modality": "NM",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.65,
+      "facPeRvu": 0.24,
+      "mpRvu": 0.04
     },
     "78016": {
       "cpt": "78016",
@@ -4479,7 +5753,10 @@
       "defaultAeTitle": "NM THYROID",
       "modality": "NM",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.8,
+      "facPeRvu": 0.15,
+      "mpRvu": 0.01
     },
     "78018": {
       "cpt": "78018",
@@ -4490,7 +5767,10 @@
       "defaultAeTitle": "NM THYROID",
       "modality": "NM",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.84,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.04
     },
     "78020": {
       "cpt": "78020",
@@ -4501,7 +5781,10 @@
       "defaultAeTitle": "NM THYROID",
       "modality": "NM",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.17,
+      "mpRvu": 0.02
     },
     "78070": {
       "cpt": "78070",
@@ -4512,7 +5795,10 @@
       "defaultAeTitle": "NM THYROID",
       "modality": "NM",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.78,
+      "facPeRvu": 0.27,
+      "mpRvu": 0.04
     },
     "78071": {
       "cpt": "78071",
@@ -4523,7 +5809,10 @@
       "defaultAeTitle": "NM THYROID",
       "modality": "NM",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.17,
+      "facPeRvu": 0.39,
+      "mpRvu": 0.06
     },
     "78072": {
       "cpt": "78072",
@@ -4534,7 +5823,10 @@
       "defaultAeTitle": "NM THYROID",
       "modality": "NM",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.56,
+      "facPeRvu": 0.49,
+      "mpRvu": 0.07
     },
     "78075": {
       "cpt": "78075",
@@ -4545,7 +5837,10 @@
       "defaultAeTitle": "NM THYROID",
       "modality": "NM",
       "bodyPart": "Thyroid",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.72,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.04
     },
     "78102": {
       "cpt": "78102",
@@ -4556,7 +5851,10 @@
       "defaultAeTitle": "NM BONE LIMITED",
       "modality": "NM",
       "bodyPart": "Bone",
-      "protocol": "Limited"
+      "protocol": "Limited",
+      "workRvu": 0.54,
+      "facPeRvu": 0.17,
+      "mpRvu": 0.03
     },
     "78103": {
       "cpt": "78103",
@@ -4567,7 +5865,10 @@
       "defaultAeTitle": "NM BONE",
       "modality": "NM",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.73,
+      "facPeRvu": 0.13,
+      "mpRvu": 0.01
     },
     "78104": {
       "cpt": "78104",
@@ -4578,7 +5879,10 @@
       "defaultAeTitle": "NM BONE",
       "modality": "NM",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.78,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.04
     },
     "78110": {
       "cpt": "78110",
@@ -4589,7 +5893,10 @@
       "defaultAeTitle": "NM HEMATOLOGIC",
       "modality": "NM",
       "bodyPart": "Hematologic",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.19,
+      "facPeRvu": 0.03,
+      "mpRvu": 0.01
     },
     "78111": {
       "cpt": "78111",
@@ -4600,7 +5907,10 @@
       "defaultAeTitle": "NM HEMATOLOGIC",
       "modality": "NM",
       "bodyPart": "Hematologic",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.21,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "78120": {
       "cpt": "78120",
@@ -4611,7 +5921,10 @@
       "defaultAeTitle": "NM HEMATOLOGIC",
       "modality": "NM",
       "bodyPart": "Hematologic",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.22,
+      "facPeRvu": 0.04,
+      "mpRvu": 0.01
     },
     "78121": {
       "cpt": "78121",
@@ -4622,7 +5935,10 @@
       "defaultAeTitle": "NM HEMATOLOGIC",
       "modality": "NM",
       "bodyPart": "Hematologic",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.31,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.01
     },
     "78122": {
       "cpt": "78122",
@@ -4633,7 +5949,10 @@
       "defaultAeTitle": "NM HEMATOLOGIC",
       "modality": "NM",
       "bodyPart": "Hematologic",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.44,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.02
     },
     "78130": {
       "cpt": "78130",
@@ -4644,7 +5963,10 @@
       "defaultAeTitle": "NM HEMATOLOGIC",
       "modality": "NM",
       "bodyPart": "Hematologic",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.01
     },
     "78140": {
       "cpt": "78140",
@@ -4655,7 +5977,10 @@
       "defaultAeTitle": "NM HEMATOLOGIC",
       "modality": "NM",
       "bodyPart": "Hematologic",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.01
     },
     "78185": {
       "cpt": "78185",
@@ -4666,7 +5991,10 @@
       "defaultAeTitle": "NM HEMATOLOGIC",
       "modality": "NM",
       "bodyPart": "Hematologic",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.39,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "78191": {
       "cpt": "78191",
@@ -4677,7 +6005,10 @@
       "defaultAeTitle": "NM HEMATOLOGIC",
       "modality": "NM",
       "bodyPart": "Hematologic",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.01
     },
     "78195": {
       "cpt": "78195",
@@ -4688,7 +6019,10 @@
       "defaultAeTitle": "NM TUMOR",
       "modality": "NM",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.17,
+      "facPeRvu": 0.37,
+      "mpRvu": 0.06
     },
     "78201": {
       "cpt": "78201",
@@ -4699,7 +6033,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.43,
+      "facPeRvu": 0.14,
+      "mpRvu": 0.02
     },
     "78202": {
       "cpt": "78202",
@@ -4710,7 +6047,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.5,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.03
     },
     "78215": {
       "cpt": "78215",
@@ -4721,7 +6061,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.48,
+      "facPeRvu": 0.17,
+      "mpRvu": 0.03
     },
     "78216": {
       "cpt": "78216",
@@ -4732,7 +6075,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.56,
+      "facPeRvu": 0.2,
+      "mpRvu": 0.03
     },
     "78226": {
       "cpt": "78226",
@@ -4743,7 +6089,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.72,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.04
     },
     "78227": {
       "cpt": "78227",
@@ -4754,7 +6103,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.88,
+      "facPeRvu": 0.3,
+      "mpRvu": 0.05
     },
     "78230": {
       "cpt": "78230",
@@ -4765,7 +6117,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.44,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.03
     },
     "78231": {
       "cpt": "78231",
@@ -4776,7 +6131,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.51,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "78232": {
       "cpt": "78232",
@@ -4787,7 +6145,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.46,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.01
     },
     "78258": {
       "cpt": "78258",
@@ -4798,7 +6159,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.72,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.04
     },
     "78261": {
       "cpt": "78261",
@@ -4809,7 +6173,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.67,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.01
     },
     "78262": {
       "cpt": "78262",
@@ -4820,7 +6187,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.66,
+      "facPeRvu": 0.24,
+      "mpRvu": 0.04
     },
     "78264": {
       "cpt": "78264",
@@ -4831,7 +6201,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.77,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.04
     },
     "78265": {
       "cpt": "78265",
@@ -4842,7 +6215,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.96,
+      "facPeRvu": 0.33,
+      "mpRvu": 0.05
     },
     "78266": {
       "cpt": "78266",
@@ -4853,7 +6229,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.05,
+      "facPeRvu": 0.33,
+      "mpRvu": 0.04
     },
     "78278": {
       "cpt": "78278",
@@ -4864,18 +6243,24 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.97,
+      "facPeRvu": 0.33,
+      "mpRvu": 0.05
     },
     "78282": {
       "cpt": "78282",
       "description": "Gi protein loss",
       "pcRvu": 0.45,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.37,
+      "facPeRvu": 0.07,
+      "mpRvu": 0.01
     },
     "78290": {
       "cpt": "78290",
@@ -4886,7 +6271,10 @@
       "defaultAeTitle": "NM ABDOMEN",
       "modality": "NM",
       "bodyPart": "Abdomen",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.66,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.04
     },
     "78291": {
       "cpt": "78291",
@@ -4897,7 +6285,10 @@
       "defaultAeTitle": "NM HEAD",
       "modality": "NM",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.86,
+      "facPeRvu": 0.31,
+      "mpRvu": 0.05
     },
     "78300": {
       "cpt": "78300",
@@ -4908,7 +6299,10 @@
       "defaultAeTitle": "NM BONE LIMITED",
       "modality": "NM",
       "bodyPart": "Bone",
-      "protocol": "Limited"
+      "protocol": "Limited",
+      "workRvu": 0.6,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.03
     },
     "78305": {
       "cpt": "78305",
@@ -4919,7 +6313,10 @@
       "defaultAeTitle": "NM BONE",
       "modality": "NM",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.81,
+      "facPeRvu": 0.28,
+      "mpRvu": 0.05
     },
     "78306": {
       "cpt": "78306",
@@ -4930,7 +6327,10 @@
       "defaultAeTitle": "NM BONE",
       "modality": "NM",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.84,
+      "facPeRvu": 0.28,
+      "mpRvu": 0.04
     },
     "78315": {
       "cpt": "78315",
@@ -4941,18 +6341,24 @@
       "defaultAeTitle": "NM BONE",
       "modality": "NM",
       "bodyPart": "Bone",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.99,
+      "facPeRvu": 0.34,
+      "mpRvu": 0.05
     },
     "78414": {
       "cpt": "78414",
       "description": "Non-imaging heart function",
       "pcRvu": 0.63,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.44,
+      "facPeRvu": 0.17,
+      "mpRvu": 0.02
     },
     "78428": {
       "cpt": "78428",
@@ -4963,84 +6369,108 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.76,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.03
     },
     "78429": {
       "cpt": "78429",
       "description": "Myocrd img pet 1 std w/ct",
       "pcRvu": 2.33,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT CARDIAC",
       "modality": "PET-CT",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.72,
+      "facPeRvu": 0.54,
+      "mpRvu": 0.07
     },
     "78430": {
       "cpt": "78430",
       "description": "Myocrd img pet rst/strs w/ct",
       "pcRvu": 2.22,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT CARDIAC",
       "modality": "PET-CT",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.63,
+      "facPeRvu": 0.53,
+      "mpRvu": 0.06
     },
     "78431": {
       "cpt": "78431",
       "description": "Myocrd img pet rst&strs ct",
       "pcRvu": 2.59,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT CARDIAC",
       "modality": "PET-CT",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.85,
+      "facPeRvu": 0.68,
+      "mpRvu": 0.06
     },
     "78432": {
       "cpt": "78432",
       "description": "Myocrd img pet 2rtracer",
       "pcRvu": 2.85,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT CARDIAC",
       "modality": "PET-CT",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.02,
+      "facPeRvu": 0.76,
+      "mpRvu": 0.07
     },
     "78433": {
       "cpt": "78433",
       "description": "Myocrd img pet 2rtracer ct",
-      "pcRvu": 3.0,
-      "tcRvu": 0.0,
+      "pcRvu": 3,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT CARDIAC",
       "modality": "PET-CT",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.2,
+      "facPeRvu": 0.73,
+      "mpRvu": 0.07
     },
     "78434": {
       "cpt": "78434",
       "description": "Aqmbf pet rest & rx stress",
       "pcRvu": 0.86,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT CARDIAC",
       "modality": "PET-CT",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.61,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.02
     },
     "78445": {
       "cpt": "78445",
       "description": "Vascular flow imaging",
       "pcRvu": 0.68,
       "tcRvu": 4.32,
-      "globalRvu": 5.0,
+      "globalRvu": 5,
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.48,
+      "facPeRvu": 0.17,
+      "mpRvu": 0.03
     },
     "78451": {
       "cpt": "78451",
@@ -5051,7 +6481,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.35,
+      "facPeRvu": 0.49,
+      "mpRvu": 0.05
     },
     "78452": {
       "cpt": "78452",
@@ -5062,7 +6495,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.58,
+      "facPeRvu": 0.59,
+      "mpRvu": 0.06
     },
     "78453": {
       "cpt": "78453",
@@ -5073,7 +6509,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.98,
+      "facPeRvu": 0.33,
+      "mpRvu": 0.05
     },
     "78454": {
       "cpt": "78454",
@@ -5084,7 +6523,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.31,
+      "facPeRvu": 0.45,
+      "mpRvu": 0.07
     },
     "78456": {
       "cpt": "78456",
@@ -5095,7 +6537,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.98,
+      "facPeRvu": 0.36,
+      "mpRvu": 0.03
     },
     "78457": {
       "cpt": "78457",
@@ -5106,7 +6551,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.75,
+      "facPeRvu": 0.28,
+      "mpRvu": 0.03
     },
     "78458": {
       "cpt": "78458",
@@ -5118,18 +6566,24 @@
       "modality": "NM",
       "bodyPart": "Cardiac",
       "protocol": "STANDARD",
-      "bilateralEligible": true
+      "bilateralEligible": true,
+      "workRvu": 0.88,
+      "facPeRvu": 0.32,
+      "mpRvu": 0.05
     },
     "78459": {
       "cpt": "78459",
       "description": "Myocrd img pet single study",
       "pcRvu": 2.12,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT CARDIAC",
       "modality": "PET-CT",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.57,
+      "facPeRvu": 0.49,
+      "mpRvu": 0.06
     },
     "78466": {
       "cpt": "78466",
@@ -5140,7 +6594,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.67,
+      "facPeRvu": 0.24,
+      "mpRvu": 0.03
     },
     "78468": {
       "cpt": "78468",
@@ -5151,7 +6608,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.78,
+      "facPeRvu": 0.29,
+      "mpRvu": 0.03
     },
     "78469": {
       "cpt": "78469",
@@ -5162,7 +6622,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.9,
+      "facPeRvu": 0.33,
+      "mpRvu": 0.04
     },
     "78472": {
       "cpt": "78472",
@@ -5173,7 +6636,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.96,
+      "facPeRvu": 0.34,
+      "mpRvu": 0.04
     },
     "78473": {
       "cpt": "78473",
@@ -5184,7 +6650,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.43,
+      "facPeRvu": 0.54,
+      "mpRvu": 0.06
     },
     "78481": {
       "cpt": "78481",
@@ -5195,7 +6664,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.96,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.02
     },
     "78483": {
       "cpt": "78483",
@@ -5206,29 +6678,38 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.43,
+      "facPeRvu": 0.53,
+      "mpRvu": 0.05
     },
     "78491": {
       "cpt": "78491",
       "description": "Myocrd img pet 1std rst/strs",
       "pcRvu": 2.12,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT CARDIAC",
       "modality": "PET-CT",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.52,
+      "facPeRvu": 0.54,
+      "mpRvu": 0.06
     },
     "78492": {
       "cpt": "78492",
       "description": "Myocrd img pet mlt rst&strs",
       "pcRvu": 2.47,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT CARDIAC",
       "modality": "PET-CT",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.76,
+      "facPeRvu": 0.65,
+      "mpRvu": 0.06
     },
     "78494": {
       "cpt": "78494",
@@ -5239,7 +6720,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.16,
+      "facPeRvu": 0.42,
+      "mpRvu": 0.05
     },
     "78496": {
       "cpt": "78496",
@@ -5250,7 +6734,10 @@
       "defaultAeTitle": "NM CARDIAC",
       "modality": "NM",
       "bodyPart": "Cardiac",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.49,
+      "facPeRvu": 0.18,
+      "mpRvu": 0.02
     },
     "78579": {
       "cpt": "78579",
@@ -5261,7 +6748,10 @@
       "defaultAeTitle": "NM CHEST",
       "modality": "NM",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.48,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.03
     },
     "78580": {
       "cpt": "78580",
@@ -5272,7 +6762,10 @@
       "defaultAeTitle": "NM CHEST",
       "modality": "NM",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.72,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.04
     },
     "78582": {
       "cpt": "78582",
@@ -5283,7 +6776,10 @@
       "defaultAeTitle": "NM CHEST",
       "modality": "NM",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.04,
+      "facPeRvu": 0.35,
+      "mpRvu": 0.06
     },
     "78597": {
       "cpt": "78597",
@@ -5294,7 +6790,10 @@
       "defaultAeTitle": "NM CHEST",
       "modality": "NM",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.73,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.03
     },
     "78598": {
       "cpt": "78598",
@@ -5305,7 +6804,10 @@
       "defaultAeTitle": "NM CHEST",
       "modality": "NM",
       "bodyPart": "Chest",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.83,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.04
     },
     "78600": {
       "cpt": "78600",
@@ -5316,7 +6818,10 @@
       "defaultAeTitle": "NM HEAD",
       "modality": "NM",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.43,
+      "facPeRvu": 0.15,
+      "mpRvu": 0.02
     },
     "78601": {
       "cpt": "78601",
@@ -5327,7 +6832,10 @@
       "defaultAeTitle": "NM HEAD",
       "modality": "NM",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.5,
+      "facPeRvu": 0.17,
+      "mpRvu": 0.03
     },
     "78605": {
       "cpt": "78605",
@@ -5338,7 +6846,10 @@
       "defaultAeTitle": "NM HEAD",
       "modality": "NM",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.52,
+      "facPeRvu": 0.19,
+      "mpRvu": 0.03
     },
     "78606": {
       "cpt": "78606",
@@ -5349,18 +6860,24 @@
       "defaultAeTitle": "NM HEAD",
       "modality": "NM",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.62,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.03
     },
     "78608": {
       "cpt": "78608",
       "description": "Brain imaging (pet)",
-      "pcRvu": 2.0,
-      "tcRvu": 0.0,
+      "pcRvu": 2,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT BRAIN",
       "modality": "PET-CT",
       "bodyPart": "Brain",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.46,
+      "facPeRvu": 0.47,
+      "mpRvu": 0.07
     },
     "78610": {
       "cpt": "78610",
@@ -5371,7 +6888,10 @@
       "defaultAeTitle": "NM HEAD",
       "modality": "NM",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.29,
+      "facPeRvu": 0.1,
+      "mpRvu": 0.02
     },
     "78630": {
       "cpt": "78630",
@@ -5382,7 +6902,10 @@
       "defaultAeTitle": "NM HEAD",
       "modality": "NM",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.66,
+      "facPeRvu": 0.22,
+      "mpRvu": 0.04
     },
     "78635": {
       "cpt": "78635",
@@ -5393,7 +6916,10 @@
       "defaultAeTitle": "NM HEAD",
       "modality": "NM",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.22,
+      "mpRvu": 0.03
     },
     "78645": {
       "cpt": "78645",
@@ -5404,7 +6930,10 @@
       "defaultAeTitle": "NM HEAD",
       "modality": "NM",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.56,
+      "facPeRvu": 0.18,
+      "mpRvu": 0.03
     },
     "78650": {
       "cpt": "78650",
@@ -5415,7 +6944,10 @@
       "defaultAeTitle": "NM HEAD",
       "modality": "NM",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.59,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.01
     },
     "78660": {
       "cpt": "78660",
@@ -5426,7 +6958,10 @@
       "defaultAeTitle": "NM HEAD",
       "modality": "NM",
       "bodyPart": "Head",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.52,
+      "facPeRvu": 0.09,
+      "mpRvu": 0.01
     },
     "78700": {
       "cpt": "78700",
@@ -5437,7 +6972,10 @@
       "defaultAeTitle": "NM RENAL",
       "modality": "NM",
       "bodyPart": "Renal",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.44,
+      "facPeRvu": 0.14,
+      "mpRvu": 0.02
     },
     "78701": {
       "cpt": "78701",
@@ -5448,7 +6986,10 @@
       "defaultAeTitle": "NM RENAL",
       "modality": "NM",
       "bodyPart": "Renal",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.48,
+      "facPeRvu": 0.18,
+      "mpRvu": 0.03
     },
     "78707": {
       "cpt": "78707",
@@ -5459,7 +7000,10 @@
       "defaultAeTitle": "NM RENAL WO",
       "modality": "NM",
       "bodyPart": "Renal",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 0.94,
+      "facPeRvu": 0.31,
+      "mpRvu": 0.05
     },
     "78708": {
       "cpt": "78708",
@@ -5470,7 +7014,10 @@
       "defaultAeTitle": "NM RENAL",
       "modality": "NM",
       "bodyPart": "Renal",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.18,
+      "facPeRvu": 0.38,
+      "mpRvu": 0.06
     },
     "78709": {
       "cpt": "78709",
@@ -5481,7 +7028,10 @@
       "defaultAeTitle": "NM RENAL",
       "modality": "NM",
       "bodyPart": "Renal",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.37,
+      "facPeRvu": 0.45,
+      "mpRvu": 0.07
     },
     "78725": {
       "cpt": "78725",
@@ -5492,7 +7042,10 @@
       "defaultAeTitle": "NM RENAL",
       "modality": "NM",
       "bodyPart": "Renal",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.37,
+      "facPeRvu": 0.12,
+      "mpRvu": 0.02
     },
     "78730": {
       "cpt": "78730",
@@ -5503,7 +7056,10 @@
       "defaultAeTitle": "NM RENAL",
       "modality": "NM",
       "bodyPart": "Renal",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.15,
+      "facPeRvu": 0.08,
+      "mpRvu": 0
     },
     "78740": {
       "cpt": "78740",
@@ -5514,7 +7070,10 @@
       "defaultAeTitle": "NM RENAL",
       "modality": "NM",
       "bodyPart": "Renal",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.56,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.02
     },
     "78761": {
       "cpt": "78761",
@@ -5525,7 +7084,10 @@
       "defaultAeTitle": "NM SCROTUM",
       "modality": "NM",
       "bodyPart": "Scrotum",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.69,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.04
     },
     "78800": {
       "cpt": "78800",
@@ -5536,7 +7098,10 @@
       "defaultAeTitle": "NM TUMOR",
       "modality": "NM",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.62,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.07
     },
     "78801": {
       "cpt": "78801",
@@ -5547,7 +7112,10 @@
       "defaultAeTitle": "NM TUMOR",
       "modality": "NM",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.71,
+      "facPeRvu": 0.24,
+      "mpRvu": 0.04
     },
     "78802": {
       "cpt": "78802",
@@ -5558,7 +7126,10 @@
       "defaultAeTitle": "NM TUMOR",
       "modality": "NM",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.78,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.04
     },
     "78803": {
       "cpt": "78803",
@@ -5569,7 +7140,10 @@
       "defaultAeTitle": "NM TUMOR",
       "modality": "NM",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.06,
+      "facPeRvu": 0.36,
+      "mpRvu": 0.05
     },
     "78804": {
       "cpt": "78804",
@@ -5580,7 +7154,10 @@
       "defaultAeTitle": "NM TUMOR",
       "modality": "NM",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.98,
+      "facPeRvu": 0.32,
+      "mpRvu": 0.05
     },
     "78808": {
       "cpt": "78808",
@@ -5591,73 +7168,94 @@
       "defaultAeTitle": "NM TUMOR",
       "modality": "NM",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.18,
+      "facPeRvu": 0,
+      "mpRvu": 0
     },
     "78811": {
       "cpt": "78811",
       "description": "Pet image ltd area",
       "pcRvu": 2.06,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT TUMOR LIMITED",
       "modality": "PET-CT",
       "bodyPart": "Tumor",
-      "protocol": "Limited"
+      "protocol": "Limited",
+      "workRvu": 1.5,
+      "facPeRvu": 0.49,
+      "mpRvu": 0.07
     },
     "78812": {
       "cpt": "78812",
       "description": "Pet image skull-thigh",
       "pcRvu": 2.59,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT TUMOR",
       "modality": "PET-CT",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.88,
+      "facPeRvu": 0.62,
+      "mpRvu": 0.09
     },
     "78813": {
       "cpt": "78813",
       "description": "Pet image full body",
       "pcRvu": 2.65,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT TUMOR",
       "modality": "PET-CT",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.95,
+      "facPeRvu": 0.61,
+      "mpRvu": 0.09
     },
     "78814": {
       "cpt": "78814",
       "description": "Pet image w/ct lmtd",
       "pcRvu": 2.95,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT TUMOR LIMITED",
       "modality": "PET-CT",
       "bodyPart": "Tumor",
-      "protocol": "Limited"
+      "protocol": "Limited",
+      "workRvu": 2.15,
+      "facPeRvu": 0.69,
+      "mpRvu": 0.11
     },
     "78815": {
       "cpt": "78815",
       "description": "Pet image w/ct skull-thigh",
       "pcRvu": 3.28,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT TUMOR",
       "modality": "PET-CT",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.38,
+      "facPeRvu": 0.78,
+      "mpRvu": 0.12
     },
     "78816": {
       "cpt": "78816",
       "description": "Pet image w/ct full body",
       "pcRvu": 3.33,
-      "tcRvu": 0.0,
+      "tcRvu": 0,
       "globalRvu": 0,
       "defaultAeTitle": "PET CT TUMOR",
       "modality": "PET-CT",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.44,
+      "facPeRvu": 0.77,
+      "mpRvu": 0.12
     },
     "78830": {
       "cpt": "78830",
@@ -5668,7 +7266,10 @@
       "defaultAeTitle": "NM TUMOR",
       "modality": "NM",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.45,
+      "facPeRvu": 0.44,
+      "mpRvu": 0.06
     },
     "78831": {
       "cpt": "78831",
@@ -5679,7 +7280,10 @@
       "defaultAeTitle": "NM TUMOR",
       "modality": "NM",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.77,
+      "facPeRvu": 0.57,
+      "mpRvu": 0.08
     },
     "78832": {
       "cpt": "78832",
@@ -5690,7 +7294,10 @@
       "defaultAeTitle": "NM TUMOR",
       "modality": "NM",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 2.07,
+      "facPeRvu": 0.65,
+      "mpRvu": 0.09
     },
     "78835": {
       "cpt": "78835",
@@ -5701,7 +7308,10 @@
       "defaultAeTitle": "NM TUMOR",
       "modality": "NM",
       "bodyPart": "Tumor",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.46,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.02
     },
     "93880": {
       "cpt": "93880",
@@ -5713,7 +7323,9 @@
       "modality": "US",
       "bodyPart": "Vascular",
       "protocol": "STANDARD",
-      "bilateralEligible": true
+      "workRvu": 0.78,
+      "facPeRvu": 0.27,
+      "mpRvu": 0.07
     },
     "93882": {
       "cpt": "93882",
@@ -5724,7 +7336,10 @@
       "defaultAeTitle": "US VASCULAR LIMITED",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "Limited"
+      "protocol": "Limited",
+      "workRvu": 0.49,
+      "facPeRvu": 0.15,
+      "mpRvu": 0.06
     },
     "93886": {
       "cpt": "93886",
@@ -5735,7 +7350,10 @@
       "defaultAeTitle": "US VASCULAR COMPLETE",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "Complete"
+      "protocol": "Complete",
+      "workRvu": 0.88,
+      "facPeRvu": 0.42,
+      "mpRvu": 0.06
     },
     "93888": {
       "cpt": "93888",
@@ -5746,7 +7364,10 @@
       "defaultAeTitle": "US VASCULAR LIMITED",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "Limited"
+      "protocol": "Limited",
+      "workRvu": 0.71,
+      "facPeRvu": 0.33,
+      "mpRvu": 0.04
     },
     "93892": {
       "cpt": "93892",
@@ -5757,7 +7378,10 @@
       "defaultAeTitle": "US VASCULAR WO",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "WITHOUT"
+      "protocol": "WITHOUT",
+      "workRvu": 1.12,
+      "facPeRvu": 0.56,
+      "mpRvu": 0.07
     },
     "93893": {
       "cpt": "93893",
@@ -5768,7 +7392,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.12,
+      "facPeRvu": 0.59,
+      "mpRvu": 0.07
     },
     "93896": {
       "cpt": "93896",
@@ -5779,7 +7406,10 @@
       "defaultAeTitle": "US VASCULAR COMPLETE",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "Complete"
+      "protocol": "Complete",
+      "workRvu": 0.79,
+      "facPeRvu": 0.38,
+      "mpRvu": 0.06
     },
     "93897": {
       "cpt": "93897",
@@ -5790,7 +7420,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.71,
+      "facPeRvu": 0.36,
+      "mpRvu": 0.05
     },
     "93898": {
       "cpt": "93898",
@@ -5801,7 +7434,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.83,
+      "facPeRvu": 0.43,
+      "mpRvu": 0.06
     },
     "93922": {
       "cpt": "93922",
@@ -5812,18 +7448,24 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.24,
+      "facPeRvu": 0.08,
+      "mpRvu": 0.03
     },
     "93923": {
       "cpt": "93923",
       "description": "Upr/lxtr art stdy 3+ lvls",
       "pcRvu": 0.64,
       "tcRvu": 3.36,
-      "globalRvu": 4.0,
+      "globalRvu": 4,
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.44,
+      "facPeRvu": 0.14,
+      "mpRvu": 0.06
     },
     "93924": {
       "cpt": "93924",
@@ -5835,7 +7477,9 @@
       "modality": "US",
       "bodyPart": "Vascular",
       "protocol": "STANDARD",
-      "bilateralEligible": true
+      "workRvu": 0.49,
+      "facPeRvu": 0.16,
+      "mpRvu": 0.06
     },
     "93925": {
       "cpt": "93925",
@@ -5846,7 +7490,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.78,
+      "facPeRvu": 0.25,
+      "mpRvu": 0.07
     },
     "93926": {
       "cpt": "93926",
@@ -5857,7 +7504,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.49,
+      "facPeRvu": 0.13,
+      "mpRvu": 0.05
     },
     "93930": {
       "cpt": "93930",
@@ -5868,7 +7518,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.78,
+      "facPeRvu": 0.26,
+      "mpRvu": 0.07
     },
     "93931": {
       "cpt": "93931",
@@ -5879,7 +7532,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.49,
+      "facPeRvu": 0.14,
+      "mpRvu": 0.05
     },
     "93970": {
       "cpt": "93970",
@@ -5890,7 +7546,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.68,
+      "facPeRvu": 0.22,
+      "mpRvu": 0.06
     },
     "93971": {
       "cpt": "93971",
@@ -5901,7 +7560,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.44,
+      "facPeRvu": 0.14,
+      "mpRvu": 0.03
     },
     "93975": {
       "cpt": "93975",
@@ -5912,7 +7574,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.13,
+      "facPeRvu": 0.37,
+      "mpRvu": 0.09
     },
     "93976": {
       "cpt": "93976",
@@ -5923,7 +7588,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.78,
+      "facPeRvu": 0.28,
+      "mpRvu": 0.05
     },
     "93978": {
       "cpt": "93978",
@@ -5934,7 +7602,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.78,
+      "facPeRvu": 0.23,
+      "mpRvu": 0.11
     },
     "93979": {
       "cpt": "93979",
@@ -5945,7 +7616,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.49,
+      "facPeRvu": 0.14,
+      "mpRvu": 0.06
     },
     "93980": {
       "cpt": "93980",
@@ -5956,7 +7630,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 1.22,
+      "facPeRvu": 0.52,
+      "mpRvu": 0.05
     },
     "93981": {
       "cpt": "93981",
@@ -5967,7 +7644,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.43,
+      "facPeRvu": 0.17,
+      "mpRvu": 0.03
     },
     "93985": {
       "cpt": "93985",
@@ -5978,7 +7658,10 @@
       "defaultAeTitle": "US VASCULAR COMPLETE",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "Complete"
+      "protocol": "Complete",
+      "workRvu": 0.78,
+      "facPeRvu": 0.21,
+      "mpRvu": 0.12
     },
     "93986": {
       "cpt": "93986",
@@ -5989,7 +7672,10 @@
       "defaultAeTitle": "US VASCULAR COMPLETE",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "Complete"
+      "protocol": "Complete",
+      "workRvu": 0.49,
+      "facPeRvu": 0.13,
+      "mpRvu": 0.07
     },
     "93990": {
       "cpt": "93990",
@@ -6000,7 +7686,10 @@
       "defaultAeTitle": "US VASCULAR",
       "modality": "US",
       "bodyPart": "Vascular",
-      "protocol": "STANDARD"
+      "protocol": "STANDARD",
+      "workRvu": 0.49,
+      "facPeRvu": 0.11,
+      "mpRvu": 0.07
     }
   }
 }

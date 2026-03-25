@@ -31,14 +31,17 @@ export const firestoreService = {
     });
   },
 
-  // Lookup system → returns { key, offices } or null if system not found
-  async getSystemOffices(systemName: string): Promise<{ key: string; offices: string[] } | null> {
+  // Lookup system → returns { key, offices, officeZips } or null if system not found
+  async getSystemOffices(systemName: string): Promise<{ key: string; offices: string[]; officeZips?: Record<string, string> } | null> {
     const docRef = doc(db, 'systems', systemName);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
     const data = docSnap.data();
     if (!Array.isArray(data.offices)) return null;
-    return { key: systemName, offices: data.offices };
+    const officeZips = (data.officeZips && typeof data.officeZips === 'object')
+      ? data.officeZips as Record<string, string>
+      : undefined;
+    return { key: systemName, offices: data.offices, officeZips };
   },
 
   // Lookup system → returns rotation list or null if system not found

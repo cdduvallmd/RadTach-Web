@@ -24,6 +24,12 @@ export interface ModalityGroup {
 
 const MODALITY_ORDER = ['CT', 'MR', 'XR', 'US', 'FL', 'NM', 'MA', 'PET-CT'];
 
+// Guest codes: CPTs that appear in a modality section they don't natively belong to.
+// The entry keeps its original modality in the database — it just also shows up here.
+const MODALITY_GUESTS: Record<string, string[]> = {
+  MA: ['76882'],  // Axillary US (nonvascular extremity) — commonly paired with mammography
+};
+
 export function buildCptTree(entries: Record<string, CptEntry>): ModalityGroup[] {
   // Group by modality → bodyPart → protocol
   const modalityMap = new Map<string, Map<string, Map<string, TreeLeaf[]>>>();
@@ -39,6 +45,22 @@ export function buildCptTree(entries: Record<string, CptEntry>): ModalityGroup[]
     const protoMap = bpMap.get(bp)!;
     if (!protoMap.has(proto)) protoMap.set(proto, []);
     protoMap.get(proto)!.push({ cpt, entry });
+  }
+
+  // Inject guest codes into host modalities
+  for (const [hostMod, guestCpts] of Object.entries(MODALITY_GUESTS)) {
+    if (!modalityMap.has(hostMod)) continue;
+    const bpMap = modalityMap.get(hostMod)!;
+    for (const cpt of guestCpts) {
+      const entry = entries[cpt];
+      if (!entry) continue;
+      const proto = entry.protocol || entry.description;
+      // Add to the first (or only) body part in the host modality
+      const firstBp = bpMap.keys().next().value!;
+      const protoMap = bpMap.get(firstBp)!;
+      if (!protoMap.has(proto)) protoMap.set(proto, []);
+      protoMap.get(proto)!.push({ cpt, entry });
+    }
   }
 
   // Build tree with branch collapsing
