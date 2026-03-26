@@ -36,21 +36,26 @@ export interface RecentEntry {
   bilateralFlags: boolean[];
 }
 
+export interface SavedCombo {
+  cpts: string[];
+  bilateralFlags: boolean[];
+  modality: string;
+}
+
 interface Props {
   gooseConnected: boolean;
   testMode?: boolean;
 }
 
-// Seed list — replace with usage-frequency data when available
 const COMMON_CPTS = ['70450', '74177', '71046', '70553'];
 const RECENT_KEY = 'sidecar_recent';
 const MAX_RECENT = 5;
+const COMBO_KEY = 'sidecar_saved_combos';
 
 function loadRecent(): RecentEntry[] {
   try {
     const raw = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
     if (!Array.isArray(raw)) return [];
-    // Migrate old string[] format → RecentEntry[]
     return raw.map((item: unknown) => {
       if (typeof item === 'string') {
         return { cpts: [item], bilateralFlags: [false] };
@@ -64,6 +69,16 @@ function saveRecent(entries: RecentEntry[]) {
   localStorage.setItem(RECENT_KEY, JSON.stringify(entries.slice(0, MAX_RECENT)));
 }
 
+function loadSavedCombos(): SavedCombo[] {
+  try {
+    return JSON.parse(localStorage.getItem(COMBO_KEY) || '[]');
+  } catch { return []; }
+}
+
+function saveSavedCombos(combos: SavedCombo[]) {
+  localStorage.setItem(COMBO_KEY, JSON.stringify(combos));
+}
+
 export default function SidecarMain({ gooseConnected, testMode = false }: Props) {
   const { currentUser } = useAuth();
   const [screen, setScreen] = useState<Screen>({ type: 'home' });
@@ -73,14 +88,13 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [recentEntries, setRecentEntries] = useState<RecentEntry[]>(loadRecent);
+  const [savedCombos, setSavedCombos] = useState<SavedCombo[]>(loadSavedCombos);
   const [gpciValues, setGpciValues] = useState<GpciValues | null>(null);
 
-  // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keep cptDb accessible to Goose handler via ref
   const cptDbRef = useRef(cptDb);
   cptDbRef.current = cptDb;
 
@@ -139,8 +153,23 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       return next;
     });
 
+    // Save combo for modality-level recall (never expires)
+    if (exams.length > 1) {
+      const combo: SavedCombo = {
+        cpts: exams.map(e => e.cpt),
+        bilateralFlags: exams.map(e => e.bilateral),
+        modality: exams[0].entry.modality,
+      };
+      setSavedCombos(prev => {
+        const key = (c: SavedCombo) => [...c.cpts].sort().join(',');
+        const comboKey = key(combo);
+        const next = [combo, ...prev.filter(c => key(c) !== comboKey)];
+        saveSavedCombos(next);
+        return next;
+      });
+    }
+
     if (testMode) {
-      // Skip Firestore write — just navigate
       setScreen({ type: 'active', examDesc });
       setSelectedExams([]);
       return;
@@ -161,7 +190,6 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
 
   const handleSignReport = useCallback(async () => {
     if (testMode) {
-      // Skip Firestore write — just navigate
       setScreen({ type: 'home' });
       return;
     }
@@ -234,14 +262,27 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     }
   }, [cptDb]);
 
+  // Saved combo recall → load into ComboBuilder
+  const handleComboRecall = useCallback((combo: SavedCombo) => {
+    if (!cptDb) return;
+    const exams: SelectedExam[] = combo.cpts
+      .map((cpt, i) => {
+        const e = cptDb.entries[cpt];
+        return e ? { cpt, entry: e, bilateral: combo.bilateralFlags[i] } : null;
+      })
+      .filter((e): e is SelectedExam => e !== null);
+    if (exams.length > 0) {
+      setSelectedExams(exams);
+      setScreen({ type: 'combo' });
+    }
+  }, [cptDb]);
+
   // Handle Goose WebSocket messages (called from SessionGate)
   const handleGooseMessage = useCallback((msg: GooseMessage) => {
     if (msg.action === 'stop') {
       handleSignReport();
     } else if (msg.action === 'search' && msg.text) {
-      // Navigate to home if not already there
       setScreen({ type: 'home' });
-      // Populate search box — skip debounce, search immediately
       setSearchQuery(msg.text);
       if (cptDbRef.current) {
         setSearchResults(searchCpts(msg.text, cptDbRef.current.entries));
@@ -253,7 +294,6 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const gooseHandlerRef = useRef(handleGooseMessage);
   gooseHandlerRef.current = handleGooseMessage;
 
-  // Register the handler on the window so SessionGate can call it
   useEffect(() => {
     (window as unknown as Record<string, unknown>).__gooseHandler = (msg: GooseMessage) => {
       gooseHandlerRef.current(msg);
@@ -289,7 +329,6 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
         <HomeScreen
           modalities={tree.map(m => m.modality)}
           onSelectModality={mod => {
-            // Skip body part screen if modality has only one body part (e.g., MA → Breast)
             const group = tree.find(m => m.modality === mod);
             if (group && group.bodyParts.length === 1) {
               const bp = group.bodyParts[0];
@@ -302,7 +341,6 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
               setScreen({ type: 'bodyPart', modality: mod });
             }
           }}
-          onSignReport={handleSignReport}
           comboCount={selectedExams.length}
           onOpenCombo={() => setScreen({ type: 'combo' })}
           searchQuery={searchQuery}
@@ -323,7 +361,6 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           entries={cptDb.entries}
           onSelectRecent={handleRecentSelect}
           onBack={() => setScreen({ type: 'home' })}
-          onSignReport={handleSignReport}
         />
       );
 
@@ -335,7 +372,6 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           entries={cptDb.entries}
           onSelect={handleSearchSelect}
           onBack={() => setScreen({ type: 'home' })}
-          onSignReport={handleSignReport}
         />
       );
 
@@ -344,6 +380,8 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
         <BodyPartScreen
           modality={screen.modality}
           group={modalityGroup!}
+          savedCombos={savedCombos.filter(c => c.modality === screen.modality)}
+          entries={cptDb.entries}
           onSelectBodyPart={(bp, leaf) => {
             if (leaf) {
               setScreen({ type: 'leaf', entry: leaf.entry, cpt: leaf.cpt });
@@ -351,22 +389,28 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
               setScreen({ type: 'protocol', modality: screen.modality, bodyPart: bp });
             }
           }}
+          onSelectCombo={handleComboRecall}
           onBack={() => setScreen({ type: 'home' })}
-          onSignReport={handleSignReport}
         />
       );
 
     case 'protocol': {
       const bpGroup = modalityGroup?.bodyParts.find(bp => bp.bodyPart === screen.bodyPart);
+      const isSingleBp = modalityGroup && modalityGroup.bodyParts.length === 1;
+      const modalityCombos = isSingleBp
+        ? savedCombos.filter(c => c.modality === screen.modality)
+        : undefined;
       return (
         <ProtocolScreen
           modality={screen.modality}
           bodyPart={screen.bodyPart}
           protocols={bpGroup?.protocols ?? []}
           gpci={gpciValues ?? undefined}
+          savedCombos={modalityCombos}
+          entries={isSingleBp ? cptDb.entries : undefined}
           onSelectLeaf={(leaf: TreeLeaf) => setScreen({ type: 'leaf', entry: leaf.entry, cpt: leaf.cpt })}
+          onSelectCombo={isSingleBp ? handleComboRecall : undefined}
           onBack={() => {
-            // Skip body part screen on back if modality has only one body part
             const group = tree.find(m => m.modality === screen.modality);
             if (group && group.bodyParts.length === 1) {
               setScreen({ type: 'home' });
@@ -374,7 +418,6 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
               setScreen({ type: 'bodyPart', modality: screen.modality });
             }
           }}
-          onSignReport={handleSignReport}
         />
       );
     }
@@ -398,13 +441,11 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
             if (bpg && !bpg.isLeaf) {
               setScreen({ type: 'protocol', modality: mod, bodyPart: bp });
             } else if (mg && mg.bodyParts.length === 1) {
-              // Single body part modality (e.g., MA → Breast) — skip back to home
               setScreen({ type: 'home' });
             } else {
               setScreen({ type: 'bodyPart', modality: mod });
             }
           }}
-          onSignReport={handleSignReport}
           disabled={sending}
         />
       );
@@ -418,7 +459,6 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           onRemove={handleRemoveExam}
           onAddMore={() => setScreen({ type: 'home' })}
           onStart={() => handleStart(selectedExams)}
-          onSignReport={handleSignReport}
           disabled={sending}
         />
       );

@@ -1,21 +1,19 @@
-import SignReportButton from './SignReportButton';
 import type { SearchResult } from '../utils/cptSearch';
 
 const MODALITY_COLORS: Record<string, string> = {
-  CT: '#3b82f6',    // blue
-  MR: '#8b5cf6',    // purple
-  XR: '#10b981',    // green
-  US: '#f59e0b',    // amber
-  FL: '#ec4899',    // pink
-  NM: '#06b6d4',    // cyan
-  MA: '#f97316',    // orange
-  'PET-CT': '#ef4444', // red
+  CT: '#3b82f6',
+  MR: '#8b5cf6',
+  XR: '#10b981',
+  US: '#f59e0b',
+  FL: '#ec4899',
+  NM: '#06b6d4',
+  MA: '#f97316',
+  'PET-CT': '#ef4444',
 };
 
 interface Props {
   modalities: string[];
   onSelectModality: (mod: string) => void;
-  onSignReport: () => void;
   comboCount: number;
   onOpenCombo: () => void;
   searchQuery: string;
@@ -28,7 +26,7 @@ interface Props {
 }
 
 export default function HomeScreen({
-  modalities, onSelectModality, onSignReport,
+  modalities, onSelectModality,
   comboCount, onOpenCombo,
   searchQuery, onSearchChange, searchResults, onSearchSelect,
   gooseConnected,
@@ -38,10 +36,10 @@ export default function HomeScreen({
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
-      <div className="flex-1 p-4 pb-24">
+      <div className="flex-1 p-3 pb-4">
         {/* Header with Goose indicator */}
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold text-white flex-1 text-center">Select Modality</h1>
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-lg font-bold text-white flex-1 text-center">Select Modality</h1>
           {gooseConnected && (
             <div className="flex items-center gap-1.5 absolute right-4">
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
@@ -51,13 +49,13 @@ export default function HomeScreen({
         </div>
 
         {/* Search input */}
-        <div className="relative max-w-sm mx-auto mb-4">
+        <div className="relative max-w-sm mx-auto mb-3">
           <input
             type="text"
             value={searchQuery}
             onChange={e => onSearchChange(e.target.value)}
             placeholder="Search exams or dictate..."
-            className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 text-base"
+            className="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 text-sm"
           />
           {searchQuery && (
             <button
@@ -71,7 +69,7 @@ export default function HomeScreen({
 
         {showResults ? (
           /* Search results list */
-          <div className="max-w-sm mx-auto space-y-2">
+          <div className="max-w-sm mx-auto space-y-1.5">
             {searchResults.length === 0 ? (
               <p className="text-gray-500 text-center text-sm mt-8">No results</p>
             ) : (
@@ -79,13 +77,13 @@ export default function HomeScreen({
                 <button
                   key={r.cpt}
                   onClick={() => onSearchSelect(r.cpt)}
-                  className={`w-full text-left p-3 rounded-lg transition-all active:scale-95 ${
+                  className={`w-full text-left p-2.5 rounded-lg transition-all active:scale-95 ${
                     i === 0
                       ? 'bg-gray-700 ring-2 ring-blue-500'
                       : 'bg-gray-800 hover:bg-gray-700'
                   }`}
                 >
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-0.5">
                     <span
                       className="text-xs font-bold px-1.5 py-0.5 rounded"
                       style={{ backgroundColor: MODALITY_COLORS[r.entry.modality] || '#6b7280', color: 'white' }}
@@ -106,27 +104,27 @@ export default function HomeScreen({
         ) : (
           /* Default view: Recent, Common buttons + Modality grid */
           <>
-            <div className="max-w-sm mx-auto space-y-3 mb-4">
+            <div className="max-w-sm mx-auto space-y-2 mb-3">
               <button
                 onClick={onOpenRecent}
-                className="w-full py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold text-lg rounded-xl active:scale-95 transition-transform"
+                className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold text-base rounded-xl active:scale-95 transition-transform"
               >
                 RECENT
               </button>
               <button
                 onClick={onOpenCommon}
-                className="w-full py-4 bg-gray-700 hover:bg-gray-600 text-white font-bold text-lg rounded-xl active:scale-95 transition-transform"
+                className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold text-base rounded-xl active:scale-95 transition-transform"
               >
                 COMMON
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
+            <div className="grid grid-cols-2 gap-2.5 max-w-sm mx-auto">
               {modalities.map(mod => (
                 <button
                   key={mod}
                   onClick={() => onSelectModality(mod)}
-                  className="py-6 rounded-xl text-white font-bold text-lg active:scale-95 transition-transform"
+                  className="py-4 rounded-xl text-white font-bold text-base active:scale-95 transition-transform"
                   style={{ backgroundColor: MODALITY_COLORS[mod] || '#6b7280' }}
                 >
                   {mod}
@@ -137,7 +135,7 @@ export default function HomeScreen({
             {comboCount > 0 && (
               <button
                 onClick={onOpenCombo}
-                className="mt-6 w-full max-w-sm mx-auto block py-3 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg text-center"
+                className="mt-4 w-full max-w-sm mx-auto block py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg text-center text-sm"
               >
                 View Combo ({comboCount} exam{comboCount !== 1 ? 's' : ''})
               </button>
@@ -145,8 +143,6 @@ export default function HomeScreen({
           </>
         )}
       </div>
-
-      <SignReportButton onSignReport={onSignReport} />
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import type { CptEntry } from '../../types/cpt';
 import type { RecentEntry } from '../SidecarMain';
-import SignReportButton from './SignReportButton';
 
 const MODALITY_COLORS: Record<string, string> = {
   CT: '#3b82f6',
@@ -21,16 +20,15 @@ interface Props {
   onSelect?: (cpt: string) => void;
   onSelectRecent?: (entry: RecentEntry) => void;
   onBack: () => void;
-  onSignReport: () => void;
 }
 
 function SingleCptButton({ cpt, entry, onClick }: { cpt: string; entry: CptEntry; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
+      className="w-full text-left p-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
     >
-      <div className="flex items-center gap-2 mb-1">
+      <div className="flex items-center gap-2 mb-0.5">
         <span
           className="text-xs font-bold px-1.5 py-0.5 rounded"
           style={{ backgroundColor: MODALITY_COLORS[entry.modality] || '#6b7280', color: 'white' }}
@@ -48,23 +46,23 @@ function SingleCptButton({ cpt, entry, onClick }: { cpt: string; entry: CptEntry
   );
 }
 
-export default function CptListScreen({ title, cpts, recentEntries, entries, onSelect, onSelectRecent, onBack, onSignReport }: Props) {
+export default function CptListScreen({ title, cpts, recentEntries, entries, onSelect, onSelectRecent, onBack }: Props) {
   // Recent mode: render from RecentEntry[]
   if (recentEntries && onSelectRecent) {
     const validEntries = recentEntries.filter(re => re.cpts.every(c => entries[c]));
 
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col">
-        <div className="flex-1 p-4 pb-24">
-          <div className="flex items-center mb-6 max-w-sm mx-auto">
+        <div className="flex-1 p-3 pb-4">
+          <div className="flex items-center mb-4 max-w-sm mx-auto">
             <button onClick={onBack} className="text-blue-400 hover:text-blue-300 text-sm mr-3">&larr; Back</button>
-            <h1 className="text-xl font-bold text-white">{title}</h1>
+            <h1 className="text-lg font-bold text-white">{title}</h1>
           </div>
 
           {validEntries.length === 0 ? (
             <p className="text-gray-500 text-center text-sm mt-12">No recent exams yet.</p>
           ) : (
-            <div className="max-w-sm mx-auto space-y-2">
+            <div className="max-w-sm mx-auto space-y-1.5">
               {validEntries.map((re, idx) => {
                 const isCombo = re.cpts.length > 1;
 
@@ -81,14 +79,14 @@ export default function CptListScreen({ title, cpts, recentEntries, entries, onS
                   <button
                     key={`${idx}-combo`}
                     onClick={() => onSelectRecent(re)}
-                    className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
+                    className="w-full text-left p-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
                     style={{ borderLeft: '3px solid #f59e0b' }}
                   >
                     {re.cpts.map((cpt, ci) => {
                       const e = entries[cpt];
                       return (
-                        <div key={cpt} className={ci > 0 ? 'mt-2 pt-2 border-t border-gray-700' : ''}>
-                          <div className="flex items-center gap-2 mb-1">
+                        <div key={cpt} className={ci > 0 ? 'mt-1.5 pt-1.5 border-t border-gray-700' : ''}>
+                          <div className="flex items-center gap-2 mb-0.5">
                             <span
                               className="text-xs font-bold px-1.5 py-0.5 rounded"
                               style={{ backgroundColor: MODALITY_COLORS[e.modality] || '#6b7280', color: 'white' }}
@@ -119,8 +117,6 @@ export default function CptListScreen({ title, cpts, recentEntries, entries, onS
             </div>
           )}
         </div>
-
-        <SignReportButton onSignReport={onSignReport} />
       </div>
     );
   }
@@ -130,16 +126,16 @@ export default function CptListScreen({ title, cpts, recentEntries, entries, onS
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
-      <div className="flex-1 p-4 pb-24">
-        <div className="flex items-center mb-6 max-w-sm mx-auto">
+      <div className="flex-1 p-3 pb-4">
+        <div className="flex items-center mb-4 max-w-sm mx-auto">
           <button onClick={onBack} className="text-blue-400 hover:text-blue-300 text-sm mr-3">&larr; Back</button>
-          <h1 className="text-xl font-bold text-white">{title}</h1>
+          <h1 className="text-lg font-bold text-white">{title}</h1>
         </div>
 
         {valid.length === 0 ? (
           <p className="text-gray-500 text-center text-sm mt-12">No exams configured.</p>
         ) : (
-          <div className="max-w-sm mx-auto space-y-2">
+          <div className="max-w-sm mx-auto space-y-1.5">
             {valid.map(cpt => {
               const e = entries[cpt];
               return (
@@ -149,8 +145,6 @@ export default function CptListScreen({ title, cpts, recentEntries, entries, onS
           </div>
         )}
       </div>
-
-      <SignReportButton onSignReport={onSignReport} />
     </div>
   );
 }
