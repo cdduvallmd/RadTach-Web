@@ -3,6 +3,104 @@
   "updatedAt": "2026-03-25",
   "source": "CMS MPFS 2026 Final Rule (CMS-1832-F) — PPRRVU2026_Jan_nonQPP",
   "entries": {
+    "19081": {
+      "cpt": "19081",
+      "description": "Bx breast 1st lesion strtctc",
+      "pcRvu": 4.14,
+      "tcRvu": 0,
+      "globalRvu": 4.14,
+      "defaultAeTitle": "MAMMO BREAST",
+      "modality": "MA",
+      "bodyPart": "Breast",
+      "protocol": "Procedures",
+      "workRvu": 3.21,
+      "facPeRvu": 0.58,
+      "mpRvu": 0.35
+    },
+    "19082": {
+      "cpt": "19082",
+      "description": "Bx breast addl lesion strtctc",
+      "pcRvu": 2.08,
+      "tcRvu": 0,
+      "globalRvu": 2.08,
+      "defaultAeTitle": "MAMMO BREAST",
+      "modality": "MA",
+      "bodyPart": "Breast",
+      "protocol": "Procedures",
+      "workRvu": 1.61,
+      "facPeRvu": 0.30,
+      "mpRvu": 0.17
+    },
+    "19083": {
+      "cpt": "19083",
+      "description": "Bx breast 1st lesion us",
+      "pcRvu": 3.91,
+      "tcRvu": 0,
+      "globalRvu": 3.91,
+      "defaultAeTitle": "MAMMO BREAST",
+      "modality": "MA",
+      "bodyPart": "Breast",
+      "protocol": "Procedures",
+      "workRvu": 3.02,
+      "facPeRvu": 0.55,
+      "mpRvu": 0.34
+    },
+    "19084": {
+      "cpt": "19084",
+      "description": "Bx breast addl lesion us",
+      "pcRvu": 1.95,
+      "tcRvu": 0,
+      "globalRvu": 1.95,
+      "defaultAeTitle": "MAMMO BREAST",
+      "modality": "MA",
+      "bodyPart": "Breast",
+      "protocol": "Procedures",
+      "workRvu": 1.51,
+      "facPeRvu": 0.28,
+      "mpRvu": 0.16
+    },
+    "19085": {
+      "cpt": "19085",
+      "description": "Bx breast 1st lesion mr imag",
+      "pcRvu": 4.53,
+      "tcRvu": 0,
+      "globalRvu": 4.53,
+      "defaultAeTitle": "MAMMO BREAST",
+      "modality": "MA",
+      "bodyPart": "Breast",
+      "protocol": "Procedures",
+      "workRvu": 3.55,
+      "facPeRvu": 0.63,
+      "mpRvu": 0.35
+    },
+    "19086": {
+      "cpt": "19086",
+      "description": "Bx breast addl lesion mr imag",
+      "pcRvu": 2.26,
+      "tcRvu": 0,
+      "globalRvu": 2.26,
+      "defaultAeTitle": "MAMMO BREAST",
+      "modality": "MA",
+      "bodyPart": "Breast",
+      "protocol": "Procedures",
+      "workRvu": 1.77,
+      "facPeRvu": 0.32,
+      "mpRvu": 0.17
+    },
+    "38505": {
+      "cpt": "38505",
+      "description": "Needle bx lymph node superfcl",
+      "pcRvu": 2.24,
+      "tcRvu": 0,
+      "globalRvu": 2.24,
+      "defaultAeTitle": "MAMMO BREAST",
+      "modality": "MA",
+      "bodyPart": "Breast",
+      "protocol": "Procedures",
+      "workRvu": 1.55,
+      "facPeRvu": 0.52,
+      "mpRvu": 0.17
+    },
     "70010": {
       "cpt": "70010",
       "description": "Contrast x-ray of brain",
@@ -1059,9 +1157,9 @@
       "pcRvu": 0.28,
       "tcRvu": 0.71,
       "globalRvu": 0.99,
-      "defaultAeTitle": "MAMMO BREAST",
-      "modality": "MA",
-      "bodyPart": "Breast",
+      "defaultAeTitle": "XR STERNUM",
+      "modality": "XR",
+      "bodyPart": "Chest",
       "protocol": "STANDARD",
       "workRvu": 0.2,
       "facPeRvu": 0.07,
@@ -4101,7 +4199,7 @@
       "defaultAeTitle": "XR BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD",
+      "protocol": "Mammography",
       "workRvu": 0.3,
       "facPeRvu": 0.12,
       "mpRvu": 0.02
@@ -4367,7 +4465,7 @@
       "defaultAeTitle": "US BREAST COMPLETE",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "Complete",
+      "protocol": "Ultrasound",
       "workRvu": 0.71,
       "facPeRvu": 0.26,
       "mpRvu": 0.04
@@ -4381,7 +4479,7 @@
       "defaultAeTitle": "US BREAST LIMITED",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "Limited",
+      "protocol": "Ultrasound",
       "workRvu": 0.66,
       "facPeRvu": 0.24,
       "mpRvu": 0.04
@@ -5347,7 +5445,7 @@
       "defaultAeTitle": "MAMMO BREAST WO",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "WITHOUT",
+      "protocol": "MRI",
       "workRvu": 1.41,
       "facPeRvu": 0.5,
       "mpRvu": 0.07
@@ -5361,7 +5459,7 @@
       "defaultAeTitle": "MAMMO BREAST WO",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "WITHOUT",
+      "protocol": "MRI",
       "workRvu": 1.56,
       "facPeRvu": 0.55,
       "mpRvu": 0.08
@@ -5375,7 +5473,7 @@
       "defaultAeTitle": "MAMMO BREAST WO W",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "WO/W",
+      "protocol": "MRI",
       "workRvu": 2.05,
       "facPeRvu": 0.73,
       "mpRvu": 0.12
@@ -5389,7 +5487,7 @@
       "defaultAeTitle": "MAMMO BREAST WO W",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "WO/W",
+      "protocol": "MRI",
       "workRvu": 2.24,
       "facPeRvu": 0.8,
       "mpRvu": 0.13
@@ -5403,7 +5501,7 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD",
+      "protocol": "Mammography",
       "workRvu": 0.35,
       "facPeRvu": 0.13,
       "mpRvu": 0.02
@@ -5417,7 +5515,7 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD",
+      "protocol": "Mammography",
       "workRvu": 0.44,
       "facPeRvu": 0.16,
       "mpRvu": 0.03
@@ -5431,7 +5529,7 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD",
+      "protocol": "Mammography",
       "workRvu": 0.59,
       "facPeRvu": 0.21,
       "mpRvu": 0.03
@@ -5445,7 +5543,7 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD",
+      "protocol": "Mammography",
       "workRvu": 0.79,
       "facPeRvu": 0.29,
       "mpRvu": 0.05
@@ -5459,7 +5557,7 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD",
+      "protocol": "Mammography",
       "workRvu": 0.98,
       "facPeRvu": 0.35,
       "mpRvu": 0.06
@@ -5473,7 +5571,7 @@
       "defaultAeTitle": "MAMMO BREAST",
       "modality": "MA",
       "bodyPart": "Breast",
-      "protocol": "STANDARD",
+      "protocol": "Mammography",
       "workRvu": 0.74,
       "facPeRvu": 0.27,
       "mpRvu": 0.04
@@ -7690,6 +7788,20 @@
       "workRvu": 0.49,
       "facPeRvu": 0.11,
       "mpRvu": 0.07
+    },
+    "G0279": {
+      "cpt": "G0279",
+      "description": "Dx digital breast tomosynthesis",
+      "pcRvu": 1.21,
+      "tcRvu": 0,
+      "globalRvu": 1.21,
+      "defaultAeTitle": "MAMMO BREAST",
+      "modality": "MA",
+      "bodyPart": "Breast",
+      "protocol": "Mammography",
+      "workRvu": 0.59,
+      "facPeRvu": 0.59,
+      "mpRvu": 0.03
     }
   }
 }

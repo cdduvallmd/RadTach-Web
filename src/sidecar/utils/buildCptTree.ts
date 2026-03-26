@@ -26,9 +26,36 @@ const MODALITY_ORDER = ['CT', 'MR', 'XR', 'US', 'FL', 'NM', 'MA', 'PET-CT'];
 
 // Guest codes: CPTs that appear in a modality section they don't natively belong to.
 // The entry keeps its original modality in the database — it just also shows up here.
-const MODALITY_GUESTS: Record<string, string[]> = {
-  MA: ['76882'],  // Axillary US (nonvascular extremity) — commonly paired with mammography
+// Optional protocol/bodyPart overrides control where the guest lands in the host tree.
+interface GuestEntry {
+  cpt: string;
+  protocol?: string;    // Override protocol in host (default: entry's native protocol)
+  bodyPart?: string;    // Override body part in host (default: first body part in host)
+}
+
+const MODALITY_GUESTS: Record<string, GuestEntry[]> = {
+  MA: [
+    { cpt: '76882', protocol: 'Ultrasound' },       // Axillary US (nonvascular extremity)
+    { cpt: '76942', protocol: 'Procedures' },        // Echo guide for biopsy
+    { cpt: '77080', bodyPart: 'Bone Density' },      // DXA bone density axial
+    { cpt: '77081', bodyPart: 'Bone Density' },      // DXA bone density appendicular
+  ],
 };
+
+// Custom protocol ordering per modality. Protocols not listed sort alphabetically after.
+const PROTOCOL_ORDER: Record<string, string[]> = {
+  MA: ['Mammography', 'Ultrasound', 'MRI', 'Procedures'],
+};
+
+function protoSortKey(modality: string, protocol: string): string {
+  const order = PROTOCOL_ORDER[modality];
+  if (order) {
+    const idx = order.indexOf(protocol);
+    if (idx !== -1) return String(idx).padStart(3, '0');
+  }
+  // Unlisted protocols sort alphabetically after ordered ones
+  return `999_${protocol}`;
+}
 
 export function buildCptTree(entries: Record<string, CptEntry>): ModalityGroup[] {
   // Group by modality → bodyPart → protocol
@@ -48,18 +75,18 @@ export function buildCptTree(entries: Record<string, CptEntry>): ModalityGroup[]
   }
 
   // Inject guest codes into host modalities
-  for (const [hostMod, guestCpts] of Object.entries(MODALITY_GUESTS)) {
+  for (const [hostMod, guests] of Object.entries(MODALITY_GUESTS)) {
     if (!modalityMap.has(hostMod)) continue;
     const bpMap = modalityMap.get(hostMod)!;
-    for (const cpt of guestCpts) {
-      const entry = entries[cpt];
+    for (const guest of guests) {
+      const entry = entries[guest.cpt];
       if (!entry) continue;
-      const proto = entry.protocol || entry.description;
-      // Add to the first (or only) body part in the host modality
-      const firstBp = bpMap.keys().next().value!;
-      const protoMap = bpMap.get(firstBp)!;
+      const proto = guest.protocol || entry.protocol || entry.description;
+      const bp = guest.bodyPart || bpMap.keys().next().value!;
+      if (!bpMap.has(bp)) bpMap.set(bp, new Map());
+      const protoMap = bpMap.get(bp)!;
       if (!protoMap.has(proto)) protoMap.set(proto, []);
-      protoMap.get(proto)!.push({ cpt, entry });
+      protoMap.get(proto)!.push({ cpt: guest.cpt, entry });
     }
   }
 
@@ -76,7 +103,7 @@ export function buildCptTree(entries: Record<string, CptEntry>): ModalityGroup[]
         leaves.sort((a, b) => a.entry.description.localeCompare(b.entry.description));
         protocols.push({ protocol: proto, leaves });
       }
-      protocols.sort((a, b) => a.protocol.localeCompare(b.protocol));
+      protocols.sort((a, b) => protoSortKey(mod, a.protocol).localeCompare(protoSortKey(mod, b.protocol)));
 
       // Branch collapsing: single protocol with single CPT → leaf
       const totalLeaves = protocols.reduce((sum, p) => sum + p.leaves.length, 0);
