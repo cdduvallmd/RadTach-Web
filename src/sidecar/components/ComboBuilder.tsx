@@ -56,7 +56,7 @@ export default function ComboBuilder({ exams, entries, gpci, onRemove, onAddMore
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-blue-400 font-semibold">{bd?.adjusted ?? exam.entry.pcRvu}</span>
+                  <span className="text-blue-400 font-semibold">{bd?.adjusted ?? (exam.entry.workRvu ?? exam.entry.pcRvu)}</span>
                   <button
                     onClick={() => onRemove(idx)}
                     className="w-8 h-8 rounded-full bg-red-900/50 text-red-400 flex items-center justify-center text-lg font-bold"
@@ -74,7 +74,7 @@ export default function ComboBuilder({ exams, entries, gpci, onRemove, onAddMore
           <div className="flex items-center justify-between">
             <span className="text-gray-300 font-semibold text-lg">Total</span>
             <div className="text-right">
-              <span className="text-blue-400 font-bold text-2xl">{total} RVU</span>
+              <span className="text-blue-400 font-bold text-2xl">{total} wRVU</span>
               {gpci && (
                 <p className="text-cyan-500 text-xs">GPCI adjusted</p>
               )}

@@ -1,16 +1,17 @@
 import type { CptEntry } from '../types/cpt';
 import type { GpciValues } from './gpciLookup';
-import { adjustedPcRvu } from './gpciLookup';
+import { adjustedWorkRvu } from './gpciLookup';
 
-// ── Resolve RVU for a single entry ───────────────────────────────────────────
-// Returns GPCI-adjusted RVU when gpci is provided, raw pcRvu otherwise.
+// ── Resolve work RVU for a single entry ─────────────────────────────────────
+// Returns GPCI-adjusted work RVU when gpci is provided, raw workRvu otherwise.
 function resolveRvu(entry: CptEntry, gpci?: GpciValues): number {
-  return gpci ? adjustedPcRvu(entry, gpci) : entry.pcRvu;
+  if (gpci) return adjustedWorkRvu(entry, gpci);
+  return entry.workRvu ?? entry.pcRvu; // workRvu preferred, pcRvu legacy fallback
 }
 
 // ── Single CPT lookup ──────────────────────────────────────────────────────
-// Returns pcRvu (or GPCI-adjusted pcRvu) or null if CPT not found in database.
-export function lookupPcRvu(
+// Returns work RVU (or GPCI-adjusted) or null if CPT not found in database.
+export function lookupWorkRvu(
   entries: Record<string, CptEntry>,
   cpt: string,
   gpci?: GpciValues,
@@ -20,10 +21,12 @@ export function lookupPcRvu(
   return resolveRvu(entry, gpci);
 }
 
-// ── MPPR combo calculation ─────────────────────────────────────────────────
-// CMS Consolidated Appropriations Act 2016, Section 502(a)(2):
-// 5% PC reduction on 2nd+ diagnostic imaging procedures (MULT PROC indicator = 4).
-// Sort by pcRvu descending — highest at 100%, all subsequent × 0.95.
+// @deprecated — use lookupWorkRvu
+export const lookupPcRvu = lookupWorkRvu;
+
+// ── Combo calculation ──────────────────────────────────────────────────────
+// Work RVU is not subject to MPPR — each procedure's work stands at full value.
+// (MPPR only reduces the PE component of the technical component.)
 export function calculateComboRvu(
   entries: Record<string, CptEntry>,
   cpts: string[],
@@ -32,18 +35,15 @@ export function calculateComboRvu(
   total: number;
   breakdown: Array<{ cpt: string; description: string; raw: number; adjusted: number }>;
 } {
-  const resolved = cpts
-    .map(cpt => {
-      const entry = entries[cpt];
-      return entry
-        ? { cpt, description: entry.description, raw: resolveRvu(entry, gpci) }
-        : { cpt, description: `Unknown CPT ${cpt}`, raw: 0 };
-    })
-    .sort((a, b) => b.raw - a.raw); // highest first
-
-  const breakdown = resolved.map((item, idx) => {
-    const adjusted = idx === 0 ? item.raw : +(item.raw * 0.95).toFixed(2);
-    return { ...item, adjusted };
+  const breakdown = cpts.map(cpt => {
+    const entry = entries[cpt];
+    const raw = entry ? resolveRvu(entry, gpci) : 0;
+    return {
+      cpt,
+      description: entry?.description ?? `Unknown CPT ${cpt}`,
+      raw,
+      adjusted: raw, // No MPPR reduction on work RVU
+    };
   });
 
   const total = +breakdown.reduce((sum, b) => sum + b.adjusted, 0).toFixed(2);

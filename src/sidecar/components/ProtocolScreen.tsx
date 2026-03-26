@@ -1,6 +1,6 @@
 import type { ProtocolGroup, TreeLeaf } from '../utils/buildCptTree';
 import type { GpciValues } from '../../utils/gpciLookup';
-import { adjustedPcRvu } from '../../utils/gpciLookup';
+import { adjustedWorkRvu } from '../../utils/gpciLookup';
 import SignReportButton from './SignReportButton';
 
 interface Props {
@@ -39,7 +39,7 @@ export default function ProtocolScreen({ modality, bodyPart, protocols, gpci, on
 
               {/* Leaves within protocol */}
               {proto.leaves.map(leaf => {
-                const rvu = gpci ? adjustedPcRvu(leaf.entry, gpci) : leaf.entry.pcRvu;
+                const rvu = gpci ? adjustedWorkRvu(leaf.entry, gpci) : (leaf.entry.workRvu ?? leaf.entry.pcRvu);
                 return (
                   <button
                     key={leaf.cpt}
@@ -54,7 +54,7 @@ export default function ProtocolScreen({ modality, bodyPart, protocols, gpci, on
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-gray-400 text-sm">{leaf.cpt}</div>
-                      <div className="text-blue-400 text-sm">{rvu} RVU</div>
+                      <div className="text-blue-400 text-sm">{rvu} wRVU</div>
                     </div>
                   </button>
                 );

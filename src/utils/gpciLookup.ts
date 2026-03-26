@@ -28,15 +28,15 @@ export function lookupGpci(zip: string): GpciValues | null {
   };
 }
 
-// (workRvu × work) + (facPeRvu × pe) + (mpRvu × mp)
-// Falls back to pcRvu if component RVUs not present.
-export function adjustedPcRvu(entry: CptEntry, gpci: GpciValues): number {
-  if (entry.workRvu != null && entry.facPeRvu != null && entry.mpRvu != null) {
-    return +(
-      entry.workRvu * gpci.work +
-      entry.facPeRvu * gpci.pe +
-      entry.mpRvu * gpci.mp
-    ).toFixed(2);
+// Work RVU × GPCI work factor.
+// This is what hospital-employed radiologists earn — PE and MP go to the facility.
+// Falls back to raw workRvu (or pcRvu if workRvu missing) when GPCI not available.
+export function adjustedWorkRvu(entry: CptEntry, gpci: GpciValues): number {
+  if (entry.workRvu != null) {
+    return +(entry.workRvu * gpci.work).toFixed(2);
   }
-  return entry.pcRvu;
+  return entry.pcRvu; // legacy fallback
 }
+
+// @deprecated — use adjustedWorkRvu. Kept for any remaining callers.
+export const adjustedPcRvu = adjustedWorkRvu;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { CptEntry } from '../../types/cpt';
 import type { GpciValues } from '../../utils/gpciLookup';
-import { adjustedPcRvu } from '../../utils/gpciLookup';
+import { adjustedWorkRvu } from '../../utils/gpciLookup';
 import { getBilateralRvu } from '../../utils/cptLookup';
 import SignReportButton from './SignReportButton';
 
@@ -20,7 +20,7 @@ interface Props {
 export default function LeafScreen({ cpt, entry, entries, gpci, onStart, onAdd, onBack, onSignReport, disabled }: Props) {
   const [bilateral, setBilateral] = useState(false);
 
-  const baseRvu = gpci ? adjustedPcRvu(entry, gpci) : entry.pcRvu;
+  const baseRvu = gpci ? adjustedWorkRvu(entry, gpci) : (entry.workRvu ?? entry.pcRvu);
   const displayRvu = bilateral
     ? getBilateralRvu(entries, cpt, gpci).rvu
     : baseRvu;
@@ -45,7 +45,7 @@ export default function LeafScreen({ cpt, entry, entries, gpci, onStart, onAdd, 
           {/* RVU display */}
           <div className="text-center py-4">
             <span className="text-4xl font-bold text-blue-400">{displayRvu}</span>
-            <span className="text-blue-300 text-lg ml-2">RVU</span>
+            <span className="text-blue-300 text-lg ml-2">wRVU</span>
             {gpci && (
               <p className="text-cyan-500 text-xs mt-1">GPCI adjusted</p>
             )}
