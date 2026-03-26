@@ -4,7 +4,7 @@ import { firestoreService } from '../services/firestore';
 import { listenToCommandDoc, writeStartCommand, writeStopCommand } from './services/sidecarFirestore';
 import { buildCptTree, type ModalityGroup, type TreeLeaf } from './utils/buildCptTree';
 import { searchCpts, type SearchResult } from './utils/cptSearch';
-import type { CptDatabase, CptEntry } from '../types/cpt';
+import type { CptDatabase, CptEntry, ChargemasterEntry } from '../types/cpt';
 import type { GpciValues } from '../utils/gpciLookup';
 import type { GooseMessage } from './services/gooseWebSocket';
 import HomeScreen from './components/HomeScreen';
@@ -21,7 +21,7 @@ type Screen =
   | { type: 'recent' }
   | { type: 'bodyPart'; modality: string }
   | { type: 'protocol'; modality: string; bodyPart: string }
-  | { type: 'leaf'; entry: CptEntry; cpt: string }
+  | { type: 'leaf'; entry: CptEntry; cpt: string; aeTitle?: string }
   | { type: 'combo' }
   | { type: 'active'; examDesc: string };
 
@@ -90,6 +90,9 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const [recentEntries, setRecentEntries] = useState<RecentEntry[]>(loadRecent);
   const [savedCombos, setSavedCombos] = useState<SavedCombo[]>(loadSavedCombos);
   const [gpciValues, setGpciValues] = useState<GpciValues | null>(null);
+  const [systemName, setSystemName] = useState<string | null>(null);
+  const [chargemaster, setChargemaster] = useState<ChargemasterEntry[] | null>(null);
+  const [comboAeTitle, setComboAeTitle] = useState<string | undefined>(undefined);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -101,15 +104,19 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   // Load CPT database
   useEffect(() => {
     firestoreService.getCptDatabase().then(db => {
-      if (db) {
-        setCptDb(db);
-        setTree(buildCptTree(db.entries));
-      }
+      if (db) setCptDb(db);
       setLoading(false);
     });
   }, []);
 
-  // Load GPCI values from user settings
+  // Build tree when CPT database or chargemaster changes
+  useEffect(() => {
+    if (cptDb) {
+      setTree(buildCptTree(cptDb.entries, chargemaster ?? undefined));
+    }
+  }, [cptDb, chargemaster]);
+
+  // Load GPCI values and system name from user settings
   useEffect(() => {
     if (!currentUser) return;
     firestoreService.getUserSettings(currentUser.uid).then(settings => {
@@ -119,8 +126,19 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           setGpciValues(g as GpciValues);
         }
       }
+      if (typeof settings?.currentSystem === 'string' && settings.currentSystem) {
+        setSystemName(settings.currentSystem);
+      }
     }).catch(console.error);
   }, [currentUser]);
+
+  // Load chargemaster when system name is available
+  useEffect(() => {
+    if (!systemName) return;
+    firestoreService.getSystemChargemaster(systemName).then(cm => {
+      if (cm) setChargemaster(cm);
+    }).catch(console.error);
+  }, [systemName]);
 
   // Listen for "completed" from RadTach → auto-return to home
   useEffect(() => {
@@ -134,11 +152,13 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     return unsub;
   }, [currentUser]);
 
-  const handleStart = useCallback(async (exams: SelectedExam[]) => {
+  const handleStart = useCallback(async (exams: SelectedExam[], comboAeTitle?: string) => {
     if (exams.length === 0 || sending) return;
-    const examDesc = exams.length === 1
-      ? exams[0].entry.description
-      : exams.map(e => e.entry.description).join(' + ');
+    const examDesc = comboAeTitle
+      ? comboAeTitle
+      : exams.length === 1
+        ? exams[0].entry.description
+        : exams.map(e => e.entry.description).join(' + ');
 
     // Track recent (full combo, deduplicated by sorted CPT set)
     const entry: RecentEntry = {
@@ -204,6 +224,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   }, [currentUser, sending, testMode]);
 
   const handleAddExam = useCallback((cpt: string, entry: CptEntry, bilateral: boolean) => {
+    setComboAeTitle(undefined); // Manual combo, not from chargemaster
     setSelectedExams(prev => [...prev, { cpt, entry, bilateral }]);
     setScreen({ type: 'combo' });
   }, []);
@@ -216,6 +237,9 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     });
   }, []);
 
+  const chargemasterRef = useRef(chargemaster);
+  chargemasterRef.current = chargemaster;
+
   // Search handler with 300ms debounce
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
@@ -226,19 +250,34 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     }
     debounceRef.current = setTimeout(() => {
       if (cptDbRef.current) {
-        setSearchResults(searchCpts(query, cptDbRef.current.entries));
+        setSearchResults(searchCpts(query, cptDbRef.current.entries, 10, chargemasterRef.current ?? undefined));
       }
     }, 300);
   }, []);
 
-  // Search result selection → navigate to leaf
-  const handleSearchSelect = useCallback((cpt: string) => {
+  // Search result selection → navigate to leaf or combo builder
+  const handleSearchSelect = useCallback((result: SearchResult) => {
     if (!cptDb) return;
-    const entry = cptDb.entries[cpt];
-    if (entry) {
-      setSearchQuery('');
-      setSearchResults([]);
-      setScreen({ type: 'leaf', entry, cpt });
+    setSearchQuery('');
+    setSearchResults([]);
+    if (result.comboCpts && result.comboCpts.length > 1) {
+      // Chargemaster combo → load into ComboBuilder
+      const exams: SelectedExam[] = result.comboCpts
+        .map((cpt, i) => {
+          const e = cptDb.entries[cpt];
+          return e ? { cpt, entry: e, bilateral: result.comboBilateralFlags?.[i] ?? false } : null;
+        })
+        .filter((e): e is SelectedExam => e !== null);
+      if (exams.length > 0) {
+        setComboAeTitle(result.aeTitle);
+        setSelectedExams(exams);
+        setScreen({ type: 'combo' });
+      }
+    } else {
+      const entry = cptDb.entries[result.cpt];
+      if (entry) {
+        setScreen({ type: 'leaf', entry, cpt: result.cpt, aeTitle: result.aeTitle });
+      }
     }
   }, [cptDb]);
 
@@ -277,6 +316,27 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     }
   }, [cptDb]);
 
+  // Handle leaf selection — routes chargemaster combos to ComboBuilder
+  const handleLeafSelect = useCallback((leaf: TreeLeaf) => {
+    if (!cptDb) return;
+    if (leaf.comboCpts && leaf.comboCpts.length > 1) {
+      // Chargemaster combo → load all CPTs into ComboBuilder
+      const exams: SelectedExam[] = leaf.comboCpts
+        .map((cpt, i) => {
+          const e = cptDb.entries[cpt];
+          return e ? { cpt, entry: e, bilateral: leaf.comboBilateralFlags?.[i] ?? false } : null;
+        })
+        .filter((e): e is SelectedExam => e !== null);
+      if (exams.length > 0) {
+        setComboAeTitle(leaf.aeTitle);
+        setSelectedExams(exams);
+        setScreen({ type: 'combo' });
+      }
+    } else {
+      setScreen({ type: 'leaf', entry: leaf.entry, cpt: leaf.cpt, aeTitle: leaf.aeTitle });
+    }
+  }, [cptDb]);
+
   // Handle Goose WebSocket messages (called from SessionGate)
   const handleGooseMessage = useCallback((msg: GooseMessage) => {
     if (msg.action === 'stop') {
@@ -285,7 +345,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       setScreen({ type: 'home' });
       setSearchQuery(msg.text);
       if (cptDbRef.current) {
-        setSearchResults(searchCpts(msg.text, cptDbRef.current.entries));
+        setSearchResults(searchCpts(msg.text, cptDbRef.current.entries, 10, chargemasterRef.current ?? undefined));
       }
     }
   }, [handleSignReport]);
@@ -370,7 +430,10 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           title="Common"
           cpts={COMMON_CPTS}
           entries={cptDb.entries}
-          onSelect={handleSearchSelect}
+          onSelect={(cpt) => {
+            const entry = cptDb.entries[cpt];
+            if (entry) setScreen({ type: 'leaf', entry, cpt });
+          }}
           onBack={() => setScreen({ type: 'home' })}
         />
       );
@@ -384,7 +447,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           entries={cptDb.entries}
           onSelectBodyPart={(bp, leaf) => {
             if (leaf) {
-              setScreen({ type: 'leaf', entry: leaf.entry, cpt: leaf.cpt });
+              handleLeafSelect(leaf);
             } else {
               setScreen({ type: 'protocol', modality: screen.modality, bodyPart: bp });
             }
@@ -408,7 +471,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           gpci={gpciValues ?? undefined}
           savedCombos={modalityCombos}
           entries={isSingleBp ? cptDb.entries : undefined}
-          onSelectLeaf={(leaf: TreeLeaf) => setScreen({ type: 'leaf', entry: leaf.entry, cpt: leaf.cpt })}
+          onSelectLeaf={(leaf: TreeLeaf) => handleLeafSelect(leaf)}
           onSelectCombo={isSingleBp ? handleComboRecall : undefined}
           onBack={() => {
             const group = tree.find(m => m.modality === screen.modality);
@@ -429,7 +492,8 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           entry={screen.entry}
           entries={cptDb.entries}
           gpci={gpciValues ?? undefined}
-          onStart={(bilateral) => handleStart([{ cpt: screen.cpt, entry: screen.entry, bilateral }])}
+          aeTitle={screen.aeTitle}
+          onStart={(bilateral) => handleStart([{ cpt: screen.cpt, entry: screen.entry, bilateral }], screen.aeTitle)}
           onAdd={(bilateral) => {
             handleAddExam(screen.cpt, screen.entry, bilateral);
           }}
@@ -456,9 +520,10 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           exams={selectedExams}
           entries={cptDb.entries}
           gpci={gpciValues ?? undefined}
+          aeTitle={comboAeTitle}
           onRemove={handleRemoveExam}
           onAddMore={() => setScreen({ type: 'home' })}
-          onStart={() => handleStart(selectedExams)}
+          onStart={() => handleStart(selectedExams, comboAeTitle)}
           disabled={sending}
         />
       );

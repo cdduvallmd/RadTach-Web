@@ -9,13 +9,14 @@ interface Props {
   entry: CptEntry;
   entries: Record<string, CptEntry>;
   gpci?: GpciValues;
+  aeTitle?: string;
   onStart: (bilateral: boolean) => void;
   onAdd: (bilateral: boolean) => void;
   onBack: () => void;
   disabled?: boolean;
 }
 
-export default function LeafScreen({ cpt, entry, entries, gpci, onStart, onAdd, onBack, disabled }: Props) {
+export default function LeafScreen({ cpt, entry, entries, gpci, aeTitle, onStart, onAdd, onBack, disabled }: Props) {
   const [bilateral, setBilateral] = useState(false);
 
   const baseRvu = gpci ? adjustedWorkRvu(entry, gpci) : (entry.workRvu ?? entry.pcRvu);
@@ -35,7 +36,10 @@ export default function LeafScreen({ cpt, entry, entries, gpci, onStart, onAdd, 
         {/* Exam details */}
         <div className="p-4 space-y-4">
           <div className="text-center">
-            <h2 className="text-xl font-bold text-white">{entry.description}</h2>
+            <h2 className="text-xl font-bold text-white">{aeTitle ?? entry.description}</h2>
+            {aeTitle && (
+              <p className="text-gray-500 text-xs mt-0.5">{entry.description}</p>
+            )}
             <p className="text-gray-400 text-sm mt-1">{entry.modality} &middot; {entry.bodyPart}</p>
             <p className="text-gray-500 text-xs mt-0.5">CPT {cpt}</p>
           </div>

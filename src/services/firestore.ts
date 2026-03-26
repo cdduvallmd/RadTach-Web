@@ -19,7 +19,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import type { StoredSession, GroupStats, CompositeStats, WorkstationStats } from '../types/reports';
-import type { CptDatabase } from '../types/cpt';
+import type { CptDatabase, ChargemasterEntry } from '../types/cpt';
 import type { SidecarCommand } from '../types/sidecar';
 
 export const firestoreService = {
@@ -369,6 +369,17 @@ export const firestoreService = {
   async writeCptDatabase(database: CptDatabase): Promise<void> {
     const docRef = doc(db, 'Config', 'cptDatabase');
     await setDoc(docRef, database);
+  },
+
+  // ── Chargemaster Functions ──────────────────────────────────────────────
+
+  async getSystemChargemaster(systemName: string): Promise<ChargemasterEntry[] | null> {
+    const docRef = doc(db, 'systems', systemName);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    const data = docSnap.data();
+    if (!Array.isArray(data.chargemaster)) return null;
+    return data.chargemaster as ChargemasterEntry[];
   },
 
   // ── Sidecar / HL7 Command Doc Functions ─────────────────────────────────

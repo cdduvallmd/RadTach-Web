@@ -19,7 +19,7 @@ interface Props {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   searchResults: SearchResult[];
-  onSearchSelect: (cpt: string) => void;
+  onSearchSelect: (result: SearchResult) => void;
   gooseConnected: boolean;
   onOpenRecent: () => void;
   onOpenCommon: () => void;
@@ -76,7 +76,7 @@ export default function HomeScreen({
               searchResults.map((r, i) => (
                 <button
                   key={r.cpt}
-                  onClick={() => onSearchSelect(r.cpt)}
+                  onClick={() => onSearchSelect(r)}
                   className={`w-full text-left p-2.5 rounded-lg transition-all active:scale-95 ${
                     i === 0
                       ? 'bg-gray-700 ring-2 ring-blue-500'
@@ -90,11 +90,14 @@ export default function HomeScreen({
                     >
                       {r.entry.modality}
                     </span>
-                    <span className="text-gray-400 text-xs">{r.cpt}</span>
+                    <span className="text-gray-400 text-xs">{r.comboCpts ? r.comboCpts.join(', ') : r.cpt}</span>
+                    {r.comboCpts && (
+                      <span className="text-amber-400 text-xs font-bold">COMBO</span>
+                    )}
                     <span className="text-gray-500 text-xs ml-auto">{r.entry.bodyPart}</span>
                   </div>
-                  <p className="text-white text-sm">{r.entry.description}</p>
-                  {r.entry.variant && (
+                  <p className="text-white text-sm">{r.aeTitle ?? r.entry.description}</p>
+                  {!r.aeTitle && r.entry.variant && (
                     <p className="text-gray-400 text-xs mt-0.5">{r.entry.variant}</p>
                   )}
                 </button>

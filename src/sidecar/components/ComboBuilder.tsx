@@ -7,13 +7,14 @@ interface Props {
   exams: SelectedExam[];
   entries: Record<string, CptEntry>;
   gpci?: GpciValues;
+  aeTitle?: string;
   onRemove: (index: number) => void;
   onAddMore: () => void;
   onStart: () => void;
   disabled?: boolean;
 }
 
-export default function ComboBuilder({ exams, entries, gpci, onRemove, onAddMore, onStart, disabled }: Props) {
+export default function ComboBuilder({ exams, entries, gpci, aeTitle, onRemove, onAddMore, onStart, disabled }: Props) {
   const effectiveCpts = exams.map(e => {
     if (e.bilateral) {
       return getBilateralRvu(entries, e.cpt, gpci).cpt;
@@ -28,7 +29,10 @@ export default function ComboBuilder({ exams, entries, gpci, onRemove, onAddMore
       <div className="flex-1 pb-4">
         {/* Header */}
         <div className="p-3 border-b border-gray-800">
-          <h1 className="text-lg font-bold text-white text-center">Combo Builder</h1>
+          <h1 className="text-lg font-bold text-white text-center">{aeTitle ?? 'Combo Builder'}</h1>
+          {aeTitle && (
+            <p className="text-gray-500 text-xs text-center mt-0.5">System Combo</p>
+          )}
         </div>
 
         {/* Exam list */}

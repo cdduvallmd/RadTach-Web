@@ -1,8 +1,11 @@
-import type { CptEntry } from '../../types/cpt';
+import type { CptEntry, ChargemasterEntry } from '../../types/cpt';
 
 export interface TreeLeaf {
   cpt: string;
   entry: CptEntry;
+  aeTitle?: string;              // Chargemaster AE Title (when chargemaster active)
+  comboCpts?: string[];          // All CPTs for combo leaves (multi-CPT chargemaster entries)
+  comboBilateralFlags?: boolean[];
 }
 
 export interface ProtocolGroup {
@@ -57,36 +60,73 @@ function protoSortKey(modality: string, protocol: string): string {
   return `999_${protocol}`;
 }
 
-export function buildCptTree(entries: Record<string, CptEntry>): ModalityGroup[] {
+export function buildCptTree(entries: Record<string, CptEntry>, chargemaster?: ChargemasterEntry[]): ModalityGroup[] {
   // Group by modality → bodyPart → protocol
   const modalityMap = new Map<string, Map<string, Map<string, TreeLeaf[]>>>();
 
-  for (const [cpt, entry] of Object.entries(entries)) {
-    const mod = entry.modality || 'OTHER';
-    const bp = entry.bodyPart || 'Other';
-    const proto = entry.protocol || entry.description;
+  if (chargemaster && chargemaster.length > 0) {
+    // Build tree from chargemaster entries (institution-specific AE Titles)
+    // Facility-only entries (no professional component) are stored for reports
+    // but excluded from the navigation tree — radiologists don't interact with them
+    for (const cm of chargemaster) {
+      if (cm.facilityOnly) continue;
 
-    if (!modalityMap.has(mod)) modalityMap.set(mod, new Map());
-    const bpMap = modalityMap.get(mod)!;
-    if (!bpMap.has(bp)) bpMap.set(bp, new Map());
-    const protoMap = bpMap.get(bp)!;
-    if (!protoMap.has(proto)) protoMap.set(proto, []);
-    protoMap.get(proto)!.push({ cpt, entry });
-  }
+      const primaryEntry = entries[cm.cpts[0]];
+      if (!primaryEntry) {
+        console.warn(`Chargemaster: unknown CPT ${cm.cpts[0]} in "${cm.aeTitle}", skipping`);
+        continue;
+      }
 
-  // Inject guest codes into host modalities
-  for (const [hostMod, guests] of Object.entries(MODALITY_GUESTS)) {
-    if (!modalityMap.has(hostMod)) continue;
-    const bpMap = modalityMap.get(hostMod)!;
-    for (const guest of guests) {
-      const entry = entries[guest.cpt];
-      if (!entry) continue;
-      const proto = guest.protocol || entry.protocol || entry.description;
-      const bp = guest.bodyPart || bpMap.keys().next().value!;
+      const mod = cm.modality || primaryEntry.modality || 'OTHER';
+      const bp = cm.bodyPart || primaryEntry.bodyPart || 'Other';
+      const proto = cm.protocol || primaryEntry.protocol || primaryEntry.description;
+
+      const leaf: TreeLeaf = {
+        cpt: cm.cpts[0],
+        entry: primaryEntry,
+        aeTitle: cm.aeTitle,
+        ...(cm.cpts.length > 1 ? {
+          comboCpts: cm.cpts,
+          comboBilateralFlags: cm.bilateralFlags,
+        } : {}),
+      };
+
+      if (!modalityMap.has(mod)) modalityMap.set(mod, new Map());
+      const bpMap = modalityMap.get(mod)!;
       if (!bpMap.has(bp)) bpMap.set(bp, new Map());
       const protoMap = bpMap.get(bp)!;
       if (!protoMap.has(proto)) protoMap.set(proto, []);
-      protoMap.get(proto)!.push({ cpt: guest.cpt, entry });
+      protoMap.get(proto)!.push(leaf);
+    }
+  } else {
+    // Build tree from full CPT database (no chargemaster)
+    for (const [cpt, entry] of Object.entries(entries)) {
+      const mod = entry.modality || 'OTHER';
+      const bp = entry.bodyPart || 'Other';
+      const proto = entry.protocol || entry.description;
+
+      if (!modalityMap.has(mod)) modalityMap.set(mod, new Map());
+      const bpMap = modalityMap.get(mod)!;
+      if (!bpMap.has(bp)) bpMap.set(bp, new Map());
+      const protoMap = bpMap.get(bp)!;
+      if (!protoMap.has(proto)) protoMap.set(proto, []);
+      protoMap.get(proto)!.push({ cpt, entry });
+    }
+
+    // Inject guest codes into host modalities (only for raw CPT tree)
+    for (const [hostMod, guests] of Object.entries(MODALITY_GUESTS)) {
+      if (!modalityMap.has(hostMod)) continue;
+      const bpMap = modalityMap.get(hostMod)!;
+      for (const guest of guests) {
+        const entry = entries[guest.cpt];
+        if (!entry) continue;
+        const proto = guest.protocol || entry.protocol || entry.description;
+        const bp = guest.bodyPart || bpMap.keys().next().value!;
+        if (!bpMap.has(bp)) bpMap.set(bp, new Map());
+        const protoMap = bpMap.get(bp)!;
+        if (!protoMap.has(proto)) protoMap.set(proto, []);
+        protoMap.get(proto)!.push({ cpt: guest.cpt, entry });
+      }
     }
   }
 
@@ -99,8 +139,8 @@ export function buildCptTree(entries: Record<string, CptEntry>): ModalityGroup[]
     for (const [bp, protoMap] of bpMap) {
       const protocols: ProtocolGroup[] = [];
       for (const [proto, leaves] of protoMap) {
-        // Sort leaves by description
-        leaves.sort((a, b) => a.entry.description.localeCompare(b.entry.description));
+        // Sort leaves by AE Title (if chargemaster) or description
+        leaves.sort((a, b) => (a.aeTitle ?? a.entry.description).localeCompare(b.aeTitle ?? b.entry.description));
         protocols.push({ protocol: proto, leaves });
       }
       protocols.sort((a, b) => protoSortKey(mod, a.protocol).localeCompare(protoSortKey(mod, b.protocol)));

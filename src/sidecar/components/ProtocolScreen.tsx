@@ -65,21 +65,31 @@ export default function ProtocolScreen({ modality, bodyPart, protocols, gpci, sa
 
               {proto.leaves.map(leaf => {
                 const rvu = gpci ? adjustedWorkRvu(leaf.entry, gpci) : (leaf.entry.workRvu ?? leaf.entry.pcRvu);
+                const isCombo = leaf.comboCpts && leaf.comboCpts.length > 1;
                 return (
                   <button
-                    key={leaf.cpt}
+                    key={leaf.aeTitle ?? leaf.cpt}
                     onClick={() => onSelectLeaf(leaf)}
                     className="w-full px-3 py-3 flex items-center justify-between text-left active:bg-gray-800 transition-colors"
                   >
                     <div className="flex-1 mr-3">
-                      <span className="text-white text-sm">{leaf.entry.description}</span>
-                      {leaf.entry.variant && (
+                      <span className="text-white text-sm">{leaf.aeTitle ?? leaf.entry.description}</span>
+                      {!leaf.aeTitle && leaf.entry.variant && (
                         <span className="text-gray-400 text-xs ml-2">({leaf.entry.variant})</span>
                       )}
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-gray-400 text-xs">{leaf.cpt}</div>
-                      <div className="text-blue-400 text-xs">{rvu} wRVU</div>
+                      {isCombo ? (
+                        <>
+                          <div className="text-amber-400 text-xs font-bold">COMBO ({leaf.comboCpts!.length})</div>
+                          <div className="text-gray-500 text-xs">{leaf.comboCpts!.join(', ')}</div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-gray-400 text-xs">{leaf.cpt}</div>
+                          <div className="text-blue-400 text-xs">{rvu} wRVU</div>
+                        </>
+                      )}
                     </div>
                   </button>
                 );

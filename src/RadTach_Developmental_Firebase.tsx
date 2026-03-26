@@ -1764,9 +1764,9 @@ function RadTachInner() {
     localStorage.setItem('radtach_lastSystem', systemInput.trim());
     localStorage.setItem('radtach_lastOffice', selectedOffice);
     localStorage.setItem('radtach_lastRotation', selectedRotation);
-    // Eagerly save GPCI to Firestore so Sidecar has it immediately
+    // Eagerly save GPCI + currentSystem to Firestore so Sidecar has it immediately
     if (currentUser && gpciValues) {
-      firestoreService.saveUserSettings(currentUser.uid, { gpciZip, gpciValues }).catch(console.error);
+      firestoreService.saveUserSettings(currentUser.uid, { gpciZip, gpciValues, currentSystem: systemInput.trim() }).catch(console.error);
     }
     setShowSessionStartDialog(false);
     startSessionWithOffice(selectedOffice);
