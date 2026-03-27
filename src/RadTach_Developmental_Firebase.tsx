@@ -420,7 +420,8 @@ function RadTachInner() {
     }
 
     // Apply Bilateral multiplier last (after all additions)
-    if (hasBilateral) {
+    // Skip when cptOverride — bilateral RVU is already reflected in the higher RVU value
+    if (hasBilateral && !cptOverride) {
       total *= 2;
     }
 
@@ -1729,6 +1730,11 @@ function RadTachInner() {
   // ── Sidecar / HL7 command processing ──────────────────────────────────────
 
   const processSidecarStart = (cmd: SidecarCommand) => {
+    // Sidecar requires AUTO mode — enable it if not already on
+    if (!autoStartEnabled) {
+      setAutoStartEnabled(true);
+    }
+
     // If a study is already running, complete it first (same as clicking a new modality)
     if (selectedModality && (isRunning || currentTime > 0)) {
       completeStudy();

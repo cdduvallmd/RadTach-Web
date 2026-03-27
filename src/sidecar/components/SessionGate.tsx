@@ -16,32 +16,57 @@ export default function SessionGate() {
   useEffect(() => {
     if (!currentUser) return;
 
-    const handleError = () => {
-      setConnectionError(true);
-      setState(prev => prev === 'loading' ? 'waiting' : prev);
+    let unsubStatus: (() => void) | null = null;
+    let unsubCmd: (() => void) | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryDelay = 5000; // Start at 5s, backoff to 30s
+    let cancelled = false;
+
+    const subscribe = () => {
+      if (cancelled) return;
+
+      // Clean up any existing listeners before re-subscribing
+      unsubStatus?.();
+      unsubCmd?.();
+
+      const handleError = () => {
+        setConnectionError(true);
+        setState(prev => prev === 'loading' ? 'waiting' : prev);
+        // Retry with exponential backoff
+        if (!cancelled) {
+          retryTimer = setTimeout(() => {
+            retryDelay = Math.min(retryDelay * 2, 30000);
+            subscribe();
+          }, retryDelay);
+        }
+      };
+
+      unsubStatus = listenToSessionStatus(currentUser.uid, (active) => {
+        setConnectionError(false);
+        retryDelay = 5000; // Reset backoff on success
+        if (active) {
+          setState('active');
+        } else {
+          setState(prev => prev === 'ended' ? 'ended' : 'waiting');
+        }
+      }, handleError);
+
+      unsubCmd = listenToCommandDoc(currentUser.uid, (cmd) => {
+        setConnectionError(false);
+        retryDelay = 5000;
+        if (cmd?.action === 'session_ended') {
+          setState('ended');
+        }
+      }, handleError);
     };
 
-    const unsubStatus = listenToSessionStatus(currentUser.uid, (active) => {
-      setConnectionError(false);
-      if (active) {
-        setState('active');
-      } else {
-        // Only show waiting if we haven't received session_ended
-        setState(prev => prev === 'ended' ? 'ended' : 'waiting');
-      }
-    }, handleError);
-
-    // Listen for session_ended command (arrives before status change to avoid waiting→ended flash)
-    const unsubCmd = listenToCommandDoc(currentUser.uid, (cmd) => {
-      setConnectionError(false);
-      if (cmd?.action === 'session_ended') {
-        setState('ended');
-      }
-    }, handleError);
+    subscribe();
 
     return () => {
-      unsubStatus();
-      unsubCmd();
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      unsubStatus?.();
+      unsubCmd?.();
     };
   }, [currentUser]);
 
