@@ -23,6 +23,8 @@ interface Props {
   gooseConnected: boolean;
   onOpenRecent: () => void;
   onOpenCommon: () => void;
+  savedComboCount: number;
+  onOpenSavedCombos: () => void;
 }
 
 export default function HomeScreen({
@@ -31,6 +33,7 @@ export default function HomeScreen({
   searchQuery, onSearchChange, searchResults, onSearchSelect,
   gooseConnected,
   onOpenRecent, onOpenCommon,
+  savedComboCount, onOpenSavedCombos,
 }: Props) {
   const showResults = searchQuery.trim().length > 0;
 
@@ -120,6 +123,14 @@ export default function HomeScreen({
               >
                 COMMON
               </button>
+              {savedComboCount > 0 && (
+                <button
+                  onClick={onOpenSavedCombos}
+                  className="w-full py-3 bg-amber-700 hover:bg-amber-600 text-white font-bold text-base rounded-xl active:scale-95 transition-transform"
+                >
+                  COMBOS ({savedComboCount})
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2.5 max-w-sm mx-auto">

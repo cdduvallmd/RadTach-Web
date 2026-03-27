@@ -23,6 +23,7 @@ type Screen =
   | { type: 'protocol'; modality: string; bodyPart: string }
   | { type: 'leaf'; entry: CptEntry; cpt: string; aeTitle?: string }
   | { type: 'combo' }
+  | { type: 'savedCombos' }
   | { type: 'active'; examDesc: string };
 
 export interface SelectedExam {
@@ -47,9 +48,9 @@ interface Props {
   testMode?: boolean;
 }
 
-const COMMON_CPTS = ['70450', '74177', '71046', '70553'];
+const COMMON_CPTS = ['70450', '74177', '71046', '70553', '73030', '71045', '73620', '76536', '72148', '72141'];
 const RECENT_KEY = 'sidecar_recent';
-const MAX_RECENT = 5;
+const MAX_RECENT = 10;
 const COMBO_KEY = 'sidecar_saved_combos';
 
 function loadRecent(): RecentEntry[] {
@@ -410,6 +411,8 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           gooseConnected={gooseConnected}
           onOpenRecent={() => setScreen({ type: 'recent' })}
           onOpenCommon={() => setScreen({ type: 'common' })}
+          savedComboCount={savedCombos.length}
+          onOpenSavedCombos={() => setScreen({ type: 'savedCombos' })}
         />
       );
 
@@ -436,6 +439,50 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           }}
           onBack={() => setScreen({ type: 'home' })}
         />
+      );
+
+    case 'savedCombos':
+      return (
+        <div className="min-h-screen bg-gray-900 flex flex-col">
+          <div className="flex-1 p-3 pb-4">
+            <div className="flex items-center mb-4 max-w-sm mx-auto">
+              <button onClick={() => setScreen({ type: 'home' })} className="text-blue-400 hover:text-blue-300 text-sm mr-3">&larr; Back</button>
+              <h1 className="text-lg font-bold text-white">Saved Combos</h1>
+            </div>
+            {savedCombos.length === 0 ? (
+              <p className="text-gray-500 text-center text-sm mt-12">No saved combos yet.</p>
+            ) : (
+              <div className="max-w-sm mx-auto space-y-1.5">
+                {savedCombos.filter(c => c.cpts.every(cpt => cptDb.entries[cpt])).map((combo, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleComboRecall(combo)}
+                    className="w-full text-left p-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
+                    style={{ borderLeft: '3px solid #f59e0b' }}
+                  >
+                    {combo.cpts.map((cpt, ci) => {
+                      const e = cptDb.entries[cpt];
+                      return (
+                        <div key={cpt} className={ci > 0 ? 'mt-1.5 pt-1.5 border-t border-gray-700' : ''}>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-gray-400 text-xs">{cpt}</span>
+                            {ci === 0 && (
+                              <span className="text-xs font-bold px-1.5 py-0.5 rounded ml-auto"
+                                style={{ backgroundColor: '#f59e0b', color: '#000' }}>
+                                COMBO ({combo.cpts.length})
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-white text-sm">{e?.description ?? cpt}</p>
+                        </div>
+                      );
+                    })}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       );
 
     case 'bodyPart':
