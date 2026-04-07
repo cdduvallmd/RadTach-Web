@@ -6,7 +6,7 @@ import { buildCptTree, type ModalityGroup, type TreeLeaf } from './utils/buildCp
 import { searchCpts, type SearchResult } from './utils/cptSearch';
 import type { CptDatabase, CptEntry, ChargemasterEntry } from '../types/cpt';
 import type { GpciValues } from '../utils/gpciLookup';
-import type { GooseMessage } from './services/gooseWebSocket';
+import { sendToGoose, type GooseMessage } from './services/gooseWebSocket';
 import HomeScreen from './components/HomeScreen';
 import BodyPartScreen from './components/BodyPartScreen';
 import ProtocolScreen from './components/ProtocolScreen';
@@ -146,6 +146,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     if (!currentUser) return;
     const unsub = listenToCommandDoc(currentUser.uid, (cmd) => {
       if (cmd?.action === 'completed') {
+        sendToGoose({ action: 'end_exam' });
         setScreen({ type: 'home' });
         setSelectedExams([]);
       }
@@ -202,6 +203,12 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       const modality = exams[0].entry.modality;
       const bilateralFlags = exams.map(e => e.bilateral);
       await writeStartCommand(currentUser.uid, cpts, modality, examDesc, bilateralFlags);
+      sendToGoose({
+        action: 'start_exam',
+        bodyParts: [...new Set(exams.map(e => e.entry.bodyPart))],
+        bodyPart: exams[0].entry.bodyPart,  // Deprecated fallback
+        modality,
+      });
       setScreen({ type: 'active', examDesc });
       setSelectedExams([]);
     } finally {
@@ -218,6 +225,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     setSending(true);
     try {
       await writeStopCommand(currentUser.uid);
+      sendToGoose({ action: 'end_exam' });
       setScreen({ type: 'home' });
     } finally {
       setSending(false);
@@ -568,8 +576,19 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           entries={cptDb.entries}
           gpci={gpciValues ?? undefined}
           aeTitle={comboAeTitle}
+          comboModality={selectedExams[0]?.entry.modality}
           onRemove={handleRemoveExam}
-          onAddMore={() => setScreen({ type: 'home' })}
+          onAddSameModality={() => {
+            const mod = selectedExams[0]?.entry.modality;
+            if (!mod) return;
+            const group = tree.find(m => m.modality === mod);
+            if (group && group.bodyParts.length === 1) {
+              setScreen({ type: 'protocol', modality: mod, bodyPart: group.bodyParts[0].bodyPart });
+            } else {
+              setScreen({ type: 'bodyPart', modality: mod });
+            }
+          }}
+          onAddDifferentModality={() => setScreen({ type: 'home' })}
           onStart={() => handleStart(selectedExams, comboAeTitle)}
           disabled={sending}
         />

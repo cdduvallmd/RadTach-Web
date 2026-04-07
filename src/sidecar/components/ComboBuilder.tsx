@@ -8,13 +8,15 @@ interface Props {
   entries: Record<string, CptEntry>;
   gpci?: GpciValues;
   aeTitle?: string;
+  comboModality?: string;
   onRemove: (index: number) => void;
-  onAddMore: () => void;
+  onAddSameModality: () => void;
+  onAddDifferentModality: () => void;
   onStart: () => void;
   disabled?: boolean;
 }
 
-export default function ComboBuilder({ exams, entries, gpci, aeTitle, onRemove, onAddMore, onStart, disabled }: Props) {
+export default function ComboBuilder({ exams, entries, gpci, aeTitle, comboModality, onRemove, onAddSameModality, onAddDifferentModality, onStart, disabled }: Props) {
   const effectiveCpts = exams.map(e => {
     if (e.bilateral) {
       return getBilateralRvu(entries, e.cpt, gpci).cpt;
@@ -91,12 +93,22 @@ export default function ComboBuilder({ exams, entries, gpci, aeTitle, onRemove, 
           >
             {disabled ? 'Sending...' : `START (${exams.length} exam${exams.length !== 1 ? 's' : ''})`}
           </button>
-          <button
-            onClick={onAddMore}
-            className="w-full py-2.5 bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-white font-semibold text-sm rounded-xl transition-colors"
-          >
-            ADD MORE
-          </button>
+          <div className="flex gap-2">
+            {comboModality && (
+              <button
+                onClick={onAddSameModality}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm rounded-xl transition-colors"
+              >
+                + {comboModality} EXAM
+              </button>
+            )}
+            <button
+              onClick={onAddDifferentModality}
+              className={`${comboModality ? 'flex-1' : 'w-full'} py-2.5 bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-white font-semibold text-sm rounded-xl transition-colors`}
+            >
+              {comboModality ? '+ DIFFERENT MODALITY' : 'ADD MORE'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
