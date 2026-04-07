@@ -1,9 +1,10 @@
 /**
- * seedEmulator.ts — Synthetic Test Data Generator for RadTach
+ * seedEmulator.ts — CPT-Aware Synthetic Test Data Generator for RadTach
  *
  * Seeds the local Firestore emulator with 30 days of realistic radiologist
- * session data for 10 synthetic users. Uses D&D-style stat rolling to create
- * varied but reproducible radiologist profiles.
+ * session data for 10 synthetic users. Uses radiologist subspecialty classes
+ * (Neuro, Body, MSK, Mammo, General) to drive modality/rotation/CPT selection
+ * from the real CMS CPT/RVU database (553 codes).
  *
  * Usage:
  *   npm run seed
@@ -39,6 +40,16 @@ connectFirestoreEmulator(db, '127.0.0.1', 8080);
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type Modality = 'XR' | 'FL' | 'CT' | 'US' | 'MR' | 'NM' | 'MA' | 'PET-CT';
+type Specialty = 'Neuro' | 'Body' | 'MSK' | 'Mammo' | 'General';
+
+interface CptEntry {
+  cpt: string;
+  description: string;
+  workRvu: number;
+  modality: string;
+  bodyPart: string;
+  protocol: string;
+}
 
 interface RadiologistProfile {
   name: string;
@@ -48,9 +59,9 @@ interface RadiologistProfile {
   initials: string;
   gender: 'M' | 'F';
   speed: number;         // studies/hr (8-14)
-  bestModality: Modality;
+  specialty: Specialty;
   dayLength: number;     // hours (8-10)
-  avgRVUPerHour: number; // target RVU/hr (6-10)
+  avgRVUPerHour: number; // rolled stat, used for speed variance
   offices: string[];     // 4-5 of the 10 offices
 }
 
@@ -59,10 +70,44 @@ interface SessionEvent {
   [key: string]: unknown;
 }
 
+// ── CPT Database Loading ───────────────────────────────────────────────────
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function loadCptDatabase(): CptEntry[] {
+  const cptPath = join(__dirname, '..', 'data', 'cpt-rvu-2026.json');
+  const raw = JSON.parse(readFileSync(cptPath, 'utf-8'));
+  return Object.values(raw.entries) as CptEntry[];
+}
+
+function buildCptIndexes(entries: CptEntry[]) {
+  const byModality = new Map<string, CptEntry[]>();
+  const byModalityBodyPart = new Map<string, CptEntry[]>();
+
+  for (const entry of entries) {
+    if (entry.workRvu <= 0) continue; // Skip facility-only codes
+
+    const mod = entry.modality;
+    if (!byModality.has(mod)) byModality.set(mod, []);
+    byModality.get(mod)!.push(entry);
+
+    const key = `${mod}|${entry.bodyPart}`;
+    if (!byModalityBodyPart.has(key)) byModalityBodyPart.set(key, []);
+    byModalityBodyPart.get(key)!.push(entry);
+  }
+
+  return { byModality, byModalityBodyPart };
+}
+
+// Module-level indexes, populated in main()
+let cptByModality: Map<string, CptEntry[]>;
+let cptByModalityBodyPart: Map<string, CptEntry[]>;
+
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const ALL_MODALITIES: Modality[] = ['XR', 'FL', 'CT', 'US', 'MR', 'NM', 'MA', 'PET-CT'];
 
+// Kept for user settings writes (backward compat — app reads these from Firestore)
 const DEFAULT_PAR_TIMES: Record<Modality, number> = {
   'XR': 90, 'FL': 120, 'CT': 240, 'US': 120, 'MR': 240, 'NM': 240, 'MA': 240, 'PET-CT': 600,
 };
@@ -71,16 +116,13 @@ const DEFAULT_RVU_VALUES: Record<Modality, number> = {
   'XR': 0.2, 'FL': 0.4, 'CT': 1.0, 'US': 0.5, 'MR': 1.3, 'NM': 0.6, 'MA': 1.3, 'PET-CT': 2.4,
 };
 
+// Par time only — RVU comes from CPT database
 const COMPLICATIONS = [
-  { name: 'Cancer Follow', parAdd: 60, rvuAdd: 0.1 },
-  { name: '+1 Section', parAdd: 120, rvuAdd: 0.5 },
-  { name: '+2 Section', parAdd: 180, rvuAdd: 1.0 },
-  { name: 'Multiple Priors', parAdd: 45, rvuAdd: 0 },
-  { name: 'Age >70', parAdd: 30, rvuAdd: 0 },
-  { name: 'Complex Hx', parAdd: 60, rvuAdd: 0.1 },
-  { name: 'Prior Surg Hx', parAdd: 45, rvuAdd: 0 },
-  { name: 'CTA', parAdd: 120, rvuAdd: 0.5 },
-  { name: 'Vascular', parAdd: 90, rvuAdd: 0.3 },
+  { name: 'Cancer Follow', parAdd: 60 },
+  { name: 'Multiple Priors', parAdd: 45 },
+  { name: 'Age >70', parAdd: 30 },
+  { name: 'Complex Hx', parAdd: 60 },
+  { name: 'Prior Surg Hx', parAdd: 45 },
 ];
 
 const SYSTEM_NAME = 'Test System';
@@ -93,18 +135,137 @@ const OFFICES = [
 const ROTATIONS = ['Body', 'Neuro', 'MSK', 'Chest', 'ER', 'Mammo'];
 
 const DOC_TEMPLATES: Array<{
-  firstName: string; lastName: string; initials: string; gender: 'M' | 'F';
+  firstName: string; lastName: string; initials: string; gender: 'M' | 'F'; specialty: Specialty;
 }> = [
-  { firstName: 'Andrew', lastName: 'Brown', initials: 'AB', gender: 'M' },
-  { firstName: 'Claire', lastName: 'Davis', initials: 'CD', gender: 'F' },
-  { firstName: 'Ethan', lastName: 'Foster', initials: 'EF', gender: 'M' },
-  { firstName: 'Grace', lastName: 'Harper', initials: 'GH', gender: 'F' },
-  { firstName: 'Isaac', lastName: 'Jensen', initials: 'IJ', gender: 'M' },
-  { firstName: 'Karen', lastName: 'Liu', initials: 'KL', gender: 'F' },
-  { firstName: 'Marcus', lastName: 'Nash', initials: 'MN', gender: 'M' },
-  { firstName: 'Olivia', lastName: 'Park', initials: 'OP', gender: 'F' },
-  { firstName: 'Quinn', lastName: 'Rivera', initials: 'QR', gender: 'M' },
-  { firstName: 'Samuel', lastName: 'Torres', initials: 'ST', gender: 'M' },
+  { firstName: 'Andrew', lastName: 'Brown', initials: 'AB', gender: 'M', specialty: 'Neuro' },
+  { firstName: 'Claire', lastName: 'Davis', initials: 'CD', gender: 'F', specialty: 'Body' },
+  { firstName: 'Ethan', lastName: 'Foster', initials: 'EF', gender: 'M', specialty: 'MSK' },
+  { firstName: 'Grace', lastName: 'Harper', initials: 'GH', gender: 'F', specialty: 'Mammo' },
+  { firstName: 'Isaac', lastName: 'Jensen', initials: 'IJ', gender: 'M', specialty: 'Body' },
+  { firstName: 'Karen', lastName: 'Liu', initials: 'KL', gender: 'F', specialty: 'Neuro' },
+  { firstName: 'Marcus', lastName: 'Nash', initials: 'MN', gender: 'M', specialty: 'General' },
+  { firstName: 'Olivia', lastName: 'Park', initials: 'OP', gender: 'F', specialty: 'MSK' },
+  { firstName: 'Quinn', lastName: 'Rivera', initials: 'QR', gender: 'M', specialty: 'General' },
+  { firstName: 'Samuel', lastName: 'Torres', initials: 'ST', gender: 'M', specialty: 'Mammo' },
+];
+
+// ── Specialty-Driven Weights ───────────────────────────────────────────────
+
+const SPECIALTY_MODALITY_WEIGHTS: Record<Specialty, Record<string, number>> = {
+  Neuro:   { MR: 40, CT: 35, XR: 15, US: 3, FL: 2, NM: 2, MA: 0, 'PET-CT': 3 },
+  Body:    { CT: 40, US: 25, MR: 15, FL: 10, XR: 10, NM: 0, MA: 0, 'PET-CT': 0 },
+  MSK:     { MR: 35, XR: 35, US: 15, CT: 10, FL: 5, NM: 0, MA: 0, 'PET-CT': 0 },
+  Mammo:   { MA: 70, US: 15, MR: 10, CT: 3, XR: 2, FL: 0, NM: 0, 'PET-CT': 0 },
+  General: { CT: 25, XR: 25, US: 15, MR: 15, FL: 10, NM: 5, MA: 3, 'PET-CT': 2 },
+};
+
+const SPECIALTY_ROTATION_WEIGHTS: Record<Specialty, Record<string, number>> = {
+  Neuro:   { Neuro: 60, ER: 25, Body: 5, Chest: 5, MSK: 5 },
+  Body:    { Body: 50, Chest: 20, ER: 20, Neuro: 5, MSK: 5 },
+  MSK:     { MSK: 60, ER: 25, Body: 5, Neuro: 5, Chest: 5 },
+  Mammo:   { Mammo: 75, Body: 10, ER: 10, Chest: 5 },
+  General: { ER: 30, Body: 25, Neuro: 15, MSK: 15, Chest: 10, Mammo: 5 },
+};
+
+const ROTATION_BODY_PART_WEIGHTS: Record<string, Record<string, number>> = {
+  Body: {
+    'Abdomen': 10, 'Abdomen/Pelvis': 10, 'Pelvis': 8,
+    'Chest': 5, 'Vascular': 3, 'Renal': 3, 'GU': 3,
+    'GI Upper': 2, 'GI Lower': 2, 'Retroperitoneal': 2, 'Scrotum': 2,
+  },
+  Neuro: {
+    'Brain': 10, 'Head': 10, 'Spine-C': 8, 'Spine-L': 8,
+    'Spine-T': 5, 'Spine-TL': 3, 'Neck': 3,
+  },
+  MSK: {
+    'Shoulder': 10, 'Knee': 10, 'Hip': 8,
+    'Ankle/Foot': 5, 'Wrist/Hand': 5, 'Elbow': 5,
+    'Joint-Lower': 3, 'Joint-Upper': 3, 'Lower Extremity': 3,
+    'Upper Extremity': 3, 'Extremity': 3, 'Bone': 3,
+  },
+  Chest: {
+    'Chest': 10, 'Vascular': 5, 'Cardiac': 5, 'Thyroid': 2,
+  },
+  ER: {
+    'Head': 8, 'Brain': 8, 'Chest': 8, 'Abdomen/Pelvis': 8,
+    'Spine-C': 4, 'Spine-L': 4, 'Pelvis': 4, 'Extremity': 4,
+    'Lower Extremity': 3, 'Upper Extremity': 3, 'Hip': 3,
+    'Knee': 3, 'Ankle/Foot': 3, 'Shoulder': 3, 'Wrist/Hand': 3,
+  },
+  Mammo: {
+    'Breast': 10, 'Bone': 2,
+  },
+};
+
+const PROTOCOL_WEIGHTS: Record<string, number> = {
+  'STANDARD': 10, 'WITHOUT': 10, 'Mammography': 10,
+  'WITH': 5, 'Screening': 5, 'Complete': 5,
+  'WO/W': 3,
+  'CTA': 2, 'Limited': 2, 'MRI': 2, 'Ultrasound': 2,
+  'Procedures': 1,
+};
+
+const PAR_TIME_PARAMS: Record<Modality, { floor: number; perRvu: number }> = {
+  'XR':     { floor: 30,  perRvu: 120 },
+  'FL':     { floor: 60,  perRvu: 150 },
+  'CT':     { floor: 90,  perRvu: 110 },
+  'US':     { floor: 60,  perRvu: 120 },
+  'MR':     { floor: 120, perRvu: 80 },
+  'NM':     { floor: 120, perRvu: 120 },
+  'MA':     { floor: 60,  perRvu: 100 },
+  'PET-CT': { floor: 300, perRvu: 120 },
+};
+
+// ── Combo Study Templates ──────────────────────────────────────────────────
+
+interface ComboComponent {
+  bodyParts: string[];     // Try in order until a matching CPT is found
+  preferProtocol?: string; // Prefer this protocol type
+}
+
+interface ComboTemplate {
+  modality: Modality;
+  components: ComboComponent[];
+  affinityRotations: string[]; // At least one must match the session rotation
+}
+
+const COMBO_RATES: Partial<Record<Modality, number>> = { CT: 0.12, MR: 0.10 };
+
+const COMBO_TEMPLATES: ComboTemplate[] = [
+  // CT combos
+  { modality: 'CT', components: [
+    { bodyParts: ['Chest'], preferProtocol: 'WITH' },
+    { bodyParts: ['Abdomen/Pelvis', 'Abdomen'], preferProtocol: 'WITH' },
+  ], affinityRotations: ['Body', 'ER', 'Chest'] },
+  { modality: 'CT', components: [
+    { bodyParts: ['Chest'], preferProtocol: 'WITHOUT' },
+    { bodyParts: ['Abdomen/Pelvis', 'Abdomen'], preferProtocol: 'WITHOUT' },
+  ], affinityRotations: ['Body', 'ER', 'Chest'] },
+  { modality: 'CT', components: [
+    { bodyParts: ['Chest'], preferProtocol: 'CTA' },
+    { bodyParts: ['Abdomen/Pelvis', 'Abdomen', 'Vascular'], preferProtocol: 'CTA' },
+  ], affinityRotations: ['Body', 'ER', 'Chest'] },
+  { modality: 'CT', components: [
+    { bodyParts: ['Head', 'Brain'], preferProtocol: 'WITHOUT' },
+    { bodyParts: ['Head', 'Brain', 'Vascular'], preferProtocol: 'CTA' },
+  ], affinityRotations: ['Neuro', 'ER'] },
+  { modality: 'CT', components: [
+    { bodyParts: ['Head', 'Brain'], preferProtocol: 'WITHOUT' },
+    { bodyParts: ['Spine-C'], preferProtocol: 'WITHOUT' },
+  ], affinityRotations: ['Neuro', 'ER'] },
+  // MR combos
+  { modality: 'MR', components: [
+    { bodyParts: ['Brain', 'Head'], preferProtocol: 'WITHOUT' },
+    { bodyParts: ['Spine-C'], preferProtocol: 'WITHOUT' },
+  ], affinityRotations: ['Neuro', 'ER'] },
+  { modality: 'MR', components: [
+    { bodyParts: ['Spine-L'], preferProtocol: 'WITHOUT' },
+    { bodyParts: ['Spine-T'], preferProtocol: 'WITHOUT' },
+  ], affinityRotations: ['Neuro', 'MSK'] },
+  { modality: 'MR', components: [
+    { bodyParts: ['Abdomen'], preferProtocol: 'WITH' },
+    { bodyParts: ['Pelvis'], preferProtocol: 'WITH' },
+  ], affinityRotations: ['Body'] },
 ];
 
 // ── Seeded PRNG (deterministic) ────────────────────────────────────────────
@@ -133,11 +294,115 @@ function pickN<T>(arr: T[], n: number): T[] {
 }
 
 function gaussianIsh(mean: number, stdDev: number): number {
-  // Box-Muller approximation using seeded random
   const u1 = seededRandom();
   const u2 = seededRandom();
   const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
   return mean + z * stdDev;
+}
+
+function weightedPick(weights: Record<string, number>): string {
+  const entries = Object.entries(weights).filter(([, w]) => w > 0);
+  if (entries.length === 0) return '';
+  const total = entries.reduce((sum, [, w]) => sum + w, 0);
+  let r = seededRandom() * total;
+  for (const [key, weight] of entries) {
+    r -= weight;
+    if (r <= 0) return key;
+  }
+  return entries[entries.length - 1][0];
+}
+
+// ── CPT Selection ──────────────────────────────────────────────────────────
+
+function findCptForComponent(
+  modality: string,
+  bodyParts: string[],
+  preferProtocol?: string,
+): CptEntry | null {
+  for (const bp of bodyParts) {
+    const key = `${modality}|${bp}`;
+    const candidates = cptByModalityBodyPart.get(key) || [];
+    if (candidates.length === 0) continue;
+
+    if (preferProtocol) {
+      const preferred = candidates.filter(c => c.protocol === preferProtocol);
+      if (preferred.length > 0) return pick(preferred);
+    }
+    return pick(candidates);
+  }
+  return null;
+}
+
+function selectCptForStudy(
+  modality: Modality,
+  rotation: string,
+): { cpt: string; workRvu: number } {
+  const bodyPartWeights = ROTATION_BODY_PART_WEIGHTS[rotation] || ROTATION_BODY_PART_WEIGHTS['ER'];
+
+  // Collect candidates weighted by bodyPartAffinity * protocolWeight
+  const candidates: Array<{ entry: CptEntry; weight: number }> = [];
+
+  for (const [bodyPart, bpWeight] of Object.entries(bodyPartWeights)) {
+    const key = `${modality}|${bodyPart}`;
+    const entries = cptByModalityBodyPart.get(key) || [];
+    for (const entry of entries) {
+      const protWeight = PROTOCOL_WEIGHTS[entry.protocol] || 1;
+      candidates.push({ entry, weight: bpWeight * protWeight });
+    }
+  }
+
+  // Fallback: modality-wide pool (rare modality+rotation combos)
+  if (candidates.length === 0) {
+    const pool = cptByModality.get(modality) || [];
+    if (pool.length === 0) return { cpt: '99199', workRvu: 0.5 }; // Ultimate fallback
+    const entry = pick(pool);
+    return { cpt: entry.cpt, workRvu: entry.workRvu };
+  }
+
+  // Weighted random selection
+  const total = candidates.reduce((sum, c) => sum + c.weight, 0);
+  let r = seededRandom() * total;
+  for (const c of candidates) {
+    r -= c.weight;
+    if (r <= 0) return { cpt: c.entry.cpt, workRvu: c.entry.workRvu };
+  }
+  const last = candidates[candidates.length - 1];
+  return { cpt: last.entry.cpt, workRvu: last.entry.workRvu };
+}
+
+function tryComboStudy(
+  modality: Modality,
+  rotation: string,
+): { cpts: string[]; workRvu: number; parTime: number } | null {
+  const eligible = COMBO_TEMPLATES.filter(t =>
+    t.modality === modality && t.affinityRotations.includes(rotation)
+  );
+  if (eligible.length === 0) return null;
+
+  const template = pick(eligible);
+  const cpts: string[] = [];
+  let totalRvu = 0;
+  let totalParTime = 0;
+
+  for (const comp of template.components) {
+    const entry = findCptForComponent(modality, comp.bodyParts, comp.preferProtocol);
+    if (!entry) return null; // Can't fill component — fall back to single study
+    cpts.push(entry.cpt);
+    totalRvu += entry.workRvu;
+    const { floor, perRvu } = PAR_TIME_PARAMS[modality];
+    totalParTime += floor + entry.workRvu * perRvu;
+  }
+
+  return {
+    cpts,
+    workRvu: Math.round(totalRvu * 100) / 100,
+    parTime: Math.round(totalParTime * 0.85), // 15% overlap discount
+  };
+}
+
+function computeParTime(modality: Modality, workRvu: number): number {
+  const { floor, perRvu } = PAR_TIME_PARAMS[modality];
+  return Math.round(floor + workRvu * perRvu);
 }
 
 // ── Stat Rolling ───────────────────────────────────────────────────────────
@@ -145,7 +410,6 @@ function gaussianIsh(mean: number, stdDev: number): number {
 function rollProfiles(): RadiologistProfile[] {
   return DOC_TEMPLATES.map(tmpl => {
     const speed = randInt(8, 14);
-    const bestModality = pick(ALL_MODALITIES);
     const dayLength = randInt(8, 10);
     const avgRVUPerHour = randFloat(6, 10);
     const numOffices = randInt(4, 5);
@@ -159,7 +423,7 @@ function rollProfiles(): RadiologistProfile[] {
       initials: tmpl.initials,
       gender: tmpl.gender,
       speed,
-      bestModality,
+      specialty: tmpl.specialty,
       dayLength,
       avgRVUPerHour,
       offices,
@@ -169,41 +433,17 @@ function rollProfiles(): RadiologistProfile[] {
 
 // ── Session Generation ─────────────────────────────────────────────────────
 
-function generateModalityForStudy(profile: RadiologistProfile): Modality {
-  // Best modality gets 60-70% of studies
-  if (seededRandom() < 0.65) return profile.bestModality;
-  // Rest distributed among others
-  const others = ALL_MODALITIES.filter(m => m !== profile.bestModality);
-  return pick(others);
-}
-
-function generateComplications(modality: Modality, rvuTarget: number): string[] {
+function generateComplications(): string[] {
   const complications: string[] = [];
-  // Higher RVU/hr target → more complications
-  const complicationChance = Math.min(0.15 + (rvuTarget - 6) * 0.05, 0.45);
-
-  // CT/MR get section additions more often
-  if ((modality === 'CT' || modality === 'MR') && seededRandom() < complicationChance) {
-    complications.push(seededRandom() < 0.6 ? '+1 Section' : '+2 Section');
-  }
-
-  // CTA for CT
-  if (modality === 'CT' && seededRandom() < 0.15) {
-    complications.push('CTA');
-  }
-
-  // General complications
-  for (const comp of ['Cancer Follow', 'Multiple Priors', 'Age >70', 'Complex Hx', 'Prior Surg Hx', 'Vascular']) {
+  for (const comp of COMPLICATIONS) {
     if (seededRandom() < 0.08) {
-      complications.push(comp);
+      complications.push(comp.name);
     }
   }
-
   return complications;
 }
 
 function getWorkday(dayIndex: number): Date {
-  // Start from 30 workdays ago, skipping weekends
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   let workdaysBack = 30 - dayIndex;
@@ -235,7 +475,7 @@ function generateSession(
   const totalSessionSec = Math.round(dayDurationHrs * 3600);
 
   const office = pick(profile.offices);
-  const rotation = pick(ROTATIONS);
+  const rotation = weightedPick(SPECIALTY_ROTATION_WEIGHTS[profile.specialty]);
   const isOffice7 = office === 'Office 7';
 
   let sessionTimeCursor = 0; // seconds into session
@@ -254,7 +494,6 @@ function generateSession(
   let doubleTapEventCount = 0;
   let timeSinceLastBreak = 0;
 
-  // Half day if dayDurationHrs < 6
   const isHalfDay = dayDurationHrs < 6;
 
   for (let i = 0; i < totalStudies && sessionTimeCursor < totalSessionSec; i++) {
@@ -322,24 +561,38 @@ function generateSession(
       timeSinceLastBreak += eventDur;
     }
 
-    // Generate the study
+    // ── Generate the study (CPT-aware) ──
     studyNumber++;
-    const modality = generateModalityForStudy(profile);
-    const complications = generateComplications(modality, profile.avgRVUPerHour);
+    const modality = weightedPick(SPECIALTY_MODALITY_WEIGHTS[profile.specialty]) as Modality;
 
-    const baseParTime = DEFAULT_PAR_TIMES[modality];
+    let studyCpts: string[];
+    let workRvu: number;
+    let parTime: number;
+
+    // Check for combo study
+    const comboRate = COMBO_RATES[modality] || 0;
+    const combo = comboRate > 0 && seededRandom() < comboRate
+      ? tryComboStudy(modality, rotation)
+      : null;
+
+    if (combo) {
+      studyCpts = combo.cpts;
+      workRvu = combo.workRvu;
+      parTime = combo.parTime;
+    } else {
+      const selected = selectCptForStudy(modality, rotation);
+      studyCpts = [selected.cpt];
+      workRvu = selected.workRvu;
+      parTime = computeParTime(modality, workRvu);
+    }
+
+    // Complications (par time only, no RVU effect)
+    const complications = generateComplications();
     const compParAdd = complications.reduce((sum, c) => {
       const comp = COMPLICATIONS.find(x => x.name === c);
       return sum + (comp?.parAdd || 0);
     }, 0);
-    const parTime = baseParTime + compParAdd;
-
-    const baseRVU = DEFAULT_RVU_VALUES[modality];
-    const compRVUAdd = complications.reduce((sum, c) => {
-      const comp = COMPLICATIONS.find(x => x.name === c);
-      return sum + (comp?.rvuAdd || 0);
-    }, 0);
-    const rvu = baseRVU + compRVUAdd;
+    parTime += compParAdd;
 
     // Elapsed time: normally distributed around par time, biased by speed
     const speedFactor = 10 / profile.speed; // faster docs finish under par
@@ -365,14 +618,16 @@ function generateSession(
       parTime,
       elapsedTime,
       variance,
-      rvu,
+      rvu: workRvu,
       pauseTime,
       pauseUsed,
       drafted: false,
       swapped: false,
+      rvuSource: 'sidecar',
+      cpts: studyCpts,
     });
 
-    totalRVU += rvu;
+    totalRVU += workRvu;
     cumulativeParTime += parTime;
     totalStudyTime += elapsedTime;
     sessionTimeCursor += elapsedTime + pauseTime;
@@ -441,10 +696,24 @@ function generateSession(
 // ── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('RadTach Seed Emulator — generating synthetic data...\n');
+  console.log('RadTach Seed Emulator — CPT-aware synthetic data generator\n');
+
+  // Step 0: Load CPT database and build indexes
+  console.log('Loading CPT database...');
+  const cptEntries = loadCptDatabase();
+  const indexes = buildCptIndexes(cptEntries);
+  cptByModality = indexes.byModality;
+  cptByModalityBodyPart = indexes.byModalityBodyPart;
+  console.log(`  ${cptEntries.length} CPT codes loaded, ${cptByModality.size} modalities indexed`);
+
+  // Print coverage summary
+  for (const mod of ALL_MODALITIES) {
+    const count = cptByModality.get(mod)?.length || 0;
+    console.log(`  ${mod.padEnd(8)} ${count} codes`);
+  }
+  console.log();
 
   // Step 1: Roll profiles (or load from file for determinism)
-  const __dirname = dirname(fileURLToPath(import.meta.url));
   const profilesPath = join(__dirname, 'seedProfiles.json');
 
   let profiles: RadiologistProfile[];
@@ -459,21 +728,21 @@ async function main() {
   }
 
   console.log('\nRadiologist Profiles:');
-  console.log('─'.repeat(90));
+  console.log('─'.repeat(95));
   console.log(
     'Name'.padEnd(20) +
+    'Specialty'.padEnd(10) +
     'Speed'.padEnd(8) +
-    'Best'.padEnd(10) +
     'DayLen'.padEnd(8) +
     'RVU/hr'.padEnd(8) +
     'Offices'
   );
-  console.log('─'.repeat(90));
+  console.log('─'.repeat(95));
   for (const p of profiles) {
     console.log(
       p.name.padEnd(20) +
+      p.specialty.padEnd(10) +
       String(p.speed).padEnd(8) +
-      p.bestModality.padEnd(10) +
       String(p.dayLength).padEnd(8) +
       p.avgRVUPerHour.toFixed(1).padEnd(8) +
       p.offices.join(', ')
@@ -493,7 +762,6 @@ async function main() {
         uid = cred.user.uid;
         console.log(`Created user: ${profile.name} (${email}) → ${uid}`);
       } catch (createErr: unknown) {
-        // User already exists in auth emulator — sign in instead
         const cred = await signInWithEmailAndPassword(auth, email, 'Test123!');
         uid = cred.user.uid;
         console.log(`Existing user: ${profile.name} (${email}) → ${uid}`);
@@ -525,17 +793,11 @@ async function main() {
     }
   }
 
-  // Sign back in as Andrew Brown (first user = admin).
-  // createUserWithEmailAndPassword auto-signs-in as each user, so after creating 10 users
-  // the SDK is authenticated as the last one (Samuel Torres). We need Andrew Brown for admin writes.
+  // Sign back in as Andrew Brown (first user = admin)
   await signInWithEmailAndPassword(auth, `${DOC_TEMPLATES[0].initials.toLowerCase()}@test.radtach.com`, 'Test123!');
   console.log(`\nSigned in as ${DOC_TEMPLATES[0].firstName} ${DOC_TEMPLATES[0].lastName} (admin)`);
 
   // Step 3: Create Config documents for the test system
-  // Bootstrap problem: security rules require Config/admins to exist for isAdmin() check,
-  // but we can't write Config/admins without passing isAdmin(). Solve by writing the
-  // admins doc via the emulator REST API (bypasses security rules), then use the SDK
-  // (which respects rules) for everything else.
   console.log('\nCreating Config documents...');
 
   const adminMap: Record<string, boolean> = {};
@@ -561,7 +823,7 @@ async function main() {
   }
   console.log('  Config/admins bootstrapped via REST API (admin = Andrew Brown)');
 
-  // Primary: systems/{system} — offices, rotations, role maps
+  // Primary: systems/{system}
   await setDoc(doc(db, 'systems', SYSTEM_NAME), {
     offices: OFFICES,
     rotations: ROTATIONS,
@@ -574,7 +836,7 @@ async function main() {
   });
   console.log('  systems/Test System created');
 
-  // Legacy fallback (kept for migration testing — delete these to verify new path works)
+  // Legacy fallback
   await setDoc(doc(db, 'Config', 'Systems'), {
     [SYSTEM_NAME]: OFFICES,
   });
@@ -593,12 +855,38 @@ async function main() {
   let totalSessions = 0;
   let totalEvents = 0;
 
+  // Tracking for summary stats
+  const profileStats: Array<{
+    name: string;
+    specialty: string;
+    sessions: number;
+    studies: number;
+    totalRvu: number;
+    totalHours: number;
+    comboCount: number;
+    cptCounts: Map<string, number>;
+    rotationCounts: Map<string, number>;
+    modalityCounts: Map<string, number>;
+  }> = profiles.map(p => ({
+    name: p.name,
+    specialty: p.specialty,
+    sessions: 0,
+    studies: 0,
+    totalRvu: 0,
+    totalHours: 0,
+    comboCount: 0,
+    cptCounts: new Map(),
+    rotationCounts: new Map(),
+    modalityCounts: new Map(),
+  }));
+
   for (let docIdx = 0; docIdx < profiles.length; docIdx++) {
     const profile = profiles[docIdx];
     const uid = userUIDs[docIdx];
+    const stats = profileStats[docIdx];
     let sessionCount = 0;
 
-    // Sign in as this user so writes pass the _flushedBy rule (request.auth.uid == userId)
+    // Sign in as this user
     const email = `${profile.initials.toLowerCase()}@test.radtach.com`;
     await signInWithEmailAndPassword(auth, email, 'Test123!');
 
@@ -611,7 +899,28 @@ async function main() {
       sessionCount++;
       const { sessionData, events } = generateSession(profile, date, sessionCount);
 
-      // Write session document with startTime index field
+      // Collect stats
+      stats.sessions++;
+      stats.totalHours += (sessionData.totalSessionTime as number) / 3600;
+      stats.totalRvu += sessionData.totalRVU as number;
+
+      const rotation = sessionData.rotation as string;
+      stats.rotationCounts.set(rotation, (stats.rotationCounts.get(rotation) || 0) + 1);
+
+      for (const evt of events) {
+        if (evt.type === 'STUDY') {
+          stats.studies++;
+          const cpts = evt.cpts as string[];
+          if (cpts.length > 1) stats.comboCount++;
+          for (const cpt of cpts) {
+            stats.cptCounts.set(cpt, (stats.cptCounts.get(cpt) || 0) + 1);
+          }
+          const mod = evt.modality as string;
+          stats.modalityCounts.set(mod, (stats.modalityCounts.get(mod) || 0) + 1);
+        }
+      }
+
+      // Write session document
       const sessionRef = doc(db, 'users', uid, 'sessions', sessionData.sessionId as string);
       await setDoc(sessionRef, {
         ...sessionData,
@@ -619,7 +928,7 @@ async function main() {
         endTime: Timestamp.fromDate(new Date(sessionData.stopDateTime as string)),
       });
 
-      // Write events in batches of 500 (Firestore batch limit)
+      // Write events in batches of 500
       for (let batchStart = 0; batchStart < events.length; batchStart += 500) {
         const batch = writeBatch(db);
         const batchEvents = events.slice(batchStart, batchStart + 500);
@@ -638,10 +947,73 @@ async function main() {
       totalSessions++;
     }
 
-    console.log(`  ${profile.name}: ${sessionCount} sessions`);
+    console.log(`  ${profile.name} (${profile.specialty}): ${sessionCount} sessions`);
   }
 
-  console.log(`\nDone! Created ${totalSessions} sessions with ${totalEvents} events.`);
+  // ── Summary Statistics ──
+  console.log(`\nDone! Created ${totalSessions} sessions with ${totalEvents} events.\n`);
+
+  console.log('─'.repeat(100));
+  console.log('SUMMARY STATISTICS');
+  console.log('─'.repeat(100));
+
+  console.log('\nPer-Radiologist:');
+  console.log(
+    'Name'.padEnd(18) +
+    'Spec'.padEnd(8) +
+    'Sess'.padEnd(6) +
+    'Studies'.padEnd(9) +
+    'Combos'.padEnd(8) +
+    'wRVU'.padEnd(9) +
+    'wRVU/hr'.padEnd(9) +
+    'Top Modalities'.padEnd(22) +
+    'Top Rotations'
+  );
+  console.log('─'.repeat(100));
+
+  for (const s of profileStats) {
+    const rvuPerHr = s.totalHours > 0 ? (s.totalRvu / s.totalHours).toFixed(1) : '—';
+
+    // Top 3 modalities
+    const topMods = [...s.modalityCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([m, n]) => `${m}:${n}`)
+      .join(' ');
+
+    // Top 3 rotations
+    const topRots = [...s.rotationCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([r, n]) => `${r}:${n}`)
+      .join(' ');
+
+    console.log(
+      s.name.padEnd(18) +
+      s.specialty.padEnd(8) +
+      String(s.sessions).padEnd(6) +
+      String(s.studies).padEnd(9) +
+      String(s.comboCount).padEnd(8) +
+      s.totalRvu.toFixed(1).padEnd(9) +
+      String(rvuPerHr).padEnd(9) +
+      topMods.padEnd(22) +
+      topRots
+    );
+  }
+
+  // Unique CPT codes used
+  const allCpts = new Set<string>();
+  for (const s of profileStats) {
+    for (const cpt of s.cptCounts.keys()) allCpts.add(cpt);
+  }
+  console.log(`\nUnique CPT codes used: ${allCpts.size} of ${cptEntries.length}`);
+
+  // Combo rate verification
+  const totalCt = profileStats.reduce((sum, s) => sum + (s.modalityCounts.get('CT') || 0), 0);
+  const totalMr = profileStats.reduce((sum, s) => sum + (s.modalityCounts.get('MR') || 0), 0);
+  const totalCombos = profileStats.reduce((sum, s) => sum + s.comboCount, 0);
+  console.log(`Total CT studies: ${totalCt}, MR studies: ${totalMr}, Combos: ${totalCombos}`);
+
   console.log('\nTo use this data:');
   console.log('  1. Start emulators: npx firebase emulators:start');
   console.log('  2. Run seed: npm run seed');

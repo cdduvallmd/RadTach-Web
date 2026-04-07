@@ -262,6 +262,23 @@ The triage report includes per-entry `wRVU` and `gRVU` columns, plus summary tot
 
 When the triage report identifies candidates (professional codes we don't carry), add them to `data/cpt-rvu-2026.json` with the appropriate fields, then re-run the seed script. The candidate entries will move from the "CANDIDATE" bucket to "PROFESSIONAL".
 
+### Seeding CPT Database to Production
+
+`scripts/seedCptDatabase.ts` writes `data/cpt-rvu-2026.json` to Firestore `Config/cptDatabase`.
+
+```bash
+npm run seed:cpt                # local emulator (localhost:8080)
+npm run seed:cpt -- --prod      # production Firestore
+```
+
+**Production auth:** The `--prod` path uses the Firestore REST API with a Google OAuth access token derived from the Firebase CLI's refresh token (`~/.config/configstore/firebase-tools.json`). This bypasses Firestore security rules — no user sign-in needed, just `firebase login` on the machine. The script reads the refresh token, exchanges it for an access token via `https://oauth2.googleapis.com/token`, and PATCHes the document directly.
+
+**Prerequisite:** `firebase login` (already done if you've ever run `firebase deploy`).
+
+**Why not Admin SDK:** The Admin SDK's Firestore client requires either a service account key or Application Default Credentials (gcloud CLI). We have neither — Firebase CLI login doesn't set ADC. The REST API with the CLI's refresh token is the simplest path that works.
+
+**Why not client SDK with sign-in:** The user authenticates via Google OAuth (Sign in with Google), not email/password. `signInWithEmailAndPassword` doesn't work for Google accounts, and the OAuth popup flow isn't available in a Node.js script.
+
 ### Firestore Write Strategy
 
 Uses `PATCH` with `updateMask.fieldPaths=chargemaster` — only touches the chargemaster field, preserving offices, rotations, roles, and all other system config.
