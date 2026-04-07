@@ -8,6 +8,15 @@ export interface GooseMessage {
 const WS_URL = 'ws://127.0.0.1:9473';
 const MAX_BACKOFF = 16_000;
 
+// Module-level reference for sendToGoose
+let _activeWs: WebSocket | null = null;
+
+export function sendToGoose(msg: object): void {
+  if (_activeWs && _activeWs.readyState === WebSocket.OPEN) {
+    _activeWs.send(JSON.stringify(msg));
+  }
+}
+
 export function connectToGoose(
   onMessage: (msg: GooseMessage) => void,
   onStatusChange: (connected: boolean) => void,
@@ -29,10 +38,12 @@ export function connectToGoose(
 
     ws.onopen = () => {
       backoff = 1000;
+      _activeWs = ws;
       onStatusChange(true);
     };
 
     ws.onclose = () => {
+      if (_activeWs === ws) _activeWs = null;
       onStatusChange(false);
       scheduleReconnect();
     };
@@ -65,6 +76,7 @@ export function connectToGoose(
     disposed = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
     if (ws) {
+      if (_activeWs === ws) _activeWs = null;
       ws.onclose = null;
       ws.close();
     }
