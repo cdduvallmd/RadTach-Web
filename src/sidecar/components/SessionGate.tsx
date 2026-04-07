@@ -55,7 +55,9 @@ export default function SessionGate() {
         setConnectionError(false);
         retryDelay = 5000;
         if (cmd?.action === 'session_ended') {
-          setState('ended');
+          // Only transition to ended if we were active — ignore stale
+          // session_ended docs left over from a previous session
+          setState(prev => prev === 'active' ? 'ended' : prev);
         }
       }, handleError);
     };

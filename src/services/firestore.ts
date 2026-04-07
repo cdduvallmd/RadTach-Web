@@ -415,6 +415,15 @@ export const firestoreService = {
     await setDoc(docRef, { sessionActive: active, updatedAt: serverTimestamp() });
   },
 
+  async clearCommandDoc(userId: string): Promise<void> {
+    const docRef = doc(db, 'users', userId, 'commands', 'current');
+    await setDoc(docRef, {
+      action: 'session_started' as const,
+      source: 'radtach' as const,
+      timestamp: serverTimestamp(),
+    });
+  },
+
   async writeSessionEnded(userId: string): Promise<void> {
     const docRef = doc(db, 'users', userId, 'commands', 'current');
     await setDoc(docRef, {

@@ -1429,6 +1429,7 @@ function RadTachInner() {
         }
       });
       firestoreService.writeSessionStatus(currentUser!.uid, true).catch(console.error);
+      firestoreService.clearCommandDoc(currentUser!.uid).catch(console.error);
     }
     // Reset all counters
     setSessionTime(0);
