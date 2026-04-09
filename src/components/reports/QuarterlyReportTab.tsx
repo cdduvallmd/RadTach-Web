@@ -17,14 +17,17 @@ interface QuarterlyReportTabProps {
   userSystem: string | null;
   formatTime: (seconds: number) => string;
   role?: EffectiveRole;
+  dateRange?: DateRange;
 }
 
-export default function QuarterlyReportTab({ userId, userSystem, formatTime, role = 'radiologist' }: QuarterlyReportTabProps) {
+export default function QuarterlyReportTab({ userId, userSystem, formatTime, role = 'radiologist', dateRange: externalRange }: QuarterlyReportTabProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const quarter = (Math.floor(currentDate.getMonth() / 3) + 1) as 1 | 2 | 3 | 4;
   const year = currentDate.getFullYear();
 
-  const quarterRange: DateRange = useMemo(() => getQuarterRange(year, quarter), [year, quarter]);
+  const internalRange: DateRange = useMemo(() => getQuarterRange(year, quarter), [year, quarter]);
+  const quarterRange = externalRange ?? internalRange;
+  const externallyControlled = !!externalRange;
   const priorQuarterDate = useMemo(() => subQuarters(currentDate, 1), [currentDate]);
   const priorQuarter = (Math.floor(priorQuarterDate.getMonth() / 3) + 1) as 1 | 2 | 3 | 4;
   const priorYear = priorQuarterDate.getFullYear();
@@ -87,19 +90,21 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
 
   return (
     <div className="space-y-6">
-      {/* Period navigation */}
-      <div className="flex items-center justify-between bg-gray-800 rounded-lg p-4">
-        <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white text-xl px-3">&#8592;</button>
-        <div className="text-center">
-          <div className="text-sm text-gray-400">Quarterly Report</div>
-          <div className="text-white font-medium">Q{quarter} {year}</div>
-          <div className="text-xs text-gray-500">
-            {format(quarterRange.start, 'MMM d')} &ndash; {format(quarterRange.end, 'MMM d, yyyy')}
+      {/* Period navigation (hidden when RCP controls the date) */}
+      {!externallyControlled && (
+        <div className="flex items-center justify-between bg-gray-800 rounded-lg p-4">
+          <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-white text-xl px-3">&#8592;</button>
+          <div className="text-center">
+            <div className="text-sm text-gray-400">Quarterly Report</div>
+            <div className="text-white font-medium">Q{quarter} {year}</div>
+            <div className="text-xs text-gray-500">
+              {format(quarterRange.start, 'MMM d')} &ndash; {format(quarterRange.end, 'MMM d, yyyy')}
+            </div>
+            {userSystem && <div className="text-xs text-gray-500">{userSystem}</div>}
           </div>
-          {userSystem && <div className="text-xs text-gray-500">{userSystem}</div>}
+          <button onClick={() => navigate(1)} className="text-gray-400 hover:text-white text-xl px-3">&#8594;</button>
         </div>
-        <button onClick={() => navigate(1)} className="text-gray-400 hover:text-white text-xl px-3">&#8594;</button>
-      </div>
+      )}
 
       {(loading || priorLoading) && (
         <div className="flex items-center justify-center h-48">

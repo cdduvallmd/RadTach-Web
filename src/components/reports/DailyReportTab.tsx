@@ -1,38 +1,37 @@
-// Phase 2: Weekly Report Tab — User (Radiologist) view
-// Will be built with full metrics in Phase 2
+// Daily Report Tab — aggregates all sessions from a single calendar day
+// Similar structure to WeeklyReportTab with per-session breakdown + daily totals
 
 import { useState, useMemo } from 'react';
 import { useSessionData } from '../../hooks/useSessionData';
 import { useGroupStats } from '../../hooks/useGroupStats';
-import { aggregateSessions, getWeekRange } from '../../utils/periodAggregation';
+import { aggregateSessions, getDayRange } from '../../utils/periodAggregation';
 import type { DateRange, DistributionStats, EffectiveRole } from '../../types/reports';
-import { addWeeks, subWeeks, format } from 'date-fns';
+import { addDays, subDays, format } from 'date-fns';
 import GARPercentileGauge from './shared/GARPercentileGauge';
 import PresidentWeeklySection from './sections/PresidentWeeklySection';
 import HospitalWeeklySection from './sections/HospitalWeeklySection';
 import ITWeeklySection from './sections/ITWeeklySection';
 
-interface WeeklyReportTabProps {
+interface DailyReportTabProps {
   userId: string | null;
   userSystem: string | null;
   formatTime: (seconds: number) => string;
   role?: EffectiveRole;
-  dateRange?: DateRange;  // When provided externally (by RCP), overrides internal nav
+  dateRange?: DateRange;
 }
 
-export default function WeeklyReportTab({ userId, userSystem, formatTime, role = 'radiologist', dateRange: externalRange }: WeeklyReportTabProps) {
+export default function DailyReportTab({ userId, userSystem, formatTime, role = 'radiologist', dateRange: externalRange }: DailyReportTabProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const internalRange: DateRange = useMemo(() => getWeekRange(currentDate, 'monday'), [currentDate]);
-  const weekRange = externalRange ?? internalRange;
+  const internalRange: DateRange = useMemo(() => getDayRange(currentDate), [currentDate]);
+  const dayRange = externalRange ?? internalRange;
   const externallyControlled = !!externalRange;
-  const { sessions, loading, error } = useSessionData(userId, weekRange);
-  const { garDays } = useGroupStats(userSystem, weekRange);
+  const { sessions, loading, error } = useSessionData(userId, dayRange);
+  const { garDays } = useGroupStats(userSystem, dayRange);
   const summary = useMemo(
-    () => sessions.length > 0 ? aggregateSessions(sessions, weekRange) : null,
-    [sessions, weekRange]
+    () => sessions.length > 0 ? aggregateSessions(sessions, dayRange) : null,
+    [sessions, dayRange]
   );
 
-  // Average GAR distributions across all days in the period
   const garAvg = useMemo(() => {
     if (garDays.length === 0) return null;
     const avgDist = (accessor: (g: typeof garDays[0]) => DistributionStats): DistributionStats => {
@@ -54,8 +53,8 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
     };
   }, [garDays]);
 
-  const navigateWeek = (direction: -1 | 1) => {
-    setCurrentDate(prev => direction === -1 ? subWeeks(prev, 1) : addWeeks(prev, 1));
+  const navigateDay = (direction: -1 | 1) => {
+    setCurrentDate(prev => direction === -1 ? subDays(prev, 1) : addDays(prev, 1));
   };
 
   return (
@@ -63,19 +62,16 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
       {/* Period navigation (hidden when RCP controls the date) */}
       {!externallyControlled && (
         <div className="flex items-center justify-between bg-gray-800 rounded-lg p-4">
-          <button onClick={() => navigateWeek(-1)} className="text-gray-400 hover:text-white text-xl px-3">&#8592;</button>
+          <button onClick={() => navigateDay(-1)} className="text-gray-400 hover:text-white text-xl px-3">&#8592;</button>
           <div className="text-center">
-            <div className="text-sm text-gray-400">Weekly Report</div>
-            <div className="text-white font-medium">
-              {format(weekRange.start, 'MMM d')} &ndash; {format(weekRange.end, 'MMM d, yyyy')}
-            </div>
+            <div className="text-sm text-gray-400">Daily Report</div>
+            <div className="text-white font-medium">{format(currentDate, 'EEEE, MMMM d, yyyy')}</div>
             {userSystem && <div className="text-xs text-gray-500">{userSystem}</div>}
           </div>
-          <button onClick={() => navigateWeek(1)} className="text-gray-400 hover:text-white text-xl px-3">&#8594;</button>
+          <button onClick={() => navigateDay(1)} className="text-gray-400 hover:text-white text-xl px-3">&#8594;</button>
         </div>
       )}
 
-      {/* Loading / Error / Empty states */}
       {loading && (
         <div className="flex items-center justify-center h-48">
           <div className="text-gray-400">Loading sessions...</div>
@@ -91,51 +87,51 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
       {!loading && !error && sessions.length === 0 && (
         <div className="flex items-center justify-center h-48">
           <div className="text-center">
-            <p className="text-gray-500 text-lg">No sessions found for this week</p>
-            <p className="text-gray-600 text-sm mt-1">Navigate to a different week or complete some sessions first</p>
+            <p className="text-gray-500 text-lg">No sessions found for this day</p>
+            <p className="text-gray-600 text-sm mt-1">Navigate to a different day or complete some sessions first</p>
           </div>
         </div>
       )}
 
       {!loading && !error && summary && (
         <div className="space-y-6">
-          {/* Diagnostic: Sessions Included (collapsible) */}
-          <details className="bg-gray-800 rounded-lg">
+          {/* Sessions breakdown */}
+          <details className="bg-gray-800 rounded-lg" open>
             <summary className="cursor-pointer p-4 text-sm font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-300 select-none">
-              Sessions Included ({sessions.length})
+              Sessions ({sessions.length})
             </summary>
             <div className="px-4 pb-4">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-gray-500 text-xs uppercase tracking-wider border-b border-gray-700">
                     <th className="text-left py-2 pr-3">Session ID</th>
-                    <th className="text-left py-2 pr-3">Date</th>
-                    <th className="text-left py-2 pr-3">System / Office</th>
+                    <th className="text-left py-2 pr-3">Time</th>
+                    <th className="text-left py-2 pr-3">Rotation</th>
                     <th className="text-right py-2 pr-3">Studies</th>
                     <th className="text-right py-2 pr-3">RVU</th>
-                    <th className="text-right py-2">Verified</th>
+                    <th className="text-right py-2 pr-3">RVU/hr</th>
+                    <th className="text-right py-2">Duration</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sessions
                     .slice()
                     .sort((a, b) => new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime())
-                    .map((s) => {
-                      const dt = new Date(s.startDateTime);
-                      const dateStr = dt.toLocaleDateString('en-US', {
-                        weekday: 'short', month: 'numeric', day: 'numeric',
-                      });
-                      const timeStr = dt.toLocaleTimeString('en-US', {
-                        hour: 'numeric', minute: '2-digit', hour12: true,
-                      });
+                    .map(s => {
+                      const start = new Date(s.startDateTime);
+                      const hours = (s.totalSessionTime - s.breakTime) / 3600;
+                      const rvuHr = hours > 0 ? s.totalRVU / hours : 0;
                       return (
                         <tr key={s.id} className="border-b border-gray-700/50 text-gray-300">
                           <td className="py-1.5 pr-3 font-mono text-xs text-gray-500">{s.sessionId}</td>
-                          <td className="py-1.5 pr-3">{dateStr} {timeStr}</td>
-                          <td className="py-1.5 pr-3">{s.system}{s.workstationId ? ` / ${s.workstationId}` : ''}</td>
+                          <td className="py-1.5 pr-3">
+                            {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                          </td>
+                          <td className="py-1.5 pr-3">{s.rotation || '—'}</td>
                           <td className="py-1.5 pr-3 text-right text-white">{s.studiesCompleted}</td>
                           <td className="py-1.5 pr-3 text-right text-white">{s.totalRVU.toFixed(1)}</td>
-                          <td className="py-1.5 text-right text-white">{s.verifiedRVU != null ? s.verifiedRVU.toFixed(1) : '—'}</td>
+                          <td className="py-1.5 pr-3 text-right text-white">{rvuHr.toFixed(1)}</td>
+                          <td className="py-1.5 text-right text-white">{formatTime(s.totalSessionTime)}</td>
                         </tr>
                       );
                     })}
@@ -158,12 +154,6 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
               <div className="text-gray-400 text-xs mb-1">Total RVU</div>
               <div className="text-2xl font-bold text-white">{summary.totalRVU.toFixed(1)}</div>
             </div>
-            {summary.sessionsWithVerifiedRVU > 0 && (
-              <div className="bg-gray-800 rounded-lg p-4 text-center">
-                <div className="text-gray-400 text-xs mb-1">Verified RVU</div>
-                <div className="text-2xl font-bold text-green-400">{summary.totalVerifiedRVU.toFixed(1)}</div>
-              </div>
-            )}
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Avg RVU/hr</div>
               <div className="text-2xl font-bold text-white">{summary.avgRVUPerHour.toFixed(1)}</div>
@@ -182,8 +172,8 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
               <div className="text-2xl font-bold text-white">{(summary.avgProductiveRatio * 100).toFixed(1)}%</div>
             </div>
             <div className="bg-gray-800 rounded-lg p-4 text-center">
-              <div className="text-gray-400 text-xs mb-1">Avg Breaks/Session</div>
-              <div className="text-2xl font-bold text-white">{summary.avgBreaksPerSession.toFixed(1)}</div>
+              <div className="text-gray-400 text-xs mb-1">Total Time</div>
+              <div className="text-2xl font-bold text-white">{formatTime(summary.totalStudyTime + summary.totalInterstitialTime + summary.totalAdminTime + summary.totalCommsTime + summary.totalBreakTime + summary.totalDoubleTapTime)}</div>
             </div>
           </div>
 
@@ -253,116 +243,53 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
             </div>
           )}
 
-          {/* Tag frequency */}
+          {/* Session tags */}
           {Object.keys(summary.tagFrequency).length > 0 && (
             <div className="bg-gray-800 rounded-lg p-4">
               <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Session Tags</h3>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(summary.tagFrequency)
                   .sort(([, a], [, b]) => b - a)
-                  .map(([tag, count]) => {
-                    const TAG_COLORS: Record<string, string> = {
-                      'Good Day': '#22c55e',
-                      'Not Feeling It Today': '#f59e0b',
-                      'Network & Application Interference': '#ef4444',
-                      'Low Volume = Low Productivity': '#8b5cf6',
-                      'Real World Intrusion': '#f97316',
-                      'High Volume': '#3b82f6',
-                      'Short Staffed': '#ec4899',
-                    };
-                    return (
-                      <span
-                        key={tag}
-                        className="px-3 py-1 rounded-full text-xs font-medium text-white"
-                        style={{ backgroundColor: TAG_COLORS[tag] || '#6b7280' }}
-                      >
-                        {tag} ({count})
-                      </span>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
-
-          {/* Best session */}
-          {summary.bestSession && (
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Best Session</h3>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <div className="text-gray-400 text-xs">RVU/hr</div>
-                  <div className="text-xl font-bold text-green-400">{summary.bestSession.rvuPerHour.toFixed(1)}</div>
-                </div>
-                <div>
-                  <div className="text-gray-400 text-xs">Studies</div>
-                  <div className="text-xl font-bold text-white">{summary.bestSession.studies}</div>
-                </div>
-                <div>
-                  <div className="text-gray-400 text-xs">Productive %</div>
-                  <div className="text-xl font-bold text-white">{(summary.bestSession.productiveRatio * 100).toFixed(1)}%</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* RVU/hr by session trend */}
-          {summary.sessionDataPoints.length > 1 && (
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">RVU/hr by Session</h3>
-              <div className="flex items-end gap-1 h-24">
-                {summary.sessionDataPoints.map((dp, i) => {
-                  const maxRVU = Math.max(...summary.sessionDataPoints.map(d => d.rvuPerHour), 1);
-                  const height = (dp.rvuPerHour / maxRVU) * 100;
-                  return (
-                    <div
-                      key={i}
-                      className="flex-1 rounded-t"
-                      style={{ height: `${height}%`, backgroundColor: '#3b82f6', minWidth: 4 }}
-                      title={`${dp.rvuPerHour.toFixed(1)} RVU/hr`}
-                    />
-                  );
-                })}
+                  .map(([tag, count]) => (
+                    <span key={tag} className="px-2 py-1 bg-gray-700 text-gray-300 rounded text-xs">
+                      {tag} ({count})
+                    </span>
+                  ))}
               </div>
             </div>
           )}
 
           {/* GAR Percentile Gauges */}
-          {garAvg ? (
-            <div className="space-y-4">
-              <GARPercentileGauge
-                label="RVU/hr"
-                userValue={summary.avgRVUPerHour}
-                distribution={garAvg.rvuPerHour}
-              />
-              <GARPercentileGauge
-                label="Productive Ratio"
-                userValue={summary.avgProductiveRatio}
-                distribution={garAvg.productiveRatio}
-                formatValue={(v) => `${(v * 100).toFixed(1)}%`}
-              />
-            </div>
-          ) : (
-            <div className="bg-gray-800 rounded-lg p-4 opacity-50">
-              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">GAR Percentile</h3>
-              <p className="text-gray-500 text-sm">Minimum 3 daily users required for group comparison</p>
+          {garAvg && summary && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Group Percentile (GAR)</h3>
+              <div className="grid grid-cols-2 gap-6">
+                <GARPercentileGauge
+                  label="RVU/hr"
+                  userValue={summary.avgRVUPerHour}
+                  distribution={garAvg.rvuPerHour}
+                />
+                <GARPercentileGauge
+                  label="Productive Ratio"
+                  userValue={summary.avgProductiveRatio}
+                  distribution={garAvg.productiveRatio}
+                  formatValue={v => `${(v * 100).toFixed(1)}%`}
+                />
+              </div>
             </div>
           )}
+
+          {/* Role-specific sections */}
+          {(role === 'president') && userSystem && (
+            <PresidentWeeklySection system={userSystem} dateRange={dayRange} formatTime={formatTime} />
+          )}
+          {(role === 'hospitalAdmin' || role === 'president') && userSystem && (
+            <HospitalWeeklySection system={userSystem} dateRange={dayRange} />
+          )}
+          {(role === 'it' || role === 'president') && userSystem && (
+            <ITWeeklySection system={userSystem} dateRange={dayRange} />
+          )}
         </div>
-      )}
-
-      {/* President section */}
-      {role === 'president' && (
-        <PresidentWeeklySection system={userSystem} dateRange={weekRange} formatTime={formatTime} />
-      )}
-
-      {/* Hospital Admin section */}
-      {(role === 'hospitalAdmin' || role === 'president') && (
-        <HospitalWeeklySection system={userSystem} dateRange={weekRange} />
-      )}
-
-      {/* IT section */}
-      {(role === 'it' || role === 'president') && (
-        <ITWeeklySection system={userSystem} dateRange={weekRange} />
       )}
     </div>
   );

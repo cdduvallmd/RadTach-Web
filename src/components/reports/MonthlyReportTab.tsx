@@ -18,13 +18,16 @@ interface MonthlyReportTabProps {
   userSystem: string | null;
   formatTime: (seconds: number) => string;
   role?: EffectiveRole;
+  dateRange?: DateRange;
 }
 
-export default function MonthlyReportTab({ userId, userSystem, formatTime, role = 'radiologist' }: MonthlyReportTabProps) {
+export default function MonthlyReportTab({ userId, userSystem, formatTime, role = 'radiologist', dateRange: externalRange }: MonthlyReportTabProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const monthRange: DateRange = useMemo(() => {
+  const internalRange: DateRange = useMemo(() => {
     return getMonthRange(currentDate.getFullYear(), currentDate.getMonth() + 1);
   }, [currentDate]);
+  const monthRange = externalRange ?? internalRange;
+  const externallyControlled = !!externalRange;
   const { sessions, loading, error } = useSessionData(userId, monthRange);
   const { garDays } = useGroupStats(userSystem, monthRange);
   const summary = useMemo(
@@ -73,16 +76,18 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
 
   return (
     <div className="space-y-6">
-      {/* Period navigation */}
-      <div className="flex items-center justify-between bg-gray-800 rounded-lg p-4">
-        <button onClick={() => navigateMonth(-1)} className="text-gray-400 hover:text-white text-xl px-3">&#8592;</button>
-        <div className="text-center">
-          <div className="text-sm text-gray-400">Monthly Report</div>
-          <div className="text-white font-medium">{format(currentDate, 'MMMM yyyy')}</div>
-          {userSystem && <div className="text-xs text-gray-500">{userSystem}</div>}
+      {/* Period navigation (hidden when RCP controls the date) */}
+      {!externallyControlled && (
+        <div className="flex items-center justify-between bg-gray-800 rounded-lg p-4">
+          <button onClick={() => navigateMonth(-1)} className="text-gray-400 hover:text-white text-xl px-3">&#8592;</button>
+          <div className="text-center">
+            <div className="text-sm text-gray-400">Monthly Report</div>
+            <div className="text-white font-medium">{format(currentDate, 'MMMM yyyy')}</div>
+            {userSystem && <div className="text-xs text-gray-500">{userSystem}</div>}
+          </div>
+          <button onClick={() => navigateMonth(1)} className="text-gray-400 hover:text-white text-xl px-3">&#8594;</button>
         </div>
-        <button onClick={() => navigateMonth(1)} className="text-gray-400 hover:text-white text-xl px-3">&#8594;</button>
-      </div>
+      )}
 
       {loading && (
         <div className="flex items-center justify-center h-48">

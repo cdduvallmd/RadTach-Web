@@ -295,6 +295,26 @@ export const firestoreService = {
     return docSnap.exists();
   },
 
+  // ── System / Report Access Config ─────────────────────────────────────────
+
+  async listSystems(): Promise<string[]> {
+    const snapshot = await getDocs(collection(db, 'systems'));
+    return snapshot.docs.map(d => d.id);
+  },
+
+  async getReportAccess(system: string): Promise<Record<string, string[]> | null> {
+    const docRef = doc(db, 'systems', system);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    const data = docSnap.data();
+    return data.reportAccess ?? null;
+  },
+
+  async setReportAccess(system: string, access: Record<string, string[]>): Promise<void> {
+    const docRef = doc(db, 'systems', system);
+    await updateDoc(docRef, { reportAccess: access });
+  },
+
   // ── Role Request Functions ──────────────────────────────────────────────────
 
   async createRoleRequest(userId: string, data: { displayName: string; email: string; requestedRole: string }) {

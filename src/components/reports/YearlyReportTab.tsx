@@ -16,12 +16,15 @@ interface YearlyReportTabProps {
   userSystem: string | null;
   formatTime: (seconds: number) => string;
   role?: EffectiveRole;
+  dateRange?: DateRange;
 }
 
-export default function YearlyReportTab({ userId, userSystem, formatTime, role = 'radiologist' }: YearlyReportTabProps) {
+export default function YearlyReportTab({ userId, userSystem, formatTime, role = 'radiologist', dateRange: externalRange }: YearlyReportTabProps) {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
-  const yearRange: DateRange = useMemo(() => getYearRange(currentYear), [currentYear]);
+  const internalRange: DateRange = useMemo(() => getYearRange(currentYear), [currentYear]);
+  const yearRange = externalRange ?? internalRange;
+  const externallyControlled = !!externalRange;
   const priorRange: DateRange = useMemo(() => getYearRange(currentYear - 1), [currentYear]);
 
   const { sessions, loading, error } = useSessionData(userId, yearRange);
@@ -77,16 +80,18 @@ export default function YearlyReportTab({ userId, userSystem, formatTime, role =
 
   return (
     <div className="space-y-6">
-      {/* Period navigation */}
-      <div className="flex items-center justify-between bg-gray-800 rounded-lg p-4">
-        <button onClick={() => setCurrentYear(y => y - 1)} className="text-gray-400 hover:text-white text-xl px-3">&#8592;</button>
-        <div className="text-center">
-          <div className="text-sm text-gray-400">Yearly Report</div>
-          <div className="text-white font-medium">{currentYear}</div>
-          {userSystem && <div className="text-xs text-gray-500">{userSystem}</div>}
+      {/* Period navigation (hidden when RCP controls the date) */}
+      {!externallyControlled && (
+        <div className="flex items-center justify-between bg-gray-800 rounded-lg p-4">
+          <button onClick={() => setCurrentYear(y => y - 1)} className="text-gray-400 hover:text-white text-xl px-3">&#8592;</button>
+          <div className="text-center">
+            <div className="text-sm text-gray-400">Yearly Report</div>
+            <div className="text-white font-medium">{currentYear}</div>
+            {userSystem && <div className="text-xs text-gray-500">{userSystem}</div>}
+          </div>
+          <button onClick={() => setCurrentYear(y => y + 1)} className="text-gray-400 hover:text-white text-xl px-3">&#8594;</button>
         </div>
-        <button onClick={() => setCurrentYear(y => y + 1)} className="text-gray-400 hover:text-white text-xl px-3">&#8594;</button>
-      </div>
+      )}
 
       {(loading || priorLoading) && (
         <div className="flex items-center justify-center h-48">

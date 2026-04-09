@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, lazy, Suspense } from 'react';
+import { useState, useRef, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useUserRole } from '../hooks/useUserRole';
 import {
   Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -7,12 +7,17 @@ import {
 } from 'recharts';
 import type { SessionSummary } from '../utils/sessionSummary';
 import type { EffectiveRole } from '../types/reports';
+import ReportControlPanel from './reports/ReportControlPanel';
+import type { ReportSelection, ReportType } from './reports/ReportControlPanel';
+import ReportSettings from './reports/ReportSettings';
+import { firestoreService } from '../services/firestore';
 
 const WeeklyReportTab = lazy(() => import('./reports/WeeklyReportTab'));
 const MonthlyReportTab = lazy(() => import('./reports/MonthlyReportTab'));
 const QuarterlyReportTab = lazy(() => import('./reports/QuarterlyReportTab'));
 const YearlyReportTab = lazy(() => import('./reports/YearlyReportTab'));
 const GroupComparisonTab = lazy(() => import('./reports/GroupComparisonTab'));
+const DailyReportTab = lazy(() => import('./reports/DailyReportTab'));
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -101,16 +106,7 @@ export interface ReportsProps {
 
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
-type TabId = 'session' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'group';
-
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'session', label: 'Session Report' },
-  { id: 'weekly', label: 'Weekly' },
-  { id: 'monthly', label: 'Monthly' },
-  { id: 'quarterly', label: 'Quarterly' },
-  { id: 'yearly', label: 'Yearly' },
-  { id: 'group', label: 'Group Comparison' },
-];
+type TabId = 'session' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'group';
 
 // ── Color palette ─────────────────────────────────────────────────────────────
 
@@ -175,10 +171,6 @@ export default function Reports({
   const printAllRef = useRef<HTMLDivElement>(null);
 
   // Compute effective role from base role + per-system toggles.
-  // globalAdmin/president → full visibility ('president')
-  // admin + adminIndividualAccess toggle → 'president'; admin alone → 'admin'
-  // hospitalAdmin + hospitalAdminIndividualAccess toggle → 'president'; hospitalAdmin alone → 'hospitalAdmin'
-  // it → 'it'; default → 'radiologist'
   const effectiveRole: EffectiveRole = (() => {
     if (role === 'globalAdmin' || role === 'president') return 'president';
     if (role === 'admin') return adminIndividualAccess ? 'president' : 'admin';
@@ -186,6 +178,65 @@ export default function Reports({
     if (role === 'it') return 'it';
     return 'radiologist';
   })();
+
+  // ── RCP State ────────────────────────────────────────────────────────────
+  const [rcpSelection, setRcpSelection] = useState<ReportSelection | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [allSystems, setAllSystems] = useState<string[]>([]);
+  const [reportAccess, setReportAccess] = useState<Record<string, string[]> | null>(null);
+
+  // Fetch systems list for globalAdmin
+  useEffect(() => {
+    if (role !== 'globalAdmin') return;
+    firestoreService.listSystems().then(setAllSystems).catch(() => {});
+  }, [role]);
+
+  // Fetch report access config for the current system
+  useEffect(() => {
+    const sys = rcpSelection?.system || userSystem;
+    if (!sys) return;
+    firestoreService.getReportAccess(sys).then(setReportAccess).catch(() => {});
+  }, [rcpSelection?.system, userSystem]);
+
+  // Compute allowed report types based on role + config
+  const allowedReportTypes: ReportType[] = useMemo(() => {
+    const allTypes: ReportType[] = ['session', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly', 'custom'];
+    // globalAdmin/president always get all
+    if (role === 'globalAdmin' || role === 'president') return allTypes;
+    // Check config; default = all types
+    if (!reportAccess) return allTypes;
+    const roleKey = role === 'admin' ? 'admin'
+      : role === 'hospitalAdmin' ? 'hospitalAdmin'
+      : role === 'it' ? 'it'
+      : 'radiologist';
+    const allowed = reportAccess[roleKey];
+    return allowed ? allTypes.filter(t => allowed.includes(t)) : allTypes;
+  }, [role, reportAccess]);
+
+  // Sync RCP report type → activeTab for rendering
+  useEffect(() => {
+    if (!rcpSelection) return;
+    const rt = rcpSelection.reportType;
+    // Map RCP report types to tab IDs. 'custom' renders via the weekly/monthly tab pattern.
+    if (rt === 'custom') {
+      // Custom uses the weekly tab component with the custom date range
+      setActiveTab('weekly');
+    } else if (rt === 'daily') {
+      setActiveTab('daily');
+    } else {
+      setActiveTab(rt as TabId);
+    }
+  }, [rcpSelection?.reportType]);
+
+  // Determine which userId and system to pass to tabs
+  const tabUserId = rcpSelection?.targetUserId ?? (userId || null);
+  const tabSystem = rcpSelection?.system ?? (userSystem || null);
+  const tabDateRange = rcpSelection?.dateRange ?? null;
+  // User display name (from session data or RCP selection)
+  const userDisplayName = useMemo(() => {
+    if (sessionData) return `${(sessionData as any).firstName || ''} ${(sessionData as any).lastName || ''}`.trim() || null;
+    return null;
+  }, [sessionData]);
 
   // Compute who can see this user's individual performance data
   const visibleTo = useMemo(() => {
@@ -195,14 +246,6 @@ export default function Reports({
     if (hospitalAdminIndividualAccess) viewers.push('Hospital Admins');
     return viewers;
   }, [adminIndividualAccess, hospitalAdminIndividualAccess]);
-
-  // Filter tabs by effective role — Group Comparison only visible to president+
-  const visibleTabs = useMemo(() => {
-    return TABS.filter(tab => {
-      if (tab.id === 'group') return effectiveRole === 'president';
-      return true;
-    });
-  }, [effectiveRole]);
 
   const studies = sessionEvents.filter((e): e is StudyEvent => e.type === 'STUDY');
   const nonStudyEvents = sessionEvents.filter(
@@ -1427,78 +1470,121 @@ export default function Reports({
       `}</style>
 
       <div className="max-w-6xl mx-auto">
-        {/* Tab bar + buttons */}
-        <div className="no-print flex items-center justify-between mb-4">
-          <div className="flex gap-1">
-            {visibleTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-gray-800 text-white'
-                    : 'bg-gray-700 text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handlePrint}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition-colors"
-            >
-              Print
-            </button>
-            <button
-              onClick={handlePrintAll}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition-colors"
-            >
-              Print All
-            </button>
-            <button
-              onClick={onExit}
-              className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded transition-colors"
-            >
-              EXIT REPORTS
-            </button>
-          </div>
+        {/* Action buttons */}
+        <div className="no-print flex items-center justify-end gap-2 mb-2">
+          <button
+            onClick={handlePrint}
+            className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition-colors"
+          >
+            Print
+          </button>
+          <button
+            onClick={handlePrintAll}
+            className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition-colors"
+          >
+            Print All
+          </button>
+          <button
+            onClick={onExit}
+            className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded transition-colors"
+          >
+            EXIT REPORTS
+          </button>
         </div>
+
+        {/* Report Control Panel */}
+        <div className="no-print">
+          <ReportControlPanel
+            role={role}
+            effectiveRole={effectiveRole}
+            userId={userId || null}
+            userSystem={userSystem || null}
+            userDisplayName={userDisplayName}
+            systems={allSystems}
+            allowedReportTypes={allowedReportTypes}
+            onSelectionChange={setRcpSelection}
+            onOpenSettings={() => setShowSettings(true)}
+          />
+        </div>
+
+        {/* Report Settings (president-only, shown on demand) */}
+        {showSettings && effectiveRole === 'president' && (
+          <div className="no-print">
+            <ReportSettings
+              system={rcpSelection?.system || userSystem || null}
+              onClose={() => setShowSettings(false)}
+            />
+          </div>
+        )}
 
         {/* Visibility indicator */}
         <div className="no-print px-4 py-1.5 text-xs text-gray-500 border-b border-gray-700/50">
           Your individual performance data is visible to: {visibleTo.join(' \u00b7 ')}
         </div>
 
-        {/* Header (all tabs) */}
-        {renderHeader()}
+        {/* Header (session tab only, uses in-memory data) */}
+        {activeTab === 'session' && renderHeader()}
 
         {/* Active tab content */}
         {activeTab === 'session' && renderSessionReport()}
+        {activeTab === 'daily' && (
+          <Suspense fallback={<div className="text-gray-400 text-center py-12">Loading...</div>}>
+            <DailyReportTab
+              userId={tabUserId}
+              userSystem={tabSystem}
+              formatTime={formatTime}
+              role={effectiveRole}
+              dateRange={tabDateRange ?? undefined}
+            />
+          </Suspense>
+        )}
         {activeTab === 'weekly' && (
           <Suspense fallback={<div className="text-gray-400 text-center py-12">Loading...</div>}>
-            <WeeklyReportTab userId={userId || null} userSystem={userSystem || null} formatTime={formatTime} role={effectiveRole} />
+            <WeeklyReportTab
+              userId={tabUserId}
+              userSystem={tabSystem}
+              formatTime={formatTime}
+              role={effectiveRole}
+              dateRange={tabDateRange ?? undefined}
+            />
           </Suspense>
         )}
         {activeTab === 'monthly' && (
           <Suspense fallback={<div className="text-gray-400 text-center py-12">Loading...</div>}>
-            <MonthlyReportTab userId={userId || null} userSystem={userSystem || null} formatTime={formatTime} role={effectiveRole} />
+            <MonthlyReportTab
+              userId={tabUserId}
+              userSystem={tabSystem}
+              formatTime={formatTime}
+              role={effectiveRole}
+              dateRange={tabDateRange ?? undefined}
+            />
           </Suspense>
         )}
         {activeTab === 'quarterly' && (
           <Suspense fallback={<div className="text-gray-400 text-center py-12">Loading...</div>}>
-            <QuarterlyReportTab userId={userId || null} userSystem={userSystem || null} formatTime={formatTime} role={effectiveRole} />
+            <QuarterlyReportTab
+              userId={tabUserId}
+              userSystem={tabSystem}
+              formatTime={formatTime}
+              role={effectiveRole}
+              dateRange={tabDateRange ?? undefined}
+            />
           </Suspense>
         )}
         {activeTab === 'yearly' && (
           <Suspense fallback={<div className="text-gray-400 text-center py-12">Loading...</div>}>
-            <YearlyReportTab userId={userId || null} userSystem={userSystem || null} formatTime={formatTime} role={effectiveRole} />
+            <YearlyReportTab
+              userId={tabUserId}
+              userSystem={tabSystem}
+              formatTime={formatTime}
+              role={effectiveRole}
+              dateRange={tabDateRange ?? undefined}
+            />
           </Suspense>
         )}
         {activeTab === 'group' && effectiveRole === 'president' && (
           <Suspense fallback={<div className="text-gray-400 text-center py-12">Loading...</div>}>
-            <GroupComparisonTab userSystem={userSystem || null} formatTime={formatTime} />
+            <GroupComparisonTab userSystem={tabSystem || null} formatTime={formatTime} />
           </Suspense>
         )}
 

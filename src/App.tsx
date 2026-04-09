@@ -154,7 +154,7 @@ function RadTachInner() {
     'Complex Hx': 120,
     'Prior Surg Hx': 120,
     'CTA': 180,
-    'Bilateral': 0, // Special: multiplies par time by 2
+    'Bilateral': 0, // Special: multiplies par time and RVU by 1.5
     'Vascular': 120 // +2 minutes
   };
 
@@ -271,8 +271,6 @@ function RadTachInner() {
     examDesc: string;
   } | null>(null);
 
-  // RVU-modifying complications — locked when cptOverride is active
-  const RVU_MODIFYING_COMPLICATIONS: Complication[] = ['CTA', 'Bilateral', 'Vascular', '+1 Section', '+2 Section'];
   // Non-RVU complications — still add par time in RVU-derived mode (case complexity not in RVU)
   const NON_RVU_COMPLICATIONS: Complication[] = ['Age >70', 'Cancer Follow', 'Prior Surg Hx', 'Complex Hx'];
 
@@ -420,9 +418,10 @@ function RadTachInner() {
     }
 
     // Apply Bilateral multiplier last (after all additions)
+    // 1.5x matches the typical wRVU increase for bilateral vs unilateral CPT codes
     // Skip when cptOverride — bilateral RVU is already reflected in the higher RVU value
     if (hasBilateral && !cptOverride) {
-      total *= 2;
+      total *= 1.5;
     }
 
     return total;
@@ -438,7 +437,12 @@ function RadTachInner() {
     let total = typeof modalityRVU === 'number' ? modalityRVU : 0;
 
     // Add complication RVUs that depend on modality
+    let hasBilateral = false;
     selectedComplications.forEach(comp => {
+      if (comp === 'Bilateral') {
+        hasBilateral = true;
+        return;
+      }
       const compRVU = rvuValues[comp];
       if (compRVU !== undefined) {
         if (typeof compRVU === 'object' && compRVU !== null) {
@@ -453,6 +457,11 @@ function RadTachInner() {
         }
       }
     });
+
+    // Apply Bilateral 1.5x multiplier last (matches typical wRVU bilateral/unilateral ratio)
+    if (hasBilateral) {
+      total *= 1.5;
+    }
 
     return total;
   };
@@ -2389,7 +2398,10 @@ function RadTachInner() {
   };
   
   const modalities: Modality[] = ['XR', 'FL', 'CT', 'US', 'MR', 'NM', 'MA', 'PET-CT'];
-  const complications: Complication[] = ['Cancer Follow', '+1 Section', '+2 Section', 'Multiple Priors', 'Age >70', 'Complex Hx', 'Prior Surg Hx', 'CTA', 'Bilateral', 'Vascular'];
+  // Top row: non-RVU modifiers (always manual). Bottom row: RVU modifiers (greyed out when Sidecar active).
+  const complicationsTopRow: Complication[] = ['Cancer Follow', 'Multiple Priors', 'Complex Hx', 'Prior Surg Hx', 'Age >70'];
+  const complicationsBottomRow: Complication[] = ['+1 Section', '+2 Section', 'CTA', 'Bilateral', 'Vascular'];
+  const complications: Complication[] = [...complicationsTopRow, ...complicationsBottomRow];
   
   // Timezone options for signup
   const timezoneOptions = [
@@ -3694,7 +3706,7 @@ function RadTachInner() {
                         <li><span className="text-orange-400">Complex Hx:</span> +2:00</li>
                         <li><span className="text-orange-400">Prior Surg Hx:</span> +2:00</li>
                         <li><span className="text-orange-400">CTA:</span> +3:00 (+0.4 RVU for CT)</li>
-                        <li><span className="text-orange-400">Bilateral:</span> x2 total par time</li>
+                        <li><span className="text-orange-400">Bilateral:</span> x1.5 total par time + RVU</li>
                         <li><span className="text-orange-400">Vascular:</span> +2:00</li>
                       </ul>
                     </div>
@@ -4599,13 +4611,35 @@ function RadTachInner() {
         {/* Complications Selection */}
         <div className="bg-gray-800 rounded-lg pt-3 pb-1.5 px-6 mb-2">
           <h2 className="text-xl font-semibold text-white mb-2">Complications (Optional)</h2>
-          <div className="grid grid-cols-5 gap-3">
-            {complications.map(complication => {
-              const isRvuModifying = RVU_MODIFYING_COMPLICATIONS.includes(complication);
-              const isLocked = cptOverride !== null && isRvuModifying;
+          {/* Top row: non-RVU modifiers — always available */}
+          <div className="grid grid-cols-5 gap-3 mb-2">
+            {complicationsTopRow.map(complication => {
               const isSelected = selectedComplications.includes(complication);
-              const isAutoLit = isLocked && isSelected; // auto-lit by Sidecar (bilateral/CTA)
-
+              return (
+                <button
+                  key={complication}
+                  onClick={() => toggleComplication(complication)}
+                  className={`py-4 px-4 rounded-lg font-medium text-sm transition-colors ${
+                    stealthMode
+                      ? isSelected
+                        ? 'bg-gray-700 text-white border-2 border-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600 border-2 border-gray-700'
+                      : isSelected
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  {complication}
+                </button>
+              );
+            })}
+          </div>
+          {/* Bottom row: RVU modifiers — greyed out when Sidecar drives RVU */}
+          <div className={`grid grid-cols-5 gap-3${cptOverride ? ' opacity-40' : ''}`}>
+            {complicationsBottomRow.map(complication => {
+              const isLocked = cptOverride !== null;
+              const isSelected = selectedComplications.includes(complication);
+              const isAutoLit = isLocked && isSelected;
               return (
                 <button
                   key={complication}
@@ -4614,8 +4648,8 @@ function RadTachInner() {
                   className={`py-4 px-4 rounded-lg font-medium text-sm transition-colors ${
                     isLocked
                       ? isAutoLit
-                        ? 'bg-amber-700 text-amber-200 cursor-not-allowed opacity-80'
-                        : 'bg-gray-800 text-gray-600 cursor-not-allowed opacity-50'
+                        ? 'bg-amber-700 text-amber-200 cursor-not-allowed'
+                        : 'bg-gray-800 text-gray-600 cursor-not-allowed'
                       : stealthMode
                         ? isSelected
                           ? 'bg-gray-700 text-white border-2 border-white'

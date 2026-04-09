@@ -4,11 +4,16 @@
 import {
   startOfWeek, endOfWeek, startOfMonth, endOfMonth,
   startOfQuarter, endOfQuarter, startOfYear, endOfYear,
+  startOfDay, endOfDay,
   format, getDay, parseISO, isWithinInterval,
 } from 'date-fns';
 import type { StoredSession, DateRange, PeriodSummary } from '../types/reports';
 
 // ── Date Range Helpers ────────────────────────────────────────────────────────
+
+export function getDayRange(date: Date): DateRange {
+  return { start: startOfDay(date), end: endOfDay(date) };
+}
 
 export function getWeekRange(date: Date, weekStartDay: 'sunday' | 'monday' = 'monday'): DateRange {
   const weekStartsOn = weekStartDay === 'monday' ? 1 : 0;
