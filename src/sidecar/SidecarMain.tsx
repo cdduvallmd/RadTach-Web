@@ -141,7 +141,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     }).catch(console.error);
   }, [systemName]);
 
-  // Listen for "completed" from RadTach → auto-return to home
+  // Listen for "completed" from RadTach → auto-return to home, clear pending indicator
   useEffect(() => {
     if (!currentUser) return;
     const unsub = listenToCommandDoc(currentUser.uid, (cmd) => {
@@ -149,6 +149,11 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
         sendToGoose({ action: 'end_exam' });
         setScreen({ type: 'home' });
         setSelectedExams([]);
+        setPendingStop(false);
+        if (pendingStopTimer.current) {
+          clearTimeout(pendingStopTimer.current);
+          pendingStopTimer.current = null;
+        }
       }
     });
     return unsub;
@@ -216,6 +221,10 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     }
   }, [currentUser, sending, testMode]);
 
+  // Track pending stop for network lag indicator on home screen
+  const [pendingStop, setPendingStop] = useState(false);
+  const pendingStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleSignReport = useCallback(async () => {
     if (testMode) {
       setScreen({ type: 'home' });
@@ -223,12 +232,22 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     }
     if (!currentUser || sending) return;
     setSending(true);
-    try {
-      await writeStopCommand(currentUser.uid);
-      sendToGoose({ action: 'end_exam' });
-      setScreen({ type: 'home' });
-    } finally {
-      setSending(false);
+    sendToGoose({ action: 'end_exam' });
+
+    // Race: Firestore write vs 5s timeout
+    const timeout = new Promise<'timeout'>(r => setTimeout(() => r('timeout'), 5000));
+    const write = writeStopCommand(currentUser.uid).then(() => 'done' as const).catch(() => 'done' as const);
+    const result = await Promise.race([write, timeout]);
+
+    setSending(false);
+    setScreen({ type: 'home' });
+    setSelectedExams([]);
+
+    if (result === 'timeout') {
+      // Write still in flight — show indicator, clear when it resolves or 15s hard cap
+      setPendingStop(true);
+      write.then(() => setPendingStop(false));
+      pendingStopTimer.current = setTimeout(() => setPendingStop(false), 15000);
     }
   }, [currentUser, sending, testMode]);
 
@@ -417,6 +436,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           searchResults={searchResults}
           onSearchSelect={handleSearchSelect}
           gooseConnected={gooseConnected}
+          pendingStop={pendingStop}
           onOpenRecent={() => setScreen({ type: 'recent' })}
           onOpenCommon={() => setScreen({ type: 'common' })}
           savedComboCount={savedCombos.length}

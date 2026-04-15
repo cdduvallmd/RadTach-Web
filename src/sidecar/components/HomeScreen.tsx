@@ -21,6 +21,7 @@ interface Props {
   searchResults: SearchResult[];
   onSearchSelect: (result: SearchResult) => void;
   gooseConnected: boolean;
+  pendingStop?: boolean;
   onOpenRecent: () => void;
   onOpenCommon: () => void;
   savedComboCount: number;
@@ -31,7 +32,7 @@ export default function HomeScreen({
   modalities, onSelectModality,
   comboCount, onOpenCombo,
   searchQuery, onSearchChange, searchResults, onSearchSelect,
-  gooseConnected,
+  gooseConnected, pendingStop,
   onOpenRecent, onOpenCommon,
   savedComboCount, onOpenSavedCombos,
 }: Props) {
@@ -40,6 +41,14 @@ export default function HomeScreen({
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       <div className="flex-1 p-3 pb-4">
+        {/* Network lag indicator */}
+        {pendingStop && (
+          <div className="flex items-center justify-center gap-2 mb-2 py-1.5 bg-amber-900/40 rounded-lg">
+            <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+            <span className="text-amber-400 text-xs">Syncing...</span>
+          </div>
+        )}
+
         {/* Header with Goose indicator */}
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-lg font-bold text-white flex-1 text-center">Select Modality</h1>
