@@ -1,6 +1,7 @@
 import type { ModalityGroup, TreeLeaf } from '../utils/buildCptTree';
 import type { SavedCombo } from '../SidecarMain';
 import type { CptEntry } from '../../types/cpt';
+import { comboColor } from '../utils/modalityColors';
 
 interface Props {
   modality: string;
@@ -33,13 +34,13 @@ export default function BodyPartScreen({ modality, group, savedCombos, entries, 
                 key={idx}
                 onClick={() => onSelectCombo?.(combo)}
                 className="w-full text-left px-3 py-2 mb-1 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
-                style={{ borderLeft: '3px solid #f59e0b' }}
+                style={{ borderLeft: `3px solid ${comboColor(combo.modality)}` }}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-white text-sm truncate mr-2">
                     {combo.cpts.map(c => entries[c]?.description || c).join(' + ')}
                   </span>
-                  <span className="text-amber-400 text-xs font-bold shrink-0">COMBO ({combo.cpts.length})</span>
+                  <span className="text-xs font-bold shrink-0" style={{ color: comboColor(combo.modality) }}>COMBO ({combo.cpts.length})</span>
                 </div>
               </button>
             ))}

@@ -14,6 +14,7 @@ import LeafScreen from './components/LeafScreen';
 import ComboBuilder from './components/ComboBuilder';
 import ActiveStudy from './components/ActiveStudy';
 import CptListScreen from './components/CptListScreen';
+import { comboColor } from './utils/modalityColors';
 
 type Screen =
   | { type: 'home' }
@@ -486,7 +487,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
                     key={idx}
                     onClick={() => handleComboRecall(combo)}
                     className="w-full text-left p-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
-                    style={{ borderLeft: '3px solid #f59e0b' }}
+                    style={{ borderLeft: `3px solid ${comboColor(combo.modality)}` }}
                   >
                     {combo.cpts.map((cpt, ci) => {
                       const e = cptDb.entries[cpt];
@@ -496,7 +497,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
                             <span className="text-gray-400 text-xs">{cpt}</span>
                             {ci === 0 && (
                               <span className="text-xs font-bold px-1.5 py-0.5 rounded ml-auto"
-                                style={{ backgroundColor: '#f59e0b', color: '#000' }}>
+                                style={{ backgroundColor: comboColor(combo.modality), color: '#000' }}>
                                 COMBO ({combo.cpts.length})
                               </span>
                             )}

@@ -1,15 +1,5 @@
 import type { SearchResult } from '../utils/cptSearch';
-
-const MODALITY_COLORS: Record<string, string> = {
-  CT: '#3b82f6',
-  MR: '#8b5cf6',
-  XR: '#10b981',
-  US: '#f59e0b',
-  FL: '#ec4899',
-  NM: '#06b6d4',
-  MA: '#f97316',
-  'PET-CT': '#ef4444',
-};
+import { MODALITY_COLORS, comboColor } from '../utils/modalityColors';
 
 interface Props {
   modalities: string[];
@@ -104,7 +94,7 @@ export default function HomeScreen({
                     </span>
                     <span className="text-gray-400 text-xs">{r.comboCpts ? r.comboCpts.join(', ') : r.cpt}</span>
                     {r.comboCpts && (
-                      <span className="text-amber-400 text-xs font-bold">COMBO</span>
+                      <span className="text-xs font-bold" style={{ color: comboColor(r.entry.modality) }}>COMBO</span>
                     )}
                     <span className="text-gray-500 text-xs ml-auto">{r.entry.bodyPart}</span>
                   </div>

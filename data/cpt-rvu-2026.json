@@ -457,10 +457,10 @@
       "pcRvu": 2,
       "tcRvu": 5.76,
       "globalRvu": 7.76,
-      "defaultAeTitle": "XR HEAD",
-      "modality": "XR",
+      "defaultAeTitle": "MR HEAD",
+      "modality": "MR",
       "bodyPart": "Head",
-      "protocol": "STANDARD",
+      "protocol": "WITHOUT",
       "workRvu": 1.44,
       "facPeRvu": 0.49,
       "mpRvu": 0.07

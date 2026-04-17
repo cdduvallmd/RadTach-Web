@@ -1,16 +1,6 @@
 import type { CptEntry } from '../../types/cpt';
 import type { RecentEntry } from '../SidecarMain';
-
-const MODALITY_COLORS: Record<string, string> = {
-  CT: '#3b82f6',
-  MR: '#8b5cf6',
-  XR: '#10b981',
-  US: '#f59e0b',
-  FL: '#ec4899',
-  NM: '#06b6d4',
-  MA: '#f97316',
-  'PET-CT': '#ef4444',
-};
+import { MODALITY_COLORS, comboColor } from '../utils/modalityColors';
 
 interface Props {
   title: string;
@@ -74,13 +64,16 @@ export default function CptListScreen({ title, cpts, recentEntries, entries, onS
                   );
                 }
 
-                // Combo entry — stacked CPTs with left accent border
+                // Combo entry — stacked CPTs with left accent border colored by modality
+                const modalities = new Set(re.cpts.map(c => entries[c]?.modality));
+                const singleMod = modalities.size === 1 ? [...modalities][0] : undefined;
+                const cc = comboColor(singleMod);
                 return (
                   <button
                     key={`${idx}-combo`}
                     onClick={() => onSelectRecent(re)}
                     className="w-full text-left p-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
-                    style={{ borderLeft: '3px solid #f59e0b' }}
+                    style={{ borderLeft: `3px solid ${cc}` }}
                   >
                     {re.cpts.map((cpt, ci) => {
                       const e = entries[cpt];
@@ -96,7 +89,7 @@ export default function CptListScreen({ title, cpts, recentEntries, entries, onS
                             <span className="text-gray-400 text-xs">{cpt}</span>
                             {ci === 0 && (
                               <span className="text-xs font-bold px-1.5 py-0.5 rounded ml-auto"
-                                style={{ backgroundColor: '#f59e0b', color: '#000' }}>
+                                style={{ backgroundColor: cc, color: '#000' }}>
                                 COMBO ({re.cpts.length})
                               </span>
                             )}
