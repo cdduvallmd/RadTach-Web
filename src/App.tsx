@@ -15,6 +15,7 @@ import type { CptDatabase } from './types/cpt';
 import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, bufferedSaveUserSettings, flushBuffer, hasPendingEndSession, addLocalEvent, getLocalEvents, clearLocalEvents } from './services/offlineBuffer';
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
+import { useTimerMode } from './hooks/useTimerMode';
 
 // ============================================================================
 // EXTERNAL INTEGRATION CONTRACT — HL7 / Middleware Interface
@@ -383,6 +384,10 @@ function RadTachInner() {
   const sessionStartMsRef = useRef<number>(0); // Wall-clock ms at session start (for drift correction)
   const processSidecarStartRef = useRef<(cmd: SidecarCommand) => void>(() => {});
   const processSidecarStopRef = useRef<() => void>(() => {});
+
+  // ── Shadow mode-enum timer (parallel system for validation) ──────────
+  const shadow = useTimerMode();
+  const shadowFlushIdx = useRef<number>(0);
 
   // Calculate current par time based on selections
   const calculateParTime = () => {
@@ -1043,6 +1048,17 @@ function RadTachInner() {
       });
   };
 
+  // Shadow flush: write mode-enum events to shadow_events subcollection
+  const flushShadowEvents = () => {
+    if (!FIREBASE_ENABLED || !firestoreSessionId || !currentUser) return;
+    const allShadow = shadow.getEvents();
+    const unsent = allShadow.slice(shadowFlushIdx.current);
+    if (unsent.length === 0) return;
+    firestoreService.flushShadowEvents(currentUser.uid, firestoreSessionId, unsent as Record<string, any>[], shadowFlushIdx.current)
+      .then(() => { shadowFlushIdx.current = allShadow.length; })
+      .catch(err => console.error('Shadow flush failed:', err));
+  };
+
   // IDB: write every event locally for crash-proof recovery
   const recordEventLocally = (event: SessionEvent) => {
     if (!FIREBASE_ENABLED || !localSessionKeyRef.current) return;
@@ -1054,6 +1070,7 @@ function RadTachInner() {
     if (!FIREBASE_ENABLED || !firestoreSessionId || studiesCompleted === 0) return;
     if (studiesCompleted % 5 === 0) {
       flushEventsToFirestore(sessionEvents, firestoreSessionId);
+      flushShadowEvents();
     }
   }, [studiesCompleted]);
 
@@ -1412,6 +1429,8 @@ function RadTachInner() {
     setIsSessionTimeRunning(true);
     setTodaySessionCount(prev => prev + 1);
     setSessionEvents([]);
+    shadow.startSession();
+    shadowFlushIdx.current = 0;
 
     // Firebase: create session document via IDB write-ahead buffer
     if (FIREBASE_ENABLED) {
@@ -1595,6 +1614,15 @@ function RadTachInner() {
       setLastSessionSummary(computeSessionSummary(finalEvents, sessionTime));
     }
 
+    // Shadow: finalize and flush
+    const finalShadowEvents = shadow.endSession(sessionTime);
+    if (FIREBASE_ENABLED && firestoreSessionId && currentUser) {
+      const shadowUnsent = finalShadowEvents.slice(shadowFlushIdx.current);
+      if (shadowUnsent.length > 0) {
+        firestoreService.flushShadowEvents(currentUser.uid, firestoreSessionId, shadowUnsent as Record<string, any>[], shadowFlushIdx.current).catch(() => {});
+      }
+    }
+
     // Firebase: final flush via IDB write-ahead buffer, then end session + save settings
     if (FIREBASE_ENABLED && localSessionKeyRef.current) {
       const data = buildSessionData();
@@ -1729,6 +1757,20 @@ function RadTachInner() {
       if (!isSessionTimeRunning) {
         setIsSessionTimeRunning(true);
       }
+
+      // Shadow signal: study started
+      if (selectedModality) {
+        shadow.signal({
+          type: 'study_start',
+          modality: selectedModality,
+          complications: [...selectedComplications],
+          parTime: currentParTime,
+          studyNumber: studiesCompleted + 1,
+          rvu: currentStudyRVU,
+          ...(cptOverride ? { cpts: cptOverride.cpts, rvuSource: cptOverride.source } : {}),
+          ...(rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour } : {}),
+        }, sessionTime);
+      }
     } else {
       // Pausing a study - stop elapsed time, start pause tracking and interstitial time
       setIsRunning(false);
@@ -1825,6 +1867,9 @@ function RadTachInner() {
     
     setIsRunning(false);
 
+    // Shadow signal: study complete
+    shadow.signal({ type: 'study_complete' }, sessionTime);
+
     // ── Auto-swap: forgotten timer start recovery ────────────────────
     let effectiveTime = currentTime;
     let wasSwapped = false;
@@ -1856,6 +1901,13 @@ function RadTachInner() {
             new Date(inter.startTimeSystem).getTime() + 10000
           ).toISOString(),
         };
+        // Shadow signal: swap detected
+        shadow.signal({
+          type: 'swap_detected',
+          interstitialDuration: inter.duration,
+          correctedStart: inter.startTimeSession + 10,
+          correctedSystem: swapStartOverride.system,
+        }, sessionTime);
       }
     }
 
@@ -2011,6 +2063,7 @@ function RadTachInner() {
 
   // Toggle Admin Time
   const toggleAdminTime = () => {
+    shadow.signal({ type: 'admin_toggle' }, sessionTime);
     if (!isAdminTimeRunning) {
       // Starting Admin Time
       setIsAdminTimeRunning(true);
@@ -2058,6 +2111,7 @@ function RadTachInner() {
 
   // Toggle Comms Time
   const toggleCommsTime = () => {
+    shadow.signal({ type: 'comms_toggle' }, sessionTime);
     if (!isCommsTimeRunning) {
       // Starting Comms Time
       setIsCommsTimeRunning(true);
@@ -2105,6 +2159,7 @@ function RadTachInner() {
 
   // Toggle Break Time
   const toggleBreakTime = () => {
+    shadow.signal({ type: 'break_toggle' }, sessionTime);
     if (!isBreakTimeRunning) {
       // Starting Break - pause Interstitial, Admin, and Comms
       setIsBreakTimeRunning(true);
@@ -2162,6 +2217,7 @@ function RadTachInner() {
       // Don't allow starting Double Tap during dictation
       return;
     }
+    shadow.signal({ type: 'doubletap_toggle', modality: lastStudyModality ?? undefined }, sessionTime);
 
     if (!isDoubleTapRunning) {
       // Starting Double Tap - stop Interstitial (productive time, not wasted)
@@ -2206,6 +2262,7 @@ function RadTachInner() {
         alert('Please select a modality before using Draft mode');
         return;
       }
+      shadow.signal({ type: 'draft_enter' }, sessionTime);
       
       // Stop the timer if it's running
       if (isRunning) {
@@ -2244,6 +2301,7 @@ function RadTachInner() {
       }
       
       // Restore the drafted study
+      shadow.signal({ type: 'draft_exit' }, sessionTime);
       setSelectedModality(draftStudy.modality);
       setSelectedComplications(draftStudy.complications);
       setCurrentTime(draftStudy.currentTime);

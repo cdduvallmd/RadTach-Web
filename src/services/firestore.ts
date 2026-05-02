@@ -87,6 +87,18 @@ export const firestoreService = {
     await batch.commit();
   },
 
+  // Shadow mode-enum events: parallel subcollection for validation
+  async flushShadowEvents(userId: string, sessionId: string, events: Record<string, any>[], startIndex: number) {
+    if (events.length === 0) return;
+    const batch = writeBatch(db);
+    const eventsRef = collection(db, 'users', userId, 'sessions', sessionId, 'shadow_events');
+    for (let i = 0; i < events.length; i++) {
+      const eventDocRef = doc(eventsRef, `evt-${String(startIndex + i).padStart(4, '0')}`);
+      batch.set(eventDocRef, { ...events[i], recordedAt: serverTimestamp() });
+    }
+    await batch.commit();
+  },
+
   async getUserSettings(userId: string): Promise<Record<string, any> | null> {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
     const docSnap = await getDoc(docRef);
