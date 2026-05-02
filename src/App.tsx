@@ -1753,6 +1753,69 @@ function RadTachInner() {
         setInterstitialStartTime(null);
       }
 
+      // Record Admin event if it was running (study start auto-stops it)
+      if (isAdminTimeRunning && adminStartTime !== null) {
+        const evt: TimerEvent = {
+          type: 'ADMIN',
+          startTimeSession: adminStartTime.session,
+          startTimeSystem: adminStartTime.system,
+          endTimeSession: sessionTime,
+          endTimeSystem: getCurrentDateTime(),
+          duration: sessionTime - adminStartTime.session,
+        };
+        setSessionEvents(prev => [...prev, evt]);
+        recordEventLocally(evt);
+        setAdminStartTime(null);
+        setStudyWasAutoPaused(false);
+      }
+
+      // Record Comms event if it was running
+      if (isCommsTimeRunning && commsStartTime !== null) {
+        const evt: TimerEvent = {
+          type: 'COMMS',
+          startTimeSession: commsStartTime.session,
+          startTimeSystem: commsStartTime.system,
+          endTimeSession: sessionTime,
+          endTimeSystem: getCurrentDateTime(),
+          duration: sessionTime - commsStartTime.session,
+        };
+        setSessionEvents(prev => [...prev, evt]);
+        recordEventLocally(evt);
+        setCommsStartTime(null);
+        setStudyWasAutoPaused(false);
+      }
+
+      // Record Break event if it was running
+      if (isBreakTimeRunning && breakStartTime !== null) {
+        const evt: TimerEvent = {
+          type: 'BREAK',
+          startTimeSession: breakStartTime.session,
+          startTimeSystem: breakStartTime.system,
+          endTimeSession: sessionTime,
+          endTimeSystem: getCurrentDateTime(),
+          duration: sessionTime - breakStartTime.session,
+        };
+        setSessionEvents(prev => [...prev, evt]);
+        recordEventLocally(evt);
+        setBreakStartTime(null);
+      }
+
+      // Record Double-Tap event if it was running
+      if (isDoubleTapRunning && doubleTapStartTime !== null) {
+        const evt: TimerEvent = {
+          type: 'DOUBLE_TAP',
+          startTimeSession: doubleTapStartTime.session,
+          startTimeSystem: doubleTapStartTime.system,
+          endTimeSession: sessionTime,
+          endTimeSystem: getCurrentDateTime(),
+          duration: sessionTime - doubleTapStartTime.session,
+          associatedModality: lastStudyModality,
+        };
+        setSessionEvents(prev => [...prev, evt]);
+        recordEventLocally(evt);
+        setDoubleTapStartTime(null);
+      }
+
       // Start session time if this is the first study
       if (!isSessionTimeRunning) {
         setIsSessionTimeRunning(true);
