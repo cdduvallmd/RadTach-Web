@@ -1828,6 +1828,7 @@ function RadTachInner() {
     // ── Auto-swap: forgotten timer start recovery ────────────────────
     let effectiveTime = currentTime;
     let wasSwapped = false;
+    let swapStartOverride: { session: number; system: string } | null = null;
     if (currentTime > 0 && currentTime < 5) {
       const events = [...sessionEvents];
       let lastInterIdx = -1;
@@ -1847,6 +1848,14 @@ function RadTachInner() {
         setSessionEvents(events);
         // Adjust cumulative interstitial counter
         setInterstitialTime(prev => prev - (inter.duration - 10));
+        // Correct study start time to right after the shortened interstitial
+        // so the filmstrip renders the study in the correct time slot
+        swapStartOverride = {
+          session: inter.startTimeSession + 10,
+          system: new Date(
+            new Date(inter.startTimeSystem).getTime() + 10000
+          ).toISOString(),
+        };
       }
     }
 
@@ -1896,11 +1905,12 @@ function RadTachInner() {
 
     // Record STUDY event (Issue #1)
     if (studyStartTime !== null && selectedModality) {
+      const eventStart = swapStartOverride ?? studyStartTime;
       const studyEvent: StudyEvent = {
         type: 'STUDY',
         studyNumber: studiesCompleted + 1,
-        startTimeSession: studyStartTime.session,
-        startTimeSystem: studyStartTime.system,
+        startTimeSession: eventStart.session,
+        startTimeSystem: eventStart.system,
         modality: selectedModality,
         complications: [...selectedComplications],
         parTime: currentParTime,
