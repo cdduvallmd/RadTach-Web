@@ -14,6 +14,8 @@ interface Props {
   pendingStop?: boolean;
   onOpenRecent: () => void;
   onOpenCommon: () => void;
+  onOpenFavorites: () => void;
+  favoritesCount: number;
   savedComboCount: number;
   onOpenSavedCombos: () => void;
 }
@@ -23,7 +25,7 @@ export default function HomeScreen({
   comboCount, onOpenCombo,
   searchQuery, onSearchChange, searchResults, onSearchSelect,
   gooseConnected, pendingStop,
-  onOpenRecent, onOpenCommon,
+  onOpenRecent, onOpenCommon, onOpenFavorites, favoritesCount,
   savedComboCount, onOpenSavedCombos,
 }: Props) {
   const showResults = searchQuery.trim().length > 0;
@@ -122,6 +124,14 @@ export default function HomeScreen({
               >
                 COMMON
               </button>
+              {favoritesCount > 0 && (
+                <button
+                  onClick={onOpenFavorites}
+                  className="w-full py-3 bg-indigo-700 hover:bg-indigo-600 text-white font-bold text-base rounded-xl active:scale-95 transition-transform"
+                >
+                  FAVORITES ({favoritesCount})
+                </button>
+              )}
               {savedComboCount > 0 && (
                 <button
                   onClick={onOpenSavedCombos}

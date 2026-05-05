@@ -20,6 +20,7 @@ type Screen =
   | { type: 'home' }
   | { type: 'common' }
   | { type: 'recent' }
+  | { type: 'favorites' }
   | { type: 'bodyPart'; modality: string }
   | { type: 'protocol'; modality: string; bodyPart: string }
   | { type: 'leaf'; entry: CptEntry; cpt: string; aeTitle?: string }
@@ -31,6 +32,11 @@ export interface SelectedExam {
   cpt: string;
   entry: CptEntry;
   bilateral: boolean;
+}
+
+export interface FavoriteEntry {
+  cpt: string;
+  aeTitle: string;
 }
 
 export interface RecentEntry {
@@ -81,6 +87,18 @@ function saveSavedCombos(combos: SavedCombo[]) {
   localStorage.setItem(COMBO_KEY, JSON.stringify(combos));
 }
 
+const FAVORITES_KEY = 'sidecar_favorites';
+
+function loadFavorites(): FavoriteEntry[] {
+  try {
+    return JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+  } catch { return []; }
+}
+
+function saveFavorites(entries: FavoriteEntry[]) {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(entries));
+}
+
 export default function SidecarMain({ gooseConnected, testMode = false }: Props) {
   const { currentUser } = useAuth();
   const [screen, setScreen] = useState<Screen>({ type: 'home' });
@@ -91,6 +109,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const [sending, setSending] = useState(false);
   const [recentEntries, setRecentEntries] = useState<RecentEntry[]>(loadRecent);
   const [savedCombos, setSavedCombos] = useState<SavedCombo[]>(loadSavedCombos);
+  const [favorites, setFavorites] = useState<FavoriteEntry[]>(loadFavorites);
   const [gpciValues, setGpciValues] = useState<GpciValues | null>(null);
   const [systemName, setSystemName] = useState<string | null>(null);
   const [chargemaster, setChargemaster] = useState<ChargemasterEntry[] | null>(null);
@@ -266,6 +285,28 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     });
   }, []);
 
+  const handleAddFavorite = useCallback((cpt: string, aeTitle: string) => {
+    setFavorites(prev => {
+      const next = [{ cpt, aeTitle }, ...prev.filter(f => f.cpt !== cpt)];
+      saveFavorites(next);
+      return next;
+    });
+  }, []);
+
+  const handleRemoveFavorite = useCallback((cpt: string) => {
+    setFavorites(prev => {
+      const next = prev.filter(f => f.cpt !== cpt);
+      saveFavorites(next);
+      return next;
+    });
+  }, []);
+
+  const handleFavoriteSelect = useCallback((fav: FavoriteEntry) => {
+    if (!cptDb) return;
+    const entry = cptDb.entries[fav.cpt];
+    if (entry) setScreen({ type: 'leaf', entry, cpt: fav.cpt, aeTitle: fav.aeTitle });
+  }, [cptDb]);
+
   const chargemasterRef = useRef(chargemaster);
   chargemasterRef.current = chargemaster;
 
@@ -440,6 +481,8 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           pendingStop={pendingStop}
           onOpenRecent={() => setScreen({ type: 'recent' })}
           onOpenCommon={() => setScreen({ type: 'common' })}
+          onOpenFavorites={() => setScreen({ type: 'favorites' })}
+          favoritesCount={favorites.length}
           savedComboCount={savedCombos.length}
           onOpenSavedCombos={() => setScreen({ type: 'savedCombos' })}
         />
@@ -468,6 +511,52 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           }}
           onBack={() => setScreen({ type: 'home' })}
         />
+      );
+
+    case 'favorites':
+      return (
+        <div className="min-h-screen bg-gray-900 flex flex-col">
+          <div className="flex-1 p-3 pb-4">
+            <div className="flex items-center mb-4 max-w-sm mx-auto">
+              <button onClick={() => setScreen({ type: 'home' })} className="text-blue-400 hover:text-blue-300 text-sm mr-3">&larr; Back</button>
+              <h1 className="text-lg font-bold text-white">Favorites</h1>
+            </div>
+            {favorites.length === 0 ? (
+              <p className="text-gray-500 text-center text-sm mt-12">No favorites yet. Add exams from the exam detail screen.</p>
+            ) : (
+              <div className="max-w-sm mx-auto space-y-1.5">
+                {favorites.filter(f => cptDb.entries[f.cpt]).map(fav => {
+                  const entry = cptDb.entries[fav.cpt];
+                  return (
+                    <div key={fav.cpt} className="flex items-stretch gap-1.5">
+                      <button
+                        onClick={() => handleFavoriteSelect(fav)}
+                        className="flex-1 text-left p-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
+                      >
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: '#6366f1', color: 'white' }}>
+                            {entry.modality}
+                          </span>
+                          <span className="text-gray-400 text-xs">{fav.cpt}</span>
+                          <span className="text-gray-500 text-xs ml-auto">{entry.bodyPart}</span>
+                        </div>
+                        <p className="text-white text-sm font-medium">{fav.aeTitle}</p>
+                        <p className="text-gray-500 text-xs mt-0.5">{entry.description}</p>
+                      </button>
+                      <button
+                        onClick={() => handleRemoveFavorite(fav.cpt)}
+                        className="px-2.5 bg-gray-800 hover:bg-red-900/50 rounded-lg text-gray-500 hover:text-red-400 text-lg transition-colors"
+                        title="Remove from favorites"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       );
 
     case 'savedCombos':
@@ -573,6 +662,8 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           onAdd={(bilateral) => {
             handleAddExam(screen.cpt, screen.entry, bilateral);
           }}
+          onAddFavorite={handleAddFavorite}
+          isFavorite={favorites.some(f => f.cpt === screen.cpt)}
           onBack={() => {
             const mod = screen.entry.modality;
             const bp = screen.entry.bodyPart;

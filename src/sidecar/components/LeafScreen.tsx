@@ -12,12 +12,16 @@ interface Props {
   aeTitle?: string;
   onStart: (bilateral: boolean) => void;
   onAdd: (bilateral: boolean) => void;
+  onAddFavorite?: (cpt: string, aeTitle: string) => void;
+  isFavorite?: boolean;
   onBack: () => void;
   disabled?: boolean;
 }
 
-export default function LeafScreen({ cpt, entry, entries, gpci, aeTitle, onStart, onAdd, onBack, disabled }: Props) {
+export default function LeafScreen({ cpt, entry, entries, gpci, aeTitle, onStart, onAdd, onAddFavorite, isFavorite, onBack, disabled }: Props) {
   const [bilateral, setBilateral] = useState(false);
+  const [showFavDialog, setShowFavDialog] = useState(false);
+  const [favName, setFavName] = useState('');
 
   const baseRvu = gpci ? adjustedWorkRvu(entry, gpci) : (entry.workRvu ?? entry.pcRvu);
   const displayRvu = bilateral
@@ -82,7 +86,50 @@ export default function LeafScreen({ cpt, entry, entries, gpci, aeTitle, onStart
             >
               ADD TO COMBO
             </button>
+            {onAddFavorite && !isFavorite && (
+              <button
+                onClick={() => { setFavName(aeTitle || ''); setShowFavDialog(true); }}
+                className="w-full py-2.5 bg-indigo-800 hover:bg-indigo-700 active:bg-indigo-600 text-indigo-200 font-semibold text-sm rounded-xl transition-colors"
+              >
+                ADD TO FAVORITES
+              </button>
+            )}
+            {isFavorite && (
+              <div className="text-center text-indigo-400 text-xs py-1">In Favorites</div>
+            )}
           </div>
+
+          {/* Favorite name dialog */}
+          {showFavDialog && (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+              <div className="bg-gray-800 rounded-xl p-4 w-full max-w-sm space-y-3">
+                <h3 className="text-white font-bold text-sm">Name this favorite</h3>
+                <input
+                  type="text"
+                  value={favName}
+                  onChange={e => setFavName(e.target.value)}
+                  placeholder="e.g., CT Chest PE Protocol"
+                  autoFocus
+                  className="w-full px-3 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500 text-sm"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowFavDialog(false)}
+                    className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => { if (favName.trim()) { onAddFavorite!(cpt, favName.trim()); setShowFavDialog(false); } }}
+                    disabled={!favName.trim()}
+                    className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-600 text-white font-semibold rounded-lg text-sm"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
