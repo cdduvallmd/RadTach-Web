@@ -99,6 +99,11 @@ export const firestoreService = {
     await batch.commit();
   },
 
+  async saveFavorites(userId: string, favorites: Array<{ cpt: string; aeTitle: string }>) {
+    const docRef = doc(db, 'users', userId, 'settings', 'current');
+    await updateDoc(docRef, { favorites });
+  },
+
   async getUserSettings(userId: string): Promise<Record<string, any> | null> {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
     const docSnap = await getDoc(docRef);

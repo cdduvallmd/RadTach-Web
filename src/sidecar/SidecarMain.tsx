@@ -87,17 +87,7 @@ function saveSavedCombos(combos: SavedCombo[]) {
   localStorage.setItem(COMBO_KEY, JSON.stringify(combos));
 }
 
-const FAVORITES_KEY = 'sidecar_favorites';
-
-function loadFavorites(): FavoriteEntry[] {
-  try {
-    return JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
-  } catch { return []; }
-}
-
-function saveFavorites(entries: FavoriteEntry[]) {
-  localStorage.setItem(FAVORITES_KEY, JSON.stringify(entries));
-}
+// Favorites are loaded from Firestore user settings on mount
 
 export default function SidecarMain({ gooseConnected, testMode = false }: Props) {
   const { currentUser } = useAuth();
@@ -109,7 +99,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const [sending, setSending] = useState(false);
   const [recentEntries, setRecentEntries] = useState<RecentEntry[]>(loadRecent);
   const [savedCombos, setSavedCombos] = useState<SavedCombo[]>(loadSavedCombos);
-  const [favorites, setFavorites] = useState<FavoriteEntry[]>(loadFavorites);
+  const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
   const [gpciValues, setGpciValues] = useState<GpciValues | null>(null);
   const [systemName, setSystemName] = useState<string | null>(null);
   const [chargemaster, setChargemaster] = useState<ChargemasterEntry[] | null>(null);
@@ -137,7 +127,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     }
   }, [cptDb, chargemaster]);
 
-  // Load GPCI values and system name from user settings
+  // Load GPCI values, system name, and favorites from user settings
   useEffect(() => {
     if (!currentUser) return;
     firestoreService.getUserSettings(currentUser.uid).then(settings => {
@@ -149,6 +139,9 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       }
       if (typeof settings?.currentSystem === 'string' && settings.currentSystem) {
         setSystemName(settings.currentSystem);
+      }
+      if (Array.isArray(settings?.favorites)) {
+        setFavorites(settings.favorites as FavoriteEntry[]);
       }
     }).catch(console.error);
   }, [currentUser]);
@@ -288,18 +281,18 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const handleAddFavorite = useCallback((cpt: string, aeTitle: string) => {
     setFavorites(prev => {
       const next = [{ cpt, aeTitle }, ...prev.filter(f => f.cpt !== cpt)];
-      saveFavorites(next);
+      if (currentUser) firestoreService.saveFavorites(currentUser.uid, next).catch(console.error);
       return next;
     });
-  }, []);
+  }, [currentUser]);
 
   const handleRemoveFavorite = useCallback((cpt: string) => {
     setFavorites(prev => {
       const next = prev.filter(f => f.cpt !== cpt);
-      saveFavorites(next);
+      if (currentUser) firestoreService.saveFavorites(currentUser.uid, next).catch(console.error);
       return next;
     });
-  }, []);
+  }, [currentUser]);
 
   const handleFavoriteSelect = useCallback((fav: FavoriteEntry) => {
     if (!cptDb) return;
