@@ -144,7 +144,22 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
         setFavorites(settings.favorites as FavoriteEntry[]);
       }
       if (Array.isArray(settings?.sidecarCombos)) {
-        setSavedCombos(settings.sidecarCombos as SavedCombo[]);
+        // Merge Firestore combos with any localStorage-only combos (one-time migration)
+        const firestoreCombos = settings.sidecarCombos as SavedCombo[];
+        const localCombos = loadSavedCombos();
+        const key = (c: SavedCombo) => [...c.cpts].sort().join(',');
+        const seen = new Set<string>();
+        const merged: SavedCombo[] = [];
+        for (const c of [...firestoreCombos, ...localCombos]) {
+          const k = key(c);
+          if (!seen.has(k)) { seen.add(k); merged.push(c); }
+        }
+        setSavedCombos(merged);
+        saveSavedCombos(merged); // update localStorage
+        if (merged.length > firestoreCombos.length) {
+          // Local had combos Firestore didn't — push merged set back
+          firestoreService.saveSidecarCombos(currentUser.uid, merged).catch(console.error);
+        }
       }
     }).catch(console.error);
   }, [currentUser]);
