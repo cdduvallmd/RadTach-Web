@@ -155,7 +155,7 @@ export default function ITQuarterlySection({ system, dateRange }: ITQuarterlySec
                 <tr key={ws.workstation}>
                   <td style={{ padding: '6px 8px', color: '#d1d5db' }}>{ws.workstation}</td>
                   <td style={{ padding: '6px 8px', color: '#ef4444', textAlign: 'right', fontWeight: 700 }}>{ws.healthScore.toFixed(0)}</td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgBottom5.toFixed(1)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgBottom5.toFixed(2)}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.sessionCount}</td>
                 </tr>
               ))}
@@ -187,7 +187,7 @@ export default function ITQuarterlySection({ system, dateRange }: ITQuarterlySec
                   <td style={{ padding: '6px 8px', color: ws.healthScore >= 90 ? '#22c55e' : ws.healthScore >= 70 ? '#f59e0b' : '#ef4444', textAlign: 'right' }}>
                     {ws.healthScore.toFixed(0)}
                   </td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgBottom5.toFixed(1)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgBottom5.toFixed(2)}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.sessionCount}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.daysActive}</td>
                 </tr>

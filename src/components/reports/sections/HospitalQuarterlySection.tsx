@@ -93,7 +93,7 @@ export default function HospitalQuarterlySection({ system, dateRange }: Hospital
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Quarterly RVU</div>
-          <div className="text-2xl font-bold text-white">{quarterTotals.totalRVU.toFixed(1)}</div>
+          <div className="text-2xl font-bold text-white">{quarterTotals.totalRVU.toFixed(2)}</div>
         </div>
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Annual Pace</div>
@@ -106,7 +106,7 @@ export default function HospitalQuarterlySection({ system, dateRange }: Hospital
         </div>
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Session Hours</div>
-          <div className="text-2xl font-bold text-white">{quarterTotals.totalSessionHours.toFixed(1)}</div>
+          <div className="text-2xl font-bold text-white">{quarterTotals.totalSessionHours.toFixed(2)}</div>
         </div>
       </div>
 
@@ -130,7 +130,7 @@ export default function HospitalQuarterlySection({ system, dateRange }: Hospital
               {monthlyBreakdown.map(m => (
                 <tr key={m.month}>
                   <td style={{ padding: '6px 8px', color: '#d1d5db' }}>{m.month}</td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{m.totalRVU.toFixed(1)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{m.totalRVU.toFixed(2)}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{m.totalStudies}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{m.sessions}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{m.days}</td>
@@ -162,7 +162,7 @@ export default function HospitalQuarterlySection({ system, dateRange }: Hospital
                   <tr key={mod}>
                     <td style={{ padding: '6px 8px', color: '#d1d5db' }}>{mod}</td>
                     <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.studies}</td>
-                    <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.rvu.toFixed(1)}</td>
+                    <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.rvu.toFixed(2)}</td>
                   </tr>
                 ))}
             </tbody>

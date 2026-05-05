@@ -85,7 +85,7 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
 
   const formatDelta = (value: number, suffix = '') => {
     const sign = value > 0 ? '+' : '';
-    return `${sign}${value.toFixed(1)}${suffix}`;
+    return `${sign}${value.toFixed(2)}${suffix}`;
   };
 
   return (
@@ -134,9 +134,9 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
             {[
               { label: 'Sessions', value: String(summary.totalSessions), delta: delta?.sessionsDelta },
               { label: 'Total Studies', value: String(summary.totalStudies), delta: delta?.studiesDelta },
-              { label: 'Total RVU', value: summary.totalRVU.toFixed(1), delta: delta?.rvuDelta },
-              ...(summary.sessionsWithVerifiedRVU > 0 ? [{ label: 'Verified RVU', value: summary.totalVerifiedRVU.toFixed(1), delta: undefined as number | undefined }] : []),
-              { label: 'Avg RVU/hr', value: summary.avgRVUPerHour.toFixed(1), delta: delta?.rvuPerHourDelta, pctChange: delta?.rvuPerHourPctChange },
+              { label: 'Total RVU', value: summary.totalRVU.toFixed(2), delta: delta?.rvuDelta },
+              ...(summary.sessionsWithVerifiedRVU > 0 ? [{ label: 'Verified RVU', value: summary.totalVerifiedRVU.toFixed(2), delta: undefined as number | undefined }] : []),
+              { label: 'Avg RVU/hr', value: summary.avgRVUPerHour.toFixed(2), delta: delta?.rvuPerHourDelta, pctChange: delta?.rvuPerHourPctChange },
             ].map(card => (
               <div key={card.label} className="bg-gray-800 rounded-lg p-4 text-center">
                 <div className="text-gray-400 text-xs mb-1">{card.label}</div>
@@ -165,7 +165,7 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
             </div>
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Productive Ratio</div>
-              <div className="text-2xl font-bold text-white">{(summary.avgProductiveRatio * 100).toFixed(1)}%</div>
+              <div className="text-2xl font-bold text-white">{(summary.avgProductiveRatio * 100).toFixed(2)}%</div>
               {delta && priorSummary && (
                 <div className={`text-xs mt-1 ${delta.productiveRatioDelta > 0 ? 'text-green-400' : delta.productiveRatioDelta < 0 ? 'text-red-400' : 'text-gray-500'}`}>
                   {formatDelta(delta.productiveRatioDelta * 100, '%')} vs Q{priorQuarter}
@@ -174,7 +174,7 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
             </div>
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Avg Breaks/Session</div>
-              <div className="text-2xl font-bold text-white">{summary.avgBreaksPerSession.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-white">{summary.avgBreaksPerSession.toFixed(2)}</div>
             </div>
           </div>
 
@@ -188,7 +188,7 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
                   const height = (m.avgRVUPerHour / maxRVU) * 100;
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center">
-                      <div className="text-xs text-gray-400 mb-1">{m.avgRVUPerHour.toFixed(1)}</div>
+                      <div className="text-xs text-gray-400 mb-1">{m.avgRVUPerHour.toFixed(2)}</div>
                       <div
                         className="w-full rounded-t"
                         style={{ height: `${height}%`, backgroundColor: '#3b82f6', minHeight: 4 }}
@@ -210,14 +210,14 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
                 {personalBests.bestSession && (
                   <div className="bg-gray-700 rounded-lg p-3 text-center">
                     <div className="text-gray-400 text-xs">Best Session RVU/hr</div>
-                    <div className="text-xl font-bold text-green-400">{personalBests.bestSession.rvuPerHour.toFixed(1)}</div>
+                    <div className="text-xl font-bold text-green-400">{personalBests.bestSession.rvuPerHour.toFixed(2)}</div>
                     <div className="text-xs text-gray-500">{personalBests.bestSession.studies} studies</div>
                   </div>
                 )}
                 {personalBests.bestWeek && (
                   <div className="bg-gray-700 rounded-lg p-3 text-center">
                     <div className="text-gray-400 text-xs">Best Week RVU/hr</div>
-                    <div className="text-xl font-bold text-green-400">{personalBests.bestWeek.avgRVUPerHour.toFixed(1)}</div>
+                    <div className="text-xl font-bold text-green-400">{personalBests.bestWeek.avgRVUPerHour.toFixed(2)}</div>
                     <div className="text-xs text-gray-500">Week of {personalBests.bestWeek.weekLabel}</div>
                   </div>
                 )}
@@ -228,7 +228,7 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
                 </div>
                 <div className="bg-gray-700 rounded-lg p-3 text-center">
                   <div className="text-gray-400 text-xs">Total RVU</div>
-                  <div className="text-xl font-bold text-white">{summary.totalRVU.toFixed(1)}</div>
+                  <div className="text-xl font-bold text-white">{summary.totalRVU.toFixed(2)}</div>
                   <div className="text-xs text-gray-500">this quarter</div>
                 </div>
               </div>
@@ -255,7 +255,7 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
                       <tr key={mod} className="border-b border-gray-800 text-gray-300">
                         <td className="py-2">{mod}</td>
                         <td className="py-2 text-right">{count}</td>
-                        <td className="py-2 text-right">{(summary.rvuPerHourByModality[mod] || 0).toFixed(1)}</td>
+                        <td className="py-2 text-right">{(summary.rvuPerHourByModality[mod] || 0).toFixed(2)}</td>
                         <td className={`py-2 text-right ${(summary.avgVarianceByModality[mod] || 0) <= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {Math.round(summary.avgVarianceByModality[mod] || 0)}s
                         </td>
@@ -286,7 +286,7 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
                       <tr key={rot} className="border-b border-gray-800 text-gray-300">
                         <td className="py-2">{rot}</td>
                         <td className="py-2 text-right">{count}</td>
-                        <td className="py-2 text-right">{(summary.rvuPerHourByRotation[rot] || 0).toFixed(1)}</td>
+                        <td className="py-2 text-right">{(summary.rvuPerHourByRotation[rot] || 0).toFixed(2)}</td>
                         <td className={`py-2 text-right ${(summary.avgVarianceByRotation[rot] || 0) <= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {Math.round(summary.avgVarianceByRotation[rot] || 0)}s
                         </td>
@@ -315,7 +315,7 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
                   <div
                     key={t.label}
                     style={{ width: `${pct}%`, backgroundColor: t.color }}
-                    title={`${t.label}: ${formatTime(t.value)} (${pct.toFixed(1)}%)`}
+                    title={`${t.label}: ${formatTime(t.value)} (${pct.toFixed(2)}%)`}
                   />
                 );
               })}
@@ -349,7 +349,7 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
                 label="Productive Ratio"
                 userValue={summary.avgProductiveRatio}
                 distribution={garAvg.productiveRatio}
-                formatValue={(v) => `${(v * 100).toFixed(1)}%`}
+                formatValue={(v) => `${(v * 100).toFixed(2)}%`}
               />
             </div>
           ) : (

@@ -217,7 +217,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
                 <span className="text-gray-500 mx-2">|</span>
                 <span className="text-gray-400">Achieved: </span>
                 <span className={`font-medium ${ds.achievedRvuPerHour >= ds.targetRvuPerHour ? 'text-green-400' : 'text-yellow-400'}`}>
-                  {ds.achievedRvuPerHour.toFixed(1)} RVU/hr
+                  {ds.achievedRvuPerHour.toFixed(2)} RVU/hr
                 </span>
               </div>
             );
@@ -260,12 +260,12 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
               </div>
               <div className="bg-gray-700/50 rounded-lg p-3 text-center">
                 <div className="text-gray-400 text-xs mb-1">Total RVU</div>
-                <div className="text-xl font-bold text-white">{sessionData.totalRVU.toFixed(1)}</div>
+                <div className="text-xl font-bold text-white">{sessionData.totalRVU.toFixed(2)}</div>
               </div>
               {sessionData.verifiedRVU != null && (
                 <div className="bg-gray-700/50 rounded-lg p-3 text-center">
                   <div className="text-gray-400 text-xs mb-1">Verified RVU</div>
-                  <div className="text-xl font-bold text-green-400">{sessionData.verifiedRVU.toFixed(1)}</div>
+                  <div className="text-xl font-bold text-green-400">{sessionData.verifiedRVU.toFixed(2)}</div>
                 </div>
               )}
               <div className="bg-gray-700/50 rounded-lg p-3 text-center">
@@ -284,7 +284,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
         <div className="rvu-disclaimer mt-4 p-3 bg-yellow-900/30 border border-yellow-700/50 rounded text-xs text-yellow-200">
           {sessionData.verifiedRVU != null ? (
             <>
-              <strong>RadTach RVU: {sessionData.totalRVU.toFixed(1)} | Verified RVU: {sessionData.verifiedRVU.toFixed(1)}</strong> (from Epic/Medicalis). RadTach RVU values are estimates based on modality and complication selections. Use for trend analysis and relative comparison only.
+              <strong>RadTach RVU: {sessionData.totalRVU.toFixed(2)} | Verified RVU: {sessionData.verifiedRVU.toFixed(2)}</strong> (from Epic/Medicalis). RadTach RVU values are estimates based on modality and complication selections. Use for trend analysis and relative comparison only.
             </>
           ) : (
             <>
@@ -386,7 +386,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
           `#${s.studyNumber} ${s.modality}${s.complications.length ? ` (${s.complications.join(', ')})` : ''}`,
           `Elapsed: ${formatMinSec(s.elapsedTime)} / Par: ${formatMinSec(s.parTime)}`,
           `Variance: ${formatMinSec(s.variance)}`,
-          `RVU: ${s.rvu.toFixed(1)}`,
+          `RVU: ${s.rvu.toFixed(2)}`,
           s.pauseUsed ? 'Pause: Yes' : '',
           s.swapped ? 'Swapped' : '',
         ].filter(Boolean),
@@ -554,7 +554,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
         <div className="flex gap-4">
           {renderPie('Studies', studyData, (v) => `${v} studies`)}
           {renderPie('Time', timeData, (v) => formatTime(v))}
-          {renderPie('RVU', rvuData, (v) => `${v.toFixed(1)} RVU`)}
+          {renderPie('RVU', rvuData, (v) => `${v.toFixed(2)} RVU`)}
         </div>
         <div className="flex flex-wrap justify-center gap-4 mt-3 text-xs text-gray-400">
           {studyData.map((d, i) => (
@@ -679,7 +679,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
                 <div className="w-3 h-3 rounded" style={{ backgroundColor: d.color }} />
                 <span className="text-gray-300">{d.name}:</span>
                 <span className="text-white font-medium">{formatTime(d.value)}</span>
-                <span className="text-gray-500">({total > 0 ? ((d.value / total) * 100).toFixed(1) : 0}%)</span>
+                <span className="text-gray-500">({total > 0 ? ((d.value / total) * 100).toFixed(2) : 0}%)</span>
               </div>
             ))}
           </div>
@@ -776,7 +776,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
     if (mods.length === 0) return null;
     const totalDT = Object.values(doubleTapsByModality).reduce((a, b) => a + b, 0);
     if (totalDT === 0) return (<div className="report-section"><h3 className="text-lg font-semibold text-white mb-3">7E. Double Tap Rate</h3><p className="text-gray-500 text-sm">No double taps recorded</p></div>);
-    const rows = mods.map(mod => ({ modality: mod, studies: studiesByModality[mod] || 0, doubleTaps: doubleTapsByModality[mod] || 0, rate: (studiesByModality[mod] || 0) > 0 ? ((doubleTapsByModality[mod] || 0) / studiesByModality[mod] * 100).toFixed(1) : '0.0' }));
+    const rows = mods.map(mod => ({ modality: mod, studies: studiesByModality[mod] || 0, doubleTaps: doubleTapsByModality[mod] || 0, rate: (studiesByModality[mod] || 0) > 0 ? ((doubleTapsByModality[mod] || 0) / studiesByModality[mod] * 100).toFixed(2) : '0.0' }));
     return (
       <div className="report-section">
         <h3 className="text-lg font-semibold text-white mb-3">7E. Double Tap Rate by Modality</h3>
@@ -827,7 +827,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
     return (
       <div className="report-section">
         <h3 className="text-lg font-semibold text-white mb-3">7H. Productive Time Ratio</h3>
-        <div className="text-center py-4"><div className="text-6xl font-bold text-white">{(summary.productiveTimeRatio * 100).toFixed(1)}%</div><div className="text-gray-400 text-sm mt-2">(Study + Double Tap) / Total Session Time</div></div>
+        <div className="text-center py-4"><div className="text-6xl font-bold text-white">{(summary.productiveTimeRatio * 100).toFixed(2)}%</div><div className="text-gray-400 text-sm mt-2">(Study + Double Tap) / Total Session Time</div></div>
       </div>
     );
   };
@@ -838,7 +838,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
     return (
       <div className="report-section">
         <h3 className="text-lg font-semibold text-white mb-3">7I. Peak RVU Window (60 min)</h3>
-        <div className="bg-gray-800 rounded-lg p-6 text-center"><div className="text-4xl font-bold text-white">{peakRVUWindow.rvu.toFixed(1)} RVU</div><div className="text-gray-400 text-sm mt-2">Best 60-min window: {peakRVUWindow.startMinute}min - {peakRVUWindow.endMinute}min into session</div></div>
+        <div className="bg-gray-800 rounded-lg p-6 text-center"><div className="text-4xl font-bold text-white">{peakRVUWindow.rvu.toFixed(2)} RVU</div><div className="text-gray-400 text-sm mt-2">Best 60-min window: {peakRVUWindow.startMinute}min - {peakRVUWindow.endMinute}min into session</div></div>
       </div>
     );
   };

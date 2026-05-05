@@ -138,7 +138,7 @@ export default function PresidentWeeklySection({ system, dateRange }: PresidentW
         </div>
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Group RVU</div>
-          <div className="text-2xl font-bold text-white">{groupTotals.totalRVU.toFixed(1)}</div>
+          <div className="text-2xl font-bold text-white">{groupTotals.totalRVU.toFixed(2)}</div>
         </div>
       </div>
 
@@ -148,10 +148,10 @@ export default function PresidentWeeklySection({ system, dateRange }: PresidentW
         columns={[
           { key: 'sessions', label: 'Sessions' },
           { key: 'studies', label: 'Studies' },
-          { key: 'totalRVU', label: 'RVU', format: (v: number) => v.toFixed(1) },
+          { key: 'totalRVU', label: 'RVU', format: (v: number) => v.toFixed(2) },
           {
             key: 'rvuPerHour', label: 'RVU/hr',
-            format: (v: number) => v.toFixed(1),
+            format: (v: number) => v.toFixed(2),
             colorFn: (v: number) => v >= 4 ? '#22c55e' : v >= 3 ? '#3b82f6' : v >= 2 ? '#f59e0b' : '#ef4444',
           },
           {

@@ -134,8 +134,8 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
                           <td className="py-1.5 pr-3">{dateStr} {timeStr}</td>
                           <td className="py-1.5 pr-3">{s.system}{s.workstationId ? ` / ${s.workstationId}` : ''}</td>
                           <td className="py-1.5 pr-3 text-right text-white">{s.studiesCompleted}</td>
-                          <td className="py-1.5 pr-3 text-right text-white">{s.totalRVU.toFixed(1)}</td>
-                          <td className="py-1.5 text-right text-white">{s.verifiedRVU != null ? s.verifiedRVU.toFixed(1) : '—'}</td>
+                          <td className="py-1.5 pr-3 text-right text-white">{s.totalRVU.toFixed(2)}</td>
+                          <td className="py-1.5 text-right text-white">{s.verifiedRVU != null ? s.verifiedRVU.toFixed(2) : '—'}</td>
                         </tr>
                       );
                     })}
@@ -156,17 +156,17 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
             </div>
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Total RVU</div>
-              <div className="text-2xl font-bold text-white">{summary.totalRVU.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-white">{summary.totalRVU.toFixed(2)}</div>
             </div>
             {summary.sessionsWithVerifiedRVU > 0 && (
               <div className="bg-gray-800 rounded-lg p-4 text-center">
                 <div className="text-gray-400 text-xs mb-1">Verified RVU</div>
-                <div className="text-2xl font-bold text-green-400">{summary.totalVerifiedRVU.toFixed(1)}</div>
+                <div className="text-2xl font-bold text-green-400">{summary.totalVerifiedRVU.toFixed(2)}</div>
               </div>
             )}
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Avg RVU/hr</div>
-              <div className="text-2xl font-bold text-white">{summary.avgRVUPerHour.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-white">{summary.avgRVUPerHour.toFixed(2)}</div>
             </div>
           </div>
 
@@ -179,11 +179,11 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
             </div>
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Productive Ratio</div>
-              <div className="text-2xl font-bold text-white">{(summary.avgProductiveRatio * 100).toFixed(1)}%</div>
+              <div className="text-2xl font-bold text-white">{(summary.avgProductiveRatio * 100).toFixed(2)}%</div>
             </div>
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Avg Breaks/Session</div>
-              <div className="text-2xl font-bold text-white">{summary.avgBreaksPerSession.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-white">{summary.avgBreaksPerSession.toFixed(2)}</div>
             </div>
           </div>
 
@@ -205,7 +205,7 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
                   <div
                     key={t.label}
                     style={{ width: `${pct}%`, backgroundColor: t.color }}
-                    title={`${t.label}: ${formatTime(t.value)} (${pct.toFixed(1)}%)`}
+                    title={`${t.label}: ${formatTime(t.value)} (${pct.toFixed(2)}%)`}
                   />
                 );
               })}
@@ -291,7 +291,7 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
                   <div className="text-gray-400 text-xs">RVU/hr</div>
-                  <div className="text-xl font-bold text-green-400">{summary.bestSession.rvuPerHour.toFixed(1)}</div>
+                  <div className="text-xl font-bold text-green-400">{summary.bestSession.rvuPerHour.toFixed(2)}</div>
                 </div>
                 <div>
                   <div className="text-gray-400 text-xs">Studies</div>
@@ -299,7 +299,7 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
                 </div>
                 <div>
                   <div className="text-gray-400 text-xs">Productive %</div>
-                  <div className="text-xl font-bold text-white">{(summary.bestSession.productiveRatio * 100).toFixed(1)}%</div>
+                  <div className="text-xl font-bold text-white">{(summary.bestSession.productiveRatio * 100).toFixed(2)}%</div>
                 </div>
               </div>
             </div>
@@ -318,7 +318,7 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
                       key={i}
                       className="flex-1 rounded-t"
                       style={{ height: `${height}%`, backgroundColor: '#3b82f6', minWidth: 4 }}
-                      title={`${dp.rvuPerHour.toFixed(1)} RVU/hr`}
+                      title={`${dp.rvuPerHour.toFixed(2)} RVU/hr`}
                     />
                   );
                 })}
@@ -338,7 +338,7 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
                 label="Productive Ratio"
                 userValue={summary.avgProductiveRatio}
                 distribution={garAvg.productiveRatio}
-                formatValue={(v) => `${(v * 100).toFixed(1)}%`}
+                formatValue={(v) => `${(v * 100).toFixed(2)}%`}
               />
             </div>
           ) : (

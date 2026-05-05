@@ -80,8 +80,8 @@ export default function HospitalMonthlySection({ system, dateRange }: HospitalMo
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Monthly RVU</div>
-          <div className="text-2xl font-bold text-white">{monthTotals.totalRVU.toFixed(1)}</div>
-          <div className="text-xs text-gray-500">{monthTotals.avgRVUPerDay.toFixed(1)} avg/day</div>
+          <div className="text-2xl font-bold text-white">{monthTotals.totalRVU.toFixed(2)}</div>
+          <div className="text-xs text-gray-500">{monthTotals.avgRVUPerDay.toFixed(2)} avg/day</div>
         </div>
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Total Studies</div>
@@ -141,9 +141,9 @@ export default function HospitalMonthlySection({ system, dateRange }: HospitalMo
                   <tr key={mod}>
                     <td style={{ padding: '6px 8px', color: '#d1d5db' }}>{mod}</td>
                     <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.studies}</td>
-                    <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.rvu.toFixed(1)}</td>
+                    <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.rvu.toFixed(2)}</td>
                     <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>
-                      {monthTotals.totalStudies > 0 ? ((data.studies / monthTotals.totalStudies) * 100).toFixed(1) : 0}%
+                      {monthTotals.totalStudies > 0 ? ((data.studies / monthTotals.totalStudies) * 100).toFixed(2) : 0}%
                     </td>
                   </tr>
                 ))}
@@ -160,19 +160,19 @@ export default function HospitalMonthlySection({ system, dateRange }: HospitalMo
         <div className="grid grid-cols-4 gap-4 text-center">
           <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
             <div style={{ color: '#9ca3af', fontSize: 11 }}>Session</div>
-            <div style={{ color: 'white', fontSize: 18, fontWeight: 700 }}>{monthTotals.totalSessionHours.toFixed(1)}</div>
+            <div style={{ color: 'white', fontSize: 18, fontWeight: 700 }}>{monthTotals.totalSessionHours.toFixed(2)}</div>
           </div>
           <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
             <div style={{ color: '#9ca3af', fontSize: 11 }}>Break</div>
-            <div style={{ color: '#ec4899', fontSize: 18, fontWeight: 700 }}>{monthTotals.totalBreakHours.toFixed(1)}</div>
+            <div style={{ color: '#ec4899', fontSize: 18, fontWeight: 700 }}>{monthTotals.totalBreakHours.toFixed(2)}</div>
           </div>
           <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
             <div style={{ color: '#9ca3af', fontSize: 11 }}>Admin</div>
-            <div style={{ color: '#f97316', fontSize: 18, fontWeight: 700 }}>{monthTotals.totalAdminHours.toFixed(1)}</div>
+            <div style={{ color: '#f97316', fontSize: 18, fontWeight: 700 }}>{monthTotals.totalAdminHours.toFixed(2)}</div>
           </div>
           <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
             <div style={{ color: '#9ca3af', fontSize: 11 }}>Comms</div>
-            <div style={{ color: '#06b6d4', fontSize: 18, fontWeight: 700 }}>{monthTotals.totalCommsHours.toFixed(1)}</div>
+            <div style={{ color: '#06b6d4', fontSize: 18, fontWeight: 700 }}>{monthTotals.totalCommsHours.toFixed(2)}</div>
           </div>
         </div>
       </div>
@@ -191,7 +191,7 @@ export default function HospitalMonthlySection({ system, dateRange }: HospitalMo
             <div>
               <div style={{ color: '#fca5a5', fontSize: 11 }}>% Sessions Affected</div>
               <div style={{ color: '#ef4444', fontSize: 24, fontWeight: 700 }}>
-                {monthTotals.sessionCount > 0 ? ((networkCount / monthTotals.sessionCount) * 100).toFixed(1) : 0}%
+                {monthTotals.sessionCount > 0 ? ((networkCount / monthTotals.sessionCount) * 100).toFixed(2) : 0}%
               </div>
             </div>
           </div>

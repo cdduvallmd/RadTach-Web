@@ -141,8 +141,8 @@ export default function ITMonthlySection({ system, dateRange }: ITMonthlySection
                   <td style={{ padding: '6px 8px', color: ws.healthScore >= 90 ? '#22c55e' : ws.healthScore >= 70 ? '#f59e0b' : '#ef4444', textAlign: 'right' }}>
                     {ws.healthScore.toFixed(0)}
                   </td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgBottom5.toFixed(1)}</td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgFloor.toFixed(1)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgBottom5.toFixed(2)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgFloor.toFixed(2)}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.sessionCount}</td>
                 </tr>
               ))}

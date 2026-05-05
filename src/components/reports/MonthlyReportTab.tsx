@@ -125,17 +125,17 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
             </div>
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Total RVU</div>
-              <div className="text-2xl font-bold text-white">{summary.totalRVU.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-white">{summary.totalRVU.toFixed(2)}</div>
             </div>
             {summary.sessionsWithVerifiedRVU > 0 && (
               <div className="bg-gray-800 rounded-lg p-4 text-center">
                 <div className="text-gray-400 text-xs mb-1">Verified RVU</div>
-                <div className="text-2xl font-bold text-green-400">{summary.totalVerifiedRVU.toFixed(1)}</div>
+                <div className="text-2xl font-bold text-green-400">{summary.totalVerifiedRVU.toFixed(2)}</div>
               </div>
             )}
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Avg RVU/hr</div>
-              <div className="text-2xl font-bold text-white">{summary.avgRVUPerHour.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-white">{summary.avgRVUPerHour.toFixed(2)}</div>
             </div>
           </div>
 
@@ -148,7 +148,7 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
             </div>
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Productive Ratio</div>
-              <div className="text-2xl font-bold text-white">{(summary.avgProductiveRatio * 100).toFixed(1)}%</div>
+              <div className="text-2xl font-bold text-white">{(summary.avgProductiveRatio * 100).toFixed(2)}%</div>
             </div>
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Avg Interstitial/Study</div>
@@ -166,7 +166,7 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
                   const height = (w.avgRVUPerHour / maxRVU) * 100;
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center">
-                      <div className="text-xs text-gray-400 mb-1">{w.avgRVUPerHour.toFixed(1)}</div>
+                      <div className="text-xs text-gray-400 mb-1">{w.avgRVUPerHour.toFixed(2)}</div>
                       <div
                         className="w-full rounded-t"
                         style={{ height: `${height}%`, backgroundColor: '#3b82f6', minHeight: 4 }}
@@ -192,7 +192,7 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
                       <div className="text-gray-400 font-medium">{day.slice(0, 3)}</div>
                       <div className="text-white font-bold mt-1">{sessions}</div>
                       <div className="text-gray-500">sessions</div>
-                      {rvuHr > 0 && <div className="text-blue-400 mt-1">{rvuHr.toFixed(1)} RVU/hr</div>}
+                      {rvuHr > 0 && <div className="text-blue-400 mt-1">{rvuHr.toFixed(2)} RVU/hr</div>}
                     </div>
                   );
                 })}
@@ -220,7 +220,7 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
                       <tr key={rot} className="border-b border-gray-800 text-gray-300">
                         <td className="py-2">{rot}</td>
                         <td className="py-2 text-right">{count}</td>
-                        <td className="py-2 text-right">{(summary.rvuPerHourByRotation[rot] || 0).toFixed(1)}</td>
+                        <td className="py-2 text-right">{(summary.rvuPerHourByRotation[rot] || 0).toFixed(2)}</td>
                         <td className={`py-2 text-right ${(summary.avgVarianceByRotation[rot] || 0) <= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {Math.round(summary.avgVarianceByRotation[rot] || 0)}s
                         </td>
@@ -251,7 +251,7 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
                       <tr key={mod} className="border-b border-gray-800 text-gray-300">
                         <td className="py-2">{mod}</td>
                         <td className="py-2 text-right">{count}</td>
-                        <td className="py-2 text-right">{(summary.rvuPerHourByModality[mod] || 0).toFixed(1)}</td>
+                        <td className="py-2 text-right">{(summary.rvuPerHourByModality[mod] || 0).toFixed(2)}</td>
                         <td className={`py-2 text-right ${(summary.avgVarianceByModality[mod] || 0) <= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {Math.round(summary.avgVarianceByModality[mod] || 0)}s
                         </td>
@@ -309,7 +309,7 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
                       <tr key={tag} className="border-b border-gray-800 text-gray-300">
                         <td className="py-2">{tag}</td>
                         <td className="py-2 text-right">{data.sessionCount}</td>
-                        <td className="py-2 text-right">{data.avgRVUPerHour.toFixed(1)}</td>
+                        <td className="py-2 text-right">{data.avgRVUPerHour.toFixed(2)}</td>
                         <td className={`py-2 text-right ${data.avgVariance <= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {Math.round(data.avgVariance)}s
                         </td>
@@ -338,7 +338,7 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
                   <div
                     key={t.label}
                     style={{ width: `${pct}%`, backgroundColor: t.color }}
-                    title={`${t.label}: ${formatTime(t.value)} (${pct.toFixed(1)}%)`}
+                    title={`${t.label}: ${formatTime(t.value)} (${pct.toFixed(2)}%)`}
                   />
                 );
               })}
@@ -367,7 +367,7 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
                   <div className="text-gray-400 text-xs">RVU/hr</div>
-                  <div className="text-xl font-bold text-green-400">{summary.bestSession.rvuPerHour.toFixed(1)}</div>
+                  <div className="text-xl font-bold text-green-400">{summary.bestSession.rvuPerHour.toFixed(2)}</div>
                 </div>
                 <div>
                   <div className="text-gray-400 text-xs">Studies</div>
@@ -375,7 +375,7 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
                 </div>
                 <div>
                   <div className="text-gray-400 text-xs">Productive %</div>
-                  <div className="text-xl font-bold text-white">{(summary.bestSession.productiveRatio * 100).toFixed(1)}%</div>
+                  <div className="text-xl font-bold text-white">{(summary.bestSession.productiveRatio * 100).toFixed(2)}%</div>
                 </div>
               </div>
             </div>
@@ -393,7 +393,7 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
                 label="Productive Ratio"
                 userValue={summary.avgProductiveRatio}
                 distribution={garAvg.productiveRatio}
-                formatValue={(v) => `${(v * 100).toFixed(1)}%`}
+                formatValue={(v) => `${(v * 100).toFixed(2)}%`}
               />
               {/* Weekly percentile trend (unique to monthly) */}
               {weeklyPercentileTrend && weeklyPercentileTrend.length > 1 && (

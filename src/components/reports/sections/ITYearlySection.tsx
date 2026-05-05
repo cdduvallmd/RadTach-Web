@@ -179,7 +179,7 @@ export default function ITYearlySection({ system, dateRange }: ITYearlySectionPr
                   <td style={{ padding: '6px 8px', color: '#d1d5db' }}>{ws.workstation}</td>
                   <td style={{ padding: '6px 8px', color: '#ef4444', textAlign: 'right', fontWeight: 700 }}>{ws.healthScore.toFixed(0)}</td>
                   <td style={{ padding: '6px 8px', color: '#ef4444', textAlign: 'right' }}>Degrading</td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgBottom5.toFixed(1)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgBottom5.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -215,7 +215,7 @@ export default function ITYearlySection({ system, dateRange }: ITYearlySectionPr
                       {ws.healthScore.toFixed(0)}
                     </td>
                     <td style={{ padding: '6px 8px', color: trendColor, textAlign: 'right' }}>{trendLabel}</td>
-                    <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgBottom5.toFixed(1)}</td>
+                    <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgBottom5.toFixed(2)}</td>
                     <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.sessionCount}</td>
                     <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.monthsActive}</td>
                   </tr>

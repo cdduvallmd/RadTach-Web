@@ -125,7 +125,7 @@ export default function PresidentMonthlySection({ system, dateRange }: President
     return userMetrics.map(u => {
       return allModalities.map(mod => ({
         value: u.rvuPerHourByModality[mod] || 0,
-        label: `${u.name} / ${mod}: ${(u.rvuPerHourByModality[mod] || 0).toFixed(1)} RVU/hr`,
+        label: `${u.name} / ${mod}: ${(u.rvuPerHourByModality[mod] || 0).toFixed(2)} RVU/hr`,
       }));
     });
   }, [userMetrics, allModalities]);
@@ -179,8 +179,8 @@ export default function PresidentMonthlySection({ system, dateRange }: President
         columns={[
           { key: 'sessions', label: 'Sessions' },
           { key: 'studies', label: 'Studies' },
-          { key: 'totalRVU', label: 'RVU', format: (v: number) => v.toFixed(1) },
-          { key: 'rvuPerHour', label: 'RVU/hr', format: (v: number) => v.toFixed(1), colorFn: (v: number) => v >= 4 ? '#22c55e' : v >= 3 ? '#3b82f6' : v >= 2 ? '#f59e0b' : '#ef4444' },
+          { key: 'totalRVU', label: 'RVU', format: (v: number) => v.toFixed(2) },
+          { key: 'rvuPerHour', label: 'RVU/hr', format: (v: number) => v.toFixed(2), colorFn: (v: number) => v >= 4 ? '#22c55e' : v >= 3 ? '#3b82f6' : v >= 2 ? '#f59e0b' : '#ef4444' },
           { key: 'avgVariance', label: 'Avg Var', format: (v: number) => `${v > 0 ? '+' : ''}${Math.round(v)}s`, colorFn: (v: number) => v <= 0 ? '#22c55e' : '#ef4444' },
           { key: 'productiveRatio', label: 'Prod %', format: (v: number) => `${(v * 100).toFixed(0)}%` },
           { key: 'breakEvents', label: 'Breaks' },
@@ -240,7 +240,7 @@ export default function PresidentMonthlySection({ system, dateRange }: President
                   <td style={{ padding: '6px 8px', color: '#d1d5db' }}>{r.rotation}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.sessions}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.radiologists}</td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.rvuPerHour.toFixed(1)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.rvuPerHour.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -260,7 +260,7 @@ export default function PresidentMonthlySection({ system, dateRange }: President
               const height = (g.rvuPerHour.median / max) * 100;
               return (
                 <div key={i} className="flex-1 flex flex-col items-center">
-                  <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 2 }}>{g.rvuPerHour.median.toFixed(1)}</div>
+                  <div style={{ fontSize: 9, color: '#9ca3af', marginBottom: 2 }}>{g.rvuPerHour.median.toFixed(2)}</div>
                   <div style={{ width: '100%', borderRadius: '4px 4px 0 0', height: `${height}%`, backgroundColor: '#7c3aed', minHeight: 4 }} />
                   <div style={{ fontSize: 9, color: '#6b7280', marginTop: 2 }}>{g.date.slice(5)}</div>
                 </div>

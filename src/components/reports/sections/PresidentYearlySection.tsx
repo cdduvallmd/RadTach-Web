@@ -158,8 +158,8 @@ export default function PresidentYearlySection({ system, dateRange }: PresidentY
         columns={[
           { key: 'sessions', label: 'Sessions' },
           { key: 'studies', label: 'Studies' },
-          { key: 'totalRVU', label: 'RVU', format: (v: number) => v.toFixed(1) },
-          { key: 'rvuPerHour', label: 'RVU/hr', format: (v: number) => v.toFixed(1), colorFn: (v: number) => v >= 4 ? '#22c55e' : v >= 3 ? '#3b82f6' : v >= 2 ? '#f59e0b' : '#ef4444' },
+          { key: 'totalRVU', label: 'RVU', format: (v: number) => v.toFixed(2) },
+          { key: 'rvuPerHour', label: 'RVU/hr', format: (v: number) => v.toFixed(2), colorFn: (v: number) => v >= 4 ? '#22c55e' : v >= 3 ? '#3b82f6' : v >= 2 ? '#f59e0b' : '#ef4444' },
           { key: 'avgVariance', label: 'Avg Var', format: (v: number) => `${v > 0 ? '+' : ''}${Math.round(v)}s`, colorFn: (v: number) => v <= 0 ? '#22c55e' : '#ef4444' },
           { key: 'productiveRatio', label: 'Prod %', format: (v: number) => `${(v * 100).toFixed(0)}%` },
           { key: 'monthsActive', label: 'Months' },
@@ -221,8 +221,8 @@ export default function PresidentYearlySection({ system, dateRange }: PresidentY
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.sessions}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.radiologists}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.studies}</td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.rvuPerHour.toFixed(1)}</td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.totalRVU.toFixed(1)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.rvuPerHour.toFixed(2)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.totalRVU.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -251,7 +251,7 @@ export default function PresidentYearlySection({ system, dateRange }: PresidentY
             </div>
             <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
               <div style={{ color: '#9ca3af', fontSize: 11 }}>Avg Months Active</div>
-              <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{workforceStability.avgMonthsActive.toFixed(1)}</div>
+              <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{workforceStability.avgMonthsActive.toFixed(2)}</div>
               <div style={{ color: '#6b7280', fontSize: 10 }}>of {workforceStability.totalMonths}</div>
             </div>
           </div>
@@ -272,7 +272,7 @@ export default function PresidentYearlySection({ system, dateRange }: PresidentY
             <div>
               <div style={{ color: '#fca5a5', fontSize: 11 }}>Affected Sessions</div>
               <div style={{ color: '#ef4444', fontSize: 24, fontWeight: 700 }}>
-                {((networkInterference.affectedSessions / networkInterference.totalSessions) * 100).toFixed(1)}%
+                {((networkInterference.affectedSessions / networkInterference.totalSessions) * 100).toFixed(2)}%
               </div>
             </div>
             <div>

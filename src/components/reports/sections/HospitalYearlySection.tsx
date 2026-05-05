@@ -90,7 +90,7 @@ export default function HospitalYearlySection({ system, dateRange }: HospitalYea
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Annual RVU</div>
-          <div className="text-2xl font-bold text-white">{yearTotals.totalRVU.toFixed(1)}</div>
+          <div className="text-2xl font-bold text-white">{yearTotals.totalRVU.toFixed(2)}</div>
         </div>
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Annual Studies</div>
@@ -102,7 +102,7 @@ export default function HospitalYearlySection({ system, dateRange }: HospitalYea
         </div>
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Session Hours</div>
-          <div className="text-2xl font-bold text-white">{yearTotals.totalSessionHours.toFixed(1)}</div>
+          <div className="text-2xl font-bold text-white">{yearTotals.totalSessionHours.toFixed(2)}</div>
         </div>
       </div>
 
@@ -150,9 +150,9 @@ export default function HospitalYearlySection({ system, dateRange }: HospitalYea
                   <tr key={mod}>
                     <td style={{ padding: '6px 8px', color: '#d1d5db' }}>{mod}</td>
                     <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.studies}</td>
-                    <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.rvu.toFixed(1)}</td>
+                    <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.rvu.toFixed(2)}</td>
                     <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>
-                      {yearTotals.totalStudies > 0 ? ((data.studies / yearTotals.totalStudies) * 100).toFixed(1) : 0}%
+                      {yearTotals.totalStudies > 0 ? ((data.studies / yearTotals.totalStudies) * 100).toFixed(2) : 0}%
                     </td>
                   </tr>
                 ))}
@@ -175,7 +175,7 @@ export default function HospitalYearlySection({ system, dateRange }: HospitalYea
             <div>
               <div style={{ color: '#fca5a5', fontSize: 11 }}>% Sessions Affected</div>
               <div style={{ color: '#ef4444', fontSize: 24, fontWeight: 700 }}>
-                {yearTotals.sessionCount > 0 ? ((networkCount / yearTotals.sessionCount) * 100).toFixed(1) : 0}%
+                {yearTotals.sessionCount > 0 ? ((networkCount / yearTotals.sessionCount) * 100).toFixed(2) : 0}%
               </div>
             </div>
             <div>

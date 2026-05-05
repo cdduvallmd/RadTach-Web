@@ -17,7 +17,7 @@ export default function GARPercentileGauge({
   label,
   userValue,
   distribution,
-  formatValue = (v) => v.toFixed(1),
+  formatValue = (v) => v.toFixed(2),
   higherIsBetter = true,
 }: GARPercentileGaugeProps) {
   const pctile = estimatePercentile(userValue, distribution);

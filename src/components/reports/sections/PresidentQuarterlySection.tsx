@@ -151,11 +151,11 @@ export default function PresidentQuarterlySection({ system, dateRange }: Preside
         <RadiologistTable
           title="Radiologist Growth (Month 1 → Month 3)"
           columns={[
-            { key: 'firstMonthRVUPerHour', label: 'M1 RVU/hr', format: (v: number) => v.toFixed(1) },
-            { key: 'lastMonthRVUPerHour', label: 'M3 RVU/hr', format: (v: number) => v.toFixed(1) },
-            { key: 'delta', label: 'Change', format: (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}`, colorFn: (v: number) => v > 0 ? '#22c55e' : v < 0 ? '#ef4444' : '#9ca3af' },
+            { key: 'firstMonthRVUPerHour', label: 'M1 RVU/hr', format: (v: number) => v.toFixed(2) },
+            { key: 'lastMonthRVUPerHour', label: 'M3 RVU/hr', format: (v: number) => v.toFixed(2) },
+            { key: 'delta', label: 'Change', format: (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(2)}`, colorFn: (v: number) => v > 0 ? '#22c55e' : v < 0 ? '#ef4444' : '#9ca3af' },
             { key: 'totalSessions', label: 'Sessions' },
-            { key: 'totalRVU', label: 'Total RVU', format: (v: number) => v.toFixed(1) },
+            { key: 'totalRVU', label: 'Total RVU', format: (v: number) => v.toFixed(2) },
           ]}
           rows={userGrowth.map(u => ({
             id: u.id, name: u.name, firstMonthRVUPerHour: u.firstMonthRVUPerHour,
@@ -190,8 +190,8 @@ export default function PresidentQuarterlySection({ system, dateRange }: Preside
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.sessions}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.radiologists}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.studies}</td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.rvuPerHour.toFixed(1)}</td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.totalRVU.toFixed(1)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.rvuPerHour.toFixed(2)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.totalRVU.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>

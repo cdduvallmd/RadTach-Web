@@ -19,7 +19,7 @@ interface BoxPlotChartProps {
 export default function BoxPlotChart({
   title,
   items,
-  formatValue = (v) => v.toFixed(1),
+  formatValue = (v) => v.toFixed(2),
   highlightLabel = 'You',
 }: BoxPlotChartProps) {
   if (items.length === 0) return null;

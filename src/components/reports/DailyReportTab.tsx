@@ -178,8 +178,8 @@ export default function DailyReportTab({ userId, userSystem, formatTime, role = 
                             </td>
                             <td className="py-1.5 pr-3">{s.rotation || '—'}</td>
                             <td className="py-1.5 pr-3 text-right text-white">{s.studiesCompleted}</td>
-                            <td className="py-1.5 pr-3 text-right text-white">{s.totalRVU.toFixed(1)}</td>
-                            <td className="py-1.5 pr-3 text-right text-white">{rvuHr.toFixed(1)}</td>
+                            <td className="py-1.5 pr-3 text-right text-white">{s.totalRVU.toFixed(2)}</td>
+                            <td className="py-1.5 pr-3 text-right text-white">{rvuHr.toFixed(2)}</td>
                             <td className="py-1.5 text-right text-white">{formatTime(s.totalSessionTime)}</td>
                           </tr>
                         );
@@ -221,7 +221,7 @@ export default function DailyReportTab({ userId, userSystem, formatTime, role = 
                   label="Productive Ratio"
                   userValue={periodSummary.avgProductiveRatio}
                   distribution={garAvg.productiveRatio}
-                  formatValue={v => `${(v * 100).toFixed(1)}%`}
+                  formatValue={v => `${(v * 100).toFixed(2)}%`}
                 />
               </div>
             </div>

@@ -209,7 +209,7 @@ export default function GroupComparisonTab({ userSystem }: GroupComparisonTabPro
             </div>
             <div className="bg-gray-800 rounded-lg p-4 text-center">
               <div className="text-gray-400 text-xs mb-1">Group RVU</div>
-              <div className="text-2xl font-bold text-white">{groupTotals.totalRVU.toFixed(1)}</div>
+              <div className="text-2xl font-bold text-white">{groupTotals.totalRVU.toFixed(2)}</div>
             </div>
           </div>
 
@@ -219,8 +219,8 @@ export default function GroupComparisonTab({ userSystem }: GroupComparisonTabPro
             columns={[
               { key: 'sessions', label: 'Sessions' },
               { key: 'studies', label: 'Studies' },
-              { key: 'totalRVU', label: 'RVU', format: (v: number) => v.toFixed(1) },
-              { key: 'rvuPerHour', label: 'RVU/hr', format: (v: number) => v.toFixed(1), colorFn: (v: number) => v >= 4 ? '#22c55e' : v >= 3 ? '#3b82f6' : v >= 2 ? '#f59e0b' : '#ef4444' },
+              { key: 'totalRVU', label: 'RVU', format: (v: number) => v.toFixed(2) },
+              { key: 'rvuPerHour', label: 'RVU/hr', format: (v: number) => v.toFixed(2), colorFn: (v: number) => v >= 4 ? '#22c55e' : v >= 3 ? '#3b82f6' : v >= 2 ? '#f59e0b' : '#ef4444' },
               { key: 'avgVariance', label: 'Avg Var', format: (v: number) => `${v > 0 ? '+' : ''}${Math.round(v)}s`, colorFn: (v: number) => v <= 0 ? '#22c55e' : '#ef4444' },
               { key: 'productiveRatio', label: 'Prod %', format: (v: number) => `${(v * 100).toFixed(0)}%` },
             ]}
@@ -265,8 +265,8 @@ export default function GroupComparisonTab({ userSystem }: GroupComparisonTabPro
                       <td style={{ padding: '6px 8px', color: '#d1d5db' }}>{r.rotation}</td>
                       <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.sessions}</td>
                       <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.radiologists}</td>
-                      <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.rvuPerHour.toFixed(1)}</td>
-                      <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.totalRVU.toFixed(1)}</td>
+                      <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.rvuPerHour.toFixed(2)}</td>
+                      <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{r.totalRVU.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>

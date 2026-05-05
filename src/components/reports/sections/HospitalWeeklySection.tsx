@@ -72,7 +72,7 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Total RVU</div>
-          <div className="text-2xl font-bold text-white">{weekTotals.totalRVU.toFixed(1)}</div>
+          <div className="text-2xl font-bold text-white">{weekTotals.totalRVU.toFixed(2)}</div>
         </div>
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Total Studies</div>
@@ -110,9 +110,9 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
                   <tr key={mod}>
                     <td style={{ padding: '6px 8px', color: '#d1d5db' }}>{mod}</td>
                     <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.studies}</td>
-                    <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.rvu.toFixed(1)}</td>
+                    <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{data.rvu.toFixed(2)}</td>
                     <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>
-                      {weekTotals.totalStudies > 0 ? ((data.studies / weekTotals.totalStudies) * 100).toFixed(1) : 0}%
+                      {weekTotals.totalStudies > 0 ? ((data.studies / weekTotals.totalStudies) * 100).toFixed(2) : 0}%
                     </td>
                   </tr>
                 ))}
@@ -129,15 +129,15 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
         <div className="grid grid-cols-3 gap-4 text-center">
           <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
             <div style={{ color: '#9ca3af', fontSize: 11 }}>Session Hours</div>
-            <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalSessionHours.toFixed(1)}</div>
+            <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalSessionHours.toFixed(2)}</div>
           </div>
           <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
             <div style={{ color: '#9ca3af', fontSize: 11 }}>Break Hours</div>
-            <div style={{ color: '#ec4899', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalBreakHours.toFixed(1)}</div>
+            <div style={{ color: '#ec4899', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalBreakHours.toFixed(2)}</div>
           </div>
           <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
             <div style={{ color: '#9ca3af', fontSize: 11 }}>Admin Hours</div>
-            <div style={{ color: '#f97316', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalAdminHours.toFixed(1)}</div>
+            <div style={{ color: '#f97316', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalAdminHours.toFixed(2)}</div>
           </div>
         </div>
       </div>
@@ -153,7 +153,7 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
           </div>
           <div style={{ color: '#fca5a5', fontSize: 12, marginTop: 4 }}>
             {weekTotals.sessionCount > 0
-              ? `${((weekTotals.networkInterference / weekTotals.sessionCount) * 100).toFixed(1)}% of sessions affected`
+              ? `${((weekTotals.networkInterference / weekTotals.sessionCount) * 100).toFixed(2)}% of sessions affected`
               : ''}
           </div>
         </div>

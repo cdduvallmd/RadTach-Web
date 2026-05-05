@@ -105,8 +105,8 @@ export default function ITWeeklySection({ system, dateRange }: ITWeeklySectionPr
                   <td style={{ padding: '6px 8px', color: '#d1d5db' }}>{ws.workstation}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.sessionCount}</td>
                   <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.daysActive}</td>
-                  <td style={{ padding: '6px 8px', color: ws.avgBottom5 > 10 ? '#ef4444' : '#22c55e', textAlign: 'right' }}>{ws.avgBottom5.toFixed(1)}</td>
-                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgFloor.toFixed(1)}</td>
+                  <td style={{ padding: '6px 8px', color: ws.avgBottom5 > 10 ? '#ef4444' : '#22c55e', textAlign: 'right' }}>{ws.avgBottom5.toFixed(2)}</td>
+                  <td style={{ padding: '6px 8px', color: '#d1d5db', textAlign: 'right' }}>{ws.avgFloor.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>

@@ -32,7 +32,7 @@ export default function HeatmapChart({
   colLabels,
   data,
   colorScale = defaultColorScale,
-  formatValue = (v) => v > 0 ? v.toFixed(1) : '',
+  formatValue = (v) => v > 0 ? v.toFixed(2) : '',
   emptyColor = '#1f2937',
 }: HeatmapChartProps) {
   if (rowLabels.length === 0 || colLabels.length === 0) {
