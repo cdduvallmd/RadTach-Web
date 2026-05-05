@@ -104,6 +104,11 @@ export const firestoreService = {
     await updateDoc(docRef, { favorites });
   },
 
+  async saveSidecarCombos(userId: string, combos: Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string }>) {
+    const docRef = doc(db, 'users', userId, 'settings', 'current');
+    await updateDoc(docRef, { sidecarCombos: combos });
+  },
+
   async getUserSettings(userId: string): Promise<Record<string, any> | null> {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
     const docSnap = await getDoc(docRef);

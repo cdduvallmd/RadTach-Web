@@ -98,7 +98,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [recentEntries, setRecentEntries] = useState<RecentEntry[]>(loadRecent);
-  const [savedCombos, setSavedCombos] = useState<SavedCombo[]>(loadSavedCombos);
+  const [savedCombos, setSavedCombos] = useState<SavedCombo[]>(loadSavedCombos); // localStorage as fallback, Firestore is primary
   const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
   const [gpciValues, setGpciValues] = useState<GpciValues | null>(null);
   const [systemName, setSystemName] = useState<string | null>(null);
@@ -142,6 +142,9 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       }
       if (Array.isArray(settings?.favorites)) {
         setFavorites(settings.favorites as FavoriteEntry[]);
+      }
+      if (Array.isArray(settings?.sidecarCombos)) {
+        setSavedCombos(settings.sidecarCombos as SavedCombo[]);
       }
     }).catch(console.error);
   }, [currentUser]);
@@ -205,6 +208,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
         const comboKey = key(combo);
         const next = [combo, ...prev.filter(c => key(c) !== comboKey)];
         saveSavedCombos(next);
+        if (currentUser) firestoreService.saveSidecarCombos(currentUser.uid, next).catch(console.error);
         return next;
       });
     }
