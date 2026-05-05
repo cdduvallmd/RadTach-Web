@@ -2874,7 +2874,7 @@ function RadTachInner() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Total RVU</span>
-                  <span className="text-white">{preview.reconstructed.totalRVU.toFixed(1)}</span>
+                  <span className="text-white">{preview.reconstructed.totalRVU.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Session Time</span>
@@ -2951,7 +2951,7 @@ function RadTachInner() {
                       </div>
                       <div className="flex justify-between text-xs text-gray-300">
                         <span>{session.studiesCompleted ?? 0} studies</span>
-                        <span>{typeof session.totalRVU === 'number' ? session.totalRVU.toFixed(1) : '0.0'} RVU</span>
+                        <span>{typeof session.totalRVU === 'number' ? session.totalRVU.toFixed(2) : '0.00'} RVU</span>
                       </div>
                     </div>
                   ))}
@@ -4221,7 +4221,7 @@ function RadTachInner() {
             <h2 className="text-2xl font-bold text-white mb-4">Session Complete</h2>
             <p className="text-gray-400 text-sm mb-6">
               Session: {localSessionKeyRef.current || generateSessionId()}<br />
-              Studies: {studiesCompleted} | RVU: {totalRVU.toFixed(1)} | Time: {formatTime(sessionTime)}
+              Studies: {studiesCompleted} | RVU: {totalRVU.toFixed(2)} | Time: {formatTime(sessionTime)}
             </p>
 
             {/* Session Notes */}
@@ -4578,7 +4578,7 @@ function RadTachInner() {
                 </div>
               </div>
               <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : 'text-purple-400'}`}>
-                {isHoveringRVU ? rollingRVU.toFixed(1) : rvuPerHour.toFixed(1)}
+                {isHoveringRVU ? rollingRVU.toFixed(2) : rvuPerHour.toFixed(2)}
               </div>
             </div>
           </div>
@@ -4671,7 +4671,7 @@ function RadTachInner() {
                 <div className="text-sm text-gray-400">Total RVU</div>
               </div>
               <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : 'text-green-400'}`}>
-                {totalRVU.toFixed(1)}
+                {totalRVU.toFixed(2)}
               </div>
             </div>
           </div>
