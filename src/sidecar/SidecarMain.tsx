@@ -87,7 +87,17 @@ function saveSavedCombos(combos: SavedCombo[]) {
   localStorage.setItem(COMBO_KEY, JSON.stringify(combos));
 }
 
-// Favorites are loaded from Firestore user settings on mount
+const FAVORITES_KEY = 'sidecar_favorites';
+
+function loadLocalFavorites(): FavoriteEntry[] {
+  try {
+    return JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+  } catch { return []; }
+}
+
+function saveLocalFavorites(entries: FavoriteEntry[]) {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(entries));
+}
 
 export default function SidecarMain({ gooseConnected, testMode = false }: Props) {
   const { currentUser } = useAuth();
@@ -143,29 +153,45 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       if (typeof settings.currentSystem === 'string' && settings.currentSystem) {
         setSystemName(settings.currentSystem);
       }
-      if (Array.isArray(settings.favorites)) {
-        setFavorites(settings.favorites as FavoriteEntry[]);
-      }
-      if (Array.isArray(settings.sidecarCombos)) {
-        if (!settingsMergedRef.current) {
-          // One-time merge: Firestore combos + localStorage-only combos
-          settingsMergedRef.current = true;
-          const firestoreCombos = settings.sidecarCombos as SavedCombo[];
-          const localCombos = loadSavedCombos();
-          const key = (c: SavedCombo) => [...c.cpts].sort().join(',');
-          const seen = new Set<string>();
-          const merged: SavedCombo[] = [];
-          for (const c of [...firestoreCombos, ...localCombos]) {
-            const k = key(c);
-            if (!seen.has(k)) { seen.add(k); merged.push(c); }
-          }
-          setSavedCombos(merged);
-          saveSavedCombos(merged);
-          if (merged.length > firestoreCombos.length) {
-            firestoreService.saveSidecarCombos(currentUser.uid, merged).catch(console.error);
-          }
-        } else {
-          // Subsequent updates: Firestore is source of truth
+      if (!settingsMergedRef.current) {
+        // One-time merge on first snapshot: Firestore + localStorage for both favorites and combos
+        settingsMergedRef.current = true;
+
+        // Favorites merge
+        const firestoreFavs = Array.isArray(settings.favorites) ? settings.favorites as FavoriteEntry[] : [];
+        const localFavs = loadLocalFavorites();
+        const favSeen = new Set<string>();
+        const mergedFavs: FavoriteEntry[] = [];
+        for (const f of [...firestoreFavs, ...localFavs]) {
+          if (!favSeen.has(f.cpt)) { favSeen.add(f.cpt); mergedFavs.push(f); }
+        }
+        setFavorites(mergedFavs);
+        saveLocalFavorites(mergedFavs);
+        if (mergedFavs.length > firestoreFavs.length) {
+          firestoreService.saveFavorites(currentUser.uid, mergedFavs).catch(console.error);
+        }
+
+        // Combos merge
+        const firestoreCombos = Array.isArray(settings.sidecarCombos) ? settings.sidecarCombos as SavedCombo[] : [];
+        const localCombos = loadSavedCombos();
+        const comboKey = (c: SavedCombo) => [...c.cpts].sort().join(',');
+        const comboSeen = new Set<string>();
+        const mergedCombos: SavedCombo[] = [];
+        for (const c of [...firestoreCombos, ...localCombos]) {
+          const k = comboKey(c);
+          if (!comboSeen.has(k)) { comboSeen.add(k); mergedCombos.push(c); }
+        }
+        setSavedCombos(mergedCombos);
+        saveSavedCombos(mergedCombos);
+        if (mergedCombos.length > firestoreCombos.length) {
+          firestoreService.saveSidecarCombos(currentUser.uid, mergedCombos).catch(console.error);
+        }
+      } else {
+        // Subsequent updates: Firestore is source of truth
+        if (Array.isArray(settings.favorites)) {
+          setFavorites(settings.favorites as FavoriteEntry[]);
+        }
+        if (Array.isArray(settings.sidecarCombos)) {
           setSavedCombos(settings.sidecarCombos as SavedCombo[]);
         }
       }
@@ -309,6 +335,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const handleAddFavorite = useCallback((cpt: string, aeTitle: string) => {
     setFavorites(prev => {
       const next = [{ cpt, aeTitle }, ...prev.filter(f => f.cpt !== cpt)];
+      saveLocalFavorites(next);
       if (currentUser) firestoreService.saveFavorites(currentUser.uid, next).catch(console.error);
       return next;
     });
@@ -317,6 +344,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const handleRemoveFavorite = useCallback((cpt: string) => {
     setFavorites(prev => {
       const next = prev.filter(f => f.cpt !== cpt);
+      saveLocalFavorites(next);
       if (currentUser) firestoreService.saveFavorites(currentUser.uid, next).catch(console.error);
       return next;
     });
