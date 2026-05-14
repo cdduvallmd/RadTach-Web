@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { CptEntry } from '../../types/cpt';
 import type { SelectedExam } from '../SidecarMain';
 import type { GpciValues } from '../../utils/gpciLookup';
@@ -12,11 +13,12 @@ interface Props {
   onRemove: (index: number) => void;
   onAddSameModality: () => void;
   onAddDifferentModality: () => void;
-  onStart: () => void;
+  onStart: (userTitle?: string) => void;
   disabled?: boolean;
 }
 
 export default function ComboBuilder({ exams, entries, gpci, aeTitle, comboModality, onRemove, onAddSameModality, onAddDifferentModality, onStart, disabled }: Props) {
+  const [userTitle, setUserTitle] = useState('');
   const effectiveCpts = exams.map(e => {
     if (e.bilateral) {
       return getBilateralRvu(entries, e.cpt, gpci).cpt;
@@ -84,10 +86,23 @@ export default function ComboBuilder({ exams, entries, gpci, aeTitle, comboModal
           </div>
         </div>
 
+        {/* Combo title (user-built only, not chargemaster) */}
+        {!aeTitle && exams.length > 1 && (
+          <div className="px-3 py-2">
+            <input
+              type="text"
+              value={userTitle}
+              onChange={e => setUserTitle(e.target.value)}
+              placeholder="Name this combo (optional)"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-sm"
+            />
+          </div>
+        )}
+
         {/* Actions */}
         <div className="p-3 space-y-2">
           <button
-            onClick={onStart}
+            onClick={() => onStart(userTitle.trim() || undefined)}
             disabled={disabled}
             className="w-full py-3 bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-600 text-white font-bold text-base rounded-xl transition-colors"
           >

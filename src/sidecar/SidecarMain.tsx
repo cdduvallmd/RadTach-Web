@@ -14,7 +14,8 @@ import LeafScreen from './components/LeafScreen';
 import ComboBuilder from './components/ComboBuilder';
 import ActiveStudy from './components/ActiveStudy';
 import CptListScreen from './components/CptListScreen';
-import { comboColor } from './utils/modalityColors';
+import SavedCombosScreen from './components/SavedCombosScreen';
+// comboColor used in SavedCombosScreen, BodyPartScreen, ProtocolScreen, HomeScreen, CptListScreen
 
 type Screen =
   | { type: 'home' }
@@ -48,6 +49,7 @@ export interface SavedCombo {
   cpts: string[];
   bilateralFlags: boolean[];
   modality: string;
+  aeTitle?: string;
 }
 
 interface Props {
@@ -225,10 +227,11 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     return unsub;
   }, [currentUser]);
 
-  const handleStart = useCallback(async (exams: SelectedExam[], comboAeTitle?: string) => {
+  const handleStart = useCallback(async (exams: SelectedExam[], comboAeTitle?: string, userTitle?: string) => {
     if (exams.length === 0 || sending) return;
-    const examDesc = comboAeTitle
-      ? comboAeTitle
+    const effectiveTitle = comboAeTitle || userTitle;
+    const examDesc = effectiveTitle
+      ? effectiveTitle
       : exams.length === 1
         ? exams[0].entry.description
         : exams.map(e => e.entry.description).join(' + ');
@@ -252,11 +255,15 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
         cpts: exams.map(e => e.cpt),
         bilateralFlags: exams.map(e => e.bilateral),
         modality: exams[0].entry.modality,
+        ...(effectiveTitle ? { aeTitle: effectiveTitle } : {}),
       };
       setSavedCombos(prev => {
         const key = (c: SavedCombo) => [...c.cpts].sort().join(',');
         const comboKey = key(combo);
-        const next = [combo, ...prev.filter(c => key(c) !== comboKey)];
+        // Preserve existing aeTitle if user didn't provide a new one
+        const existing = prev.find(c => key(c) === comboKey);
+        const merged = { ...combo, aeTitle: combo.aeTitle || existing?.aeTitle };
+        const next = [merged, ...prev.filter(c => key(c) !== comboKey)];
         saveSavedCombos(next);
         if (currentUser) firestoreService.saveSidecarCombos(currentUser.uid, next).catch(console.error);
         return next;
@@ -331,6 +338,15 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       return next;
     });
   }, []);
+
+  const handleRenameCombo = useCallback((index: number, aeTitle: string) => {
+    setSavedCombos(prev => {
+      const next = prev.map((c, i) => i === index ? { ...c, aeTitle: aeTitle || undefined } : c);
+      saveSavedCombos(next);
+      if (currentUser) firestoreService.saveSidecarCombos(currentUser.uid, next).catch(console.error);
+      return next;
+    });
+  }, [currentUser]);
 
   const handleAddFavorite = useCallback((cpt: string, aeTitle: string) => {
     setFavorites(prev => {
@@ -618,46 +634,13 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
 
     case 'savedCombos':
       return (
-        <div className="min-h-screen bg-gray-900 flex flex-col">
-          <div className="flex-1 p-3 pb-4">
-            <div className="flex items-center mb-4 max-w-sm mx-auto">
-              <button onClick={() => setScreen({ type: 'home' })} className="text-blue-400 hover:text-blue-300 text-sm mr-3">&larr; Back</button>
-              <h1 className="text-lg font-bold text-white">Saved Combos</h1>
-            </div>
-            {savedCombos.length === 0 ? (
-              <p className="text-gray-500 text-center text-sm mt-12">No saved combos yet.</p>
-            ) : (
-              <div className="max-w-sm mx-auto space-y-1.5">
-                {savedCombos.filter(c => c.cpts.every(cpt => cptDb.entries[cpt])).map((combo, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleComboRecall(combo)}
-                    className="w-full text-left p-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
-                    style={{ borderLeft: `3px solid ${comboColor(combo.modality)}` }}
-                  >
-                    {combo.cpts.map((cpt, ci) => {
-                      const e = cptDb.entries[cpt];
-                      return (
-                        <div key={cpt} className={ci > 0 ? 'mt-1.5 pt-1.5 border-t border-gray-700' : ''}>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-gray-400 text-xs">{cpt}</span>
-                            {ci === 0 && (
-                              <span className="text-xs font-bold px-1.5 py-0.5 rounded ml-auto"
-                                style={{ backgroundColor: comboColor(combo.modality), color: '#000' }}>
-                                COMBO ({combo.cpts.length})
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-white text-sm">{e?.description ?? cpt}</p>
-                        </div>
-                      );
-                    })}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <SavedCombosScreen
+          combos={savedCombos}
+          entries={cptDb.entries}
+          onSelect={handleComboRecall}
+          onRename={handleRenameCombo}
+          onBack={() => setScreen({ type: 'home' })}
+        />
       );
 
     case 'bodyPart':
@@ -759,7 +742,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
             }
           }}
           onAddDifferentModality={() => setScreen({ type: 'home' })}
-          onStart={() => handleStart(selectedExams, comboAeTitle)}
+          onStart={(userTitle) => handleStart(selectedExams, comboAeTitle, userTitle)}
           disabled={sending}
         />
       );
