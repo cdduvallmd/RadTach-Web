@@ -77,6 +77,9 @@ interface StudyContext {
   targetRvuPerHour?: number;
   drafted: boolean;
   pauseTime: number;
+  accumulatedTime: number; // study time accumulated before ABC interruptions
+  originalStart: number;   // session time when study first started (for startTimeSession)
+  originalStartSystem: string;
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -106,6 +109,9 @@ export function useTimerMode(): UseTimerModeReturn {
   const priorModeBeforeABC = useRef<TimerMode>('interstitial');
   const wasInStudy = useRef<boolean>(false); // was in study when ABC started
   const lastStudyModality = useRef<string | null>(null);
+  // Saved interstitial start time — when ABC interrupts an interstitial, we don't close it.
+  // Instead we save the start time and restore it when ABC ends, producing one spanning event.
+  const savedInterstitialStart = useRef<{ at: number; system: string } | null>(null);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -180,22 +186,29 @@ export function useTimerMode(): UseTimerModeReturn {
     switch (action.type) {
       case 'study_start': {
         if (currentMode === 'idle') break; // Session not started
+        // Study start closes everything — discard any saved interstitial
+        savedInterstitialStart.current = null;
         // Close whatever mode we're in (interstitial, admin, comms)
         closeCurrentMode(sessionTime);
-        // Save study context
-        studyContext.current = {
-          modality: action.modality,
-          complications: action.complications,
-          parTime: action.parTime,
-          studyNumber: action.studyNumber,
-          rvu: action.rvu,
-          cpts: action.cpts,
-          rvuSource: action.rvuSource,
-          rvuDerivedMode: action.rvuDerivedMode,
-          targetRvuPerHour: action.targetRvuPerHour,
-          drafted: false,
-          pauseTime: 0,
-        };
+        // Save study context (or resume from existing context after draft restore)
+        if (!studyContext.current || studyContext.current.modality !== action.modality) {
+          studyContext.current = {
+            modality: action.modality,
+            complications: action.complications,
+            parTime: action.parTime,
+            studyNumber: action.studyNumber,
+            rvu: action.rvu,
+            cpts: action.cpts,
+            rvuSource: action.rvuSource,
+            rvuDerivedMode: action.rvuDerivedMode,
+            targetRvuPerHour: action.targetRvuPerHour,
+            drafted: false,
+            pauseTime: 0,
+            accumulatedTime: 0,
+            originalStart: sessionTime,
+            originalStartSystem: getCurrentISO(),
+          };
+        }
         enterMode('study', sessionTime);
         break;
       }
@@ -205,14 +218,16 @@ export function useTimerMode(): UseTimerModeReturn {
         const ctx = studyContext.current;
         if (!ctx) break;
 
-        const elapsedTime = sessionTime - modeEnteredAt.current;
+        // Total elapsed = accumulated time from before ABC interruptions + current segment
+        const currentSegment = sessionTime - modeEnteredAt.current;
+        const elapsedTime = ctx.accumulatedTime + currentSegment;
         const variance = elapsedTime - ctx.parTime;
 
         const studyEvent: ShadowStudyEvent = {
           type: 'STUDY',
           studyNumber: ctx.studyNumber,
-          startTimeSession: modeEnteredAt.current,
-          startTimeSystem: modeEnteredSystem.current,
+          startTimeSession: ctx.originalStart,
+          startTimeSystem: ctx.originalStartSystem,
           modality: ctx.modality,
           complications: ctx.complications,
           parTime: ctx.parTime,
@@ -271,30 +286,32 @@ export function useTimerMode(): UseTimerModeReturn {
 
       case 'admin_toggle': {
         if (currentMode === 'admin') {
-          // Turning off admin
+          // Turning off admin — emit ADMIN event
           closeCurrentMode(sessionTime);
           if (wasInStudy.current) {
             enterMode('study', sessionTime);
           } else {
-            enterMode('interstitial', sessionTime);
+            // Restore interstitial with original start time (spans the admin interruption)
+            if (savedInterstitialStart.current) {
+              mode.current = 'interstitial';
+              modeEnteredAt.current = savedInterstitialStart.current.at;
+              modeEnteredSystem.current = savedInterstitialStart.current.system;
+              savedInterstitialStart.current = null;
+            } else {
+              enterMode('interstitial', sessionTime);
+            }
           }
           wasInStudy.current = false;
         } else {
           // Turning on admin
           priorModeBeforeABC.current = currentMode;
           wasInStudy.current = currentMode === 'study';
-          if (currentMode !== 'study') {
-            // Close interstitial/other non-study mode
-            closeCurrentMode(sessionTime);
+          if (currentMode === 'interstitial') {
+            savedInterstitialStart.current = { at: modeEnteredAt.current, system: modeEnteredSystem.current };
           }
-          // If in study, don't close it — study event stays open, we track admin time separately
-          // But for the enum system, we transition to admin mode
-          if (currentMode === 'study') {
-            // Study was interrupted — record partial study time as pause
-            // The study will resume when admin ends
-            // Don't emit study event yet — it's still in progress
-          } else {
-            closeCurrentMode(sessionTime);
+          if (currentMode === 'study' && studyContext.current) {
+            // Accumulate study time before this interruption
+            studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
           }
           enterMode('admin', sessionTime);
         }
@@ -307,14 +324,24 @@ export function useTimerMode(): UseTimerModeReturn {
           if (wasInStudy.current) {
             enterMode('study', sessionTime);
           } else {
-            enterMode('interstitial', sessionTime);
+            if (savedInterstitialStart.current) {
+              mode.current = 'interstitial';
+              modeEnteredAt.current = savedInterstitialStart.current.at;
+              modeEnteredSystem.current = savedInterstitialStart.current.system;
+              savedInterstitialStart.current = null;
+            } else {
+              enterMode('interstitial', sessionTime);
+            }
           }
           wasInStudy.current = false;
         } else {
           priorModeBeforeABC.current = currentMode;
           wasInStudy.current = currentMode === 'study';
-          if (currentMode !== 'study') {
-            closeCurrentMode(sessionTime);
+          if (currentMode === 'interstitial') {
+            savedInterstitialStart.current = { at: modeEnteredAt.current, system: modeEnteredSystem.current };
+          }
+          if (currentMode === 'study' && studyContext.current) {
+            studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
           }
           enterMode('comms', sessionTime);
         }
@@ -329,6 +356,8 @@ export function useTimerMode(): UseTimerModeReturn {
         } else {
           priorModeBeforeABC.current = currentMode;
           wasInStudy.current = currentMode === 'study';
+          // Break closes everything — discard any saved interstitial
+          savedInterstitialStart.current = null;
           closeCurrentMode(sessionTime);
           enterMode('break', sessionTime);
         }
@@ -376,6 +405,7 @@ export function useTimerMode(): UseTimerModeReturn {
     studyContext.current = null;
     wasInStudy.current = false;
     lastStudyModality.current = null;
+    savedInterstitialStart.current = null;
   }, []);
 
   const endSession = useCallback((sessionTime: number): ShadowEvent[] => {
@@ -416,6 +446,7 @@ export function useTimerMode(): UseTimerModeReturn {
     studyContext.current = null;
     wasInStudy.current = false;
     lastStudyModality.current = null;
+    savedInterstitialStart.current = null;
   }, []);
 
   const getEvents = useCallback((): ShadowEvent[] => [...events.current], []);
