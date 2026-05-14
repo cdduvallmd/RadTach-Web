@@ -22,6 +22,19 @@ import type { StoredSession, GroupStats, CompositeStats, WorkstationStats } from
 import type { CptDatabase, ChargemasterEntry } from '../types/cpt';
 import type { SidecarCommand } from '../types/sidecar';
 
+// Retry helper for flaky hospital network connections (3 attempts, 1s/2s delays)
+async function _retryUpdate(docRef: ReturnType<typeof doc>, data: Record<string, any>, maxRetries = 3): Promise<void> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await updateDoc(docRef, data);
+      return;
+    } catch (err) {
+      if (attempt === maxRetries) throw err;
+      await new Promise(r => setTimeout(r, attempt * 1000));
+    }
+  }
+}
+
 export const firestoreService = {
   async createUserProfile(userId: string, data: { timezone: string; email: string; firstName: string; lastName: string; credentials?: string }) {
     const userRef = doc(db, 'users', userId);
@@ -101,12 +114,12 @@ export const firestoreService = {
 
   async saveFavorites(userId: string, favorites: Array<{ cpt: string; aeTitle: string }>) {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
-    await updateDoc(docRef, { favorites });
+    await _retryUpdate(docRef, { favorites });
   },
 
   async saveSidecarCombos(userId: string, combos: Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string }>) {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
-    await updateDoc(docRef, { sidecarCombos: combos });
+    await _retryUpdate(docRef, { sidecarCombos: combos });
   },
 
   async getUserSettings(userId: string): Promise<Record<string, any> | null> {
