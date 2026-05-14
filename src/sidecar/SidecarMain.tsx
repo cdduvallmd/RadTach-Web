@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { firestoreService } from '../services/firestore';
-import { listenToCommandDoc, writeStartCommand, writeStopCommand } from './services/sidecarFirestore';
+import { listenToCommandDoc, listenToUserSettings, writeStartCommand, writeStopCommand } from './services/sidecarFirestore';
 import { buildCptTree, type ModalityGroup, type TreeLeaf } from './utils/buildCptTree';
 import { searchCpts, type SearchResult } from './utils/cptSearch';
 import type { CptDatabase, CptEntry, ChargemasterEntry } from '../types/cpt';
@@ -127,41 +127,50 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     }
   }, [cptDb, chargemaster]);
 
-  // Load GPCI values, system name, and favorites from user settings
+  // Listen to user settings via onSnapshot (persistent connection, survives flaky networks)
+  const settingsMergedRef = useRef(false); // one-time combo merge flag
   useEffect(() => {
     if (!currentUser) return;
-    firestoreService.getUserSettings(currentUser.uid).then(settings => {
-      if (settings?.gpciValues && typeof settings.gpciValues === 'object') {
+    settingsMergedRef.current = false;
+    const unsub = listenToUserSettings(currentUser.uid, (settings) => {
+      if (!settings) return;
+      if (settings.gpciValues && typeof settings.gpciValues === 'object') {
         const g = settings.gpciValues as { work?: number; pe?: number; mp?: number; localityName?: string };
         if (typeof g.work === 'number' && typeof g.pe === 'number' && typeof g.mp === 'number') {
           setGpciValues(g as GpciValues);
         }
       }
-      if (typeof settings?.currentSystem === 'string' && settings.currentSystem) {
+      if (typeof settings.currentSystem === 'string' && settings.currentSystem) {
         setSystemName(settings.currentSystem);
       }
-      if (Array.isArray(settings?.favorites)) {
+      if (Array.isArray(settings.favorites)) {
         setFavorites(settings.favorites as FavoriteEntry[]);
       }
-      if (Array.isArray(settings?.sidecarCombos)) {
-        // Merge Firestore combos with any localStorage-only combos (one-time migration)
-        const firestoreCombos = settings.sidecarCombos as SavedCombo[];
-        const localCombos = loadSavedCombos();
-        const key = (c: SavedCombo) => [...c.cpts].sort().join(',');
-        const seen = new Set<string>();
-        const merged: SavedCombo[] = [];
-        for (const c of [...firestoreCombos, ...localCombos]) {
-          const k = key(c);
-          if (!seen.has(k)) { seen.add(k); merged.push(c); }
-        }
-        setSavedCombos(merged);
-        saveSavedCombos(merged); // update localStorage
-        if (merged.length > firestoreCombos.length) {
-          // Local had combos Firestore didn't — push merged set back
-          firestoreService.saveSidecarCombos(currentUser.uid, merged).catch(console.error);
+      if (Array.isArray(settings.sidecarCombos)) {
+        if (!settingsMergedRef.current) {
+          // One-time merge: Firestore combos + localStorage-only combos
+          settingsMergedRef.current = true;
+          const firestoreCombos = settings.sidecarCombos as SavedCombo[];
+          const localCombos = loadSavedCombos();
+          const key = (c: SavedCombo) => [...c.cpts].sort().join(',');
+          const seen = new Set<string>();
+          const merged: SavedCombo[] = [];
+          for (const c of [...firestoreCombos, ...localCombos]) {
+            const k = key(c);
+            if (!seen.has(k)) { seen.add(k); merged.push(c); }
+          }
+          setSavedCombos(merged);
+          saveSavedCombos(merged);
+          if (merged.length > firestoreCombos.length) {
+            firestoreService.saveSidecarCombos(currentUser.uid, merged).catch(console.error);
+          }
+        } else {
+          // Subsequent updates: Firestore is source of truth
+          setSavedCombos(settings.sidecarCombos as SavedCombo[]);
         }
       }
-    }).catch(console.error);
+    });
+    return unsub;
   }, [currentUser]);
 
   // Load chargemaster when system name is available

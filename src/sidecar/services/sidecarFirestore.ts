@@ -39,6 +39,20 @@ export function listenToCommandDoc(
   });
 }
 
+export function listenToUserSettings(
+  uid: string,
+  callback: (settings: Record<string, any> | null) => void,
+  onError?: (err: Error) => void,
+): () => void {
+  const docRef = doc(db, 'users', uid, 'settings', 'current');
+  return onSnapshot(docRef, (snap) => {
+    callback(snap.exists() ? (snap.data() as Record<string, any>) : null);
+  }, (err) => {
+    console.error('User settings listener error:', err);
+    onError?.(err);
+  });
+}
+
 export async function writeStartCommand(
   uid: string,
   cpts: string[],
