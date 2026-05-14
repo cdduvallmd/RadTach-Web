@@ -12,6 +12,7 @@ interface Props {
   onSearchSelect: (result: SearchResult) => void;
   gooseConnected: boolean;
   pendingStop?: boolean;
+  favNames?: Map<string, string>;
   onOpenRecent: () => void;
   onOpenCommon: () => void;
   onOpenFavorites: () => void;
@@ -24,7 +25,7 @@ export default function HomeScreen({
   modalities, onSelectModality,
   comboCount, onOpenCombo,
   searchQuery, onSearchChange, searchResults, onSearchSelect,
-  gooseConnected, pendingStop,
+  gooseConnected, pendingStop, favNames,
   onOpenRecent, onOpenCommon, onOpenFavorites, favoritesCount,
   savedComboCount, onOpenSavedCombos,
 }: Props) {
@@ -100,7 +101,7 @@ export default function HomeScreen({
                     )}
                     <span className="text-gray-500 text-xs ml-auto">{r.entry.bodyPart}</span>
                   </div>
-                  <p className="text-white text-sm">{r.aeTitle ?? r.entry.description}</p>
+                  <p className="text-white text-sm">{r.aeTitle ?? favNames?.get(r.cpt) ?? r.entry.description}</p>
                   {!r.aeTitle && r.entry.variant && (
                     <p className="text-gray-400 text-xs mt-0.5">{r.entry.variant}</p>
                   )}

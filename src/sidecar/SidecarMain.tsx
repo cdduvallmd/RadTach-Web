@@ -356,6 +356,13 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     if (entry) setScreen({ type: 'leaf', entry, cpt: fav.cpt, aeTitle: fav.aeTitle });
   }, [cptDb]);
 
+  // Resolve display name: chargemaster aeTitle > favorite name > undefined (CMS fallback)
+  const favLookup = useRef<Map<string, string>>(new Map());
+  favLookup.current = new Map(favorites.map(f => [f.cpt, f.aeTitle]));
+  const resolveName = useCallback((cpt: string, chargemasterAeTitle?: string): string | undefined => {
+    return chargemasterAeTitle || favLookup.current.get(cpt) || undefined;
+  }, []);
+
   const chargemasterRef = useRef(chargemaster);
   chargemasterRef.current = chargemaster;
 
@@ -395,7 +402,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     } else {
       const entry = cptDb.entries[result.cpt];
       if (entry) {
-        setScreen({ type: 'leaf', entry, cpt: result.cpt, aeTitle: result.aeTitle });
+        setScreen({ type: 'leaf', entry, cpt: result.cpt, aeTitle: resolveName(result.cpt, result.aeTitle) });
       }
     }
   }, [cptDb]);
@@ -405,7 +412,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     if (!cptDb) return;
     if (entry.cpts.length === 1) {
       const e = cptDb.entries[entry.cpts[0]];
-      if (e) setScreen({ type: 'leaf', entry: e, cpt: entry.cpts[0] });
+      if (e) setScreen({ type: 'leaf', entry: e, cpt: entry.cpts[0], aeTitle: resolveName(entry.cpts[0]) });
     } else {
       const exams: SelectedExam[] = entry.cpts
         .map((cpt, i) => {
@@ -452,7 +459,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
         setScreen({ type: 'combo' });
       }
     } else {
-      setScreen({ type: 'leaf', entry: leaf.entry, cpt: leaf.cpt, aeTitle: leaf.aeTitle });
+      setScreen({ type: 'leaf', entry: leaf.entry, cpt: leaf.cpt, aeTitle: resolveName(leaf.cpt, leaf.aeTitle) });
     }
   }, [cptDb]);
 
@@ -512,7 +519,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
             if (group && group.bodyParts.length === 1) {
               const bp = group.bodyParts[0];
               if (bp.isLeaf) {
-                setScreen({ type: 'leaf', entry: bp.leafEntry!.entry, cpt: bp.leafEntry!.cpt });
+                setScreen({ type: 'leaf', entry: bp.leafEntry!.entry, cpt: bp.leafEntry!.cpt, aeTitle: resolveName(bp.leafEntry!.cpt) });
               } else {
                 setScreen({ type: 'protocol', modality: mod, bodyPart: bp.bodyPart });
               }
@@ -528,6 +535,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           onSearchSelect={handleSearchSelect}
           gooseConnected={gooseConnected}
           pendingStop={pendingStop}
+          favNames={favLookup.current}
           onOpenRecent={() => setScreen({ type: 'recent' })}
           onOpenCommon={() => setScreen({ type: 'common' })}
           onOpenFavorites={() => setScreen({ type: 'favorites' })}
@@ -556,7 +564,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           entries={cptDb.entries}
           onSelect={(cpt) => {
             const entry = cptDb.entries[cpt];
-            if (entry) setScreen({ type: 'leaf', entry, cpt });
+            if (entry) setScreen({ type: 'leaf', entry, cpt, aeTitle: resolveName(cpt) });
           }}
           onBack={() => setScreen({ type: 'home' })}
         />
@@ -685,6 +693,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           gpci={gpciValues ?? undefined}
           savedCombos={modalityCombos}
           entries={isSingleBp ? cptDb.entries : undefined}
+          favNames={favLookup.current}
           onSelectLeaf={(leaf: TreeLeaf) => handleLeafSelect(leaf)}
           onSelectCombo={isSingleBp ? handleComboRecall : undefined}
           onBack={() => {

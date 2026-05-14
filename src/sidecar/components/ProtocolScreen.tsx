@@ -12,12 +12,13 @@ interface Props {
   gpci?: GpciValues;
   savedCombos?: SavedCombo[];
   entries?: Record<string, CptEntry>;
+  favNames?: Map<string, string>;
   onSelectLeaf: (leaf: TreeLeaf) => void;
   onSelectCombo?: (combo: SavedCombo) => void;
   onBack: () => void;
 }
 
-export default function ProtocolScreen({ modality, bodyPart, protocols, gpci, savedCombos, entries, onSelectLeaf, onSelectCombo, onBack }: Props) {
+export default function ProtocolScreen({ modality, bodyPart, protocols, gpci, savedCombos, entries, favNames, onSelectLeaf, onSelectCombo, onBack }: Props) {
   const combos = savedCombos?.filter(c => entries && c.cpts.every(cpt => entries[cpt])) ?? [];
 
   return (
@@ -74,8 +75,8 @@ export default function ProtocolScreen({ modality, bodyPart, protocols, gpci, sa
                     className="w-full px-3 py-3 flex items-center justify-between text-left active:bg-gray-800 transition-colors"
                   >
                     <div className="flex-1 mr-3">
-                      <span className="text-white text-sm">{leaf.aeTitle ?? leaf.entry.description}</span>
-                      {!leaf.aeTitle && leaf.entry.variant && (
+                      <span className="text-white text-sm">{leaf.aeTitle ?? favNames?.get(leaf.cpt) ?? leaf.entry.description}</span>
+                      {!leaf.aeTitle && !favNames?.get(leaf.cpt) && leaf.entry.variant && (
                         <span className="text-gray-400 text-xs ml-2">({leaf.entry.variant})</span>
                       )}
                     </div>
