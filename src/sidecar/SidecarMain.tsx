@@ -173,19 +173,25 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           firestoreService.saveFavorites(currentUser.uid, mergedFavs).catch(console.error);
         }
 
-        // Combos merge
+        // Combos merge (named versions win over unnamed)
         const firestoreCombos = Array.isArray(settings.sidecarCombos) ? settings.sidecarCombos as SavedCombo[] : [];
         const localCombos = loadSavedCombos();
         const comboKey = (c: SavedCombo) => [...c.cpts].sort().join(',');
-        const comboSeen = new Set<string>();
-        const mergedCombos: SavedCombo[] = [];
+        const comboMap = new Map<string, SavedCombo>();
         for (const c of [...firestoreCombos, ...localCombos]) {
           const k = comboKey(c);
-          if (!comboSeen.has(k)) { comboSeen.add(k); mergedCombos.push(c); }
+          const existing = comboMap.get(k);
+          if (!existing || (c.aeTitle && !existing.aeTitle)) {
+            comboMap.set(k, c);
+          }
         }
+        const mergedCombos = [...comboMap.values()];
         setSavedCombos(mergedCombos);
         saveSavedCombos(mergedCombos);
-        if (mergedCombos.length > firestoreCombos.length) {
+        const remoteNameMap = new Map(firestoreCombos.map(c => [comboKey(c), c.aeTitle]));
+        const hasNew = mergedCombos.length > firestoreCombos.length;
+        const hasNewNames = mergedCombos.some(c => c.aeTitle && !remoteNameMap.get(comboKey(c)));
+        if (hasNew || hasNewNames) {
           firestoreService.saveSidecarCombos(currentUser.uid, mergedCombos).catch(console.error);
         }
       } else {
@@ -237,19 +243,29 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
         const remoteCombos: SavedCombo[] = Array.isArray(cmd.sidecarCombos) ? cmd.sidecarCombos as SavedCombo[] : [];
         const localCombos = loadSavedCombos();
         const comboKey = (c: SavedCombo) => [...c.cpts].sort().join(',');
-        const comboSeen = new Set<string>();
-        const mergedCombos: SavedCombo[] = [];
+        // Build a map preferring the copy with an aeTitle (named > unnamed)
+        const comboMap = new Map<string, SavedCombo>();
         for (const c of [...remoteCombos, ...localCombos]) {
           const k = comboKey(c);
-          if (!comboSeen.has(k)) { comboSeen.add(k); mergedCombos.push(c); }
+          const existing = comboMap.get(k);
+          if (!existing) {
+            comboMap.set(k, c);
+          } else if (c.aeTitle && !existing.aeTitle) {
+            // Named version wins over unnamed
+            comboMap.set(k, c);
+          }
         }
+        const mergedCombos = [...comboMap.values()];
         setSavedCombos(mergedCombos);
         saveSavedCombos(mergedCombos);
 
-        // If local had items Firestore didn't, send back the merged set
+        // Respond if local contributed new items OR named versions that Firestore didn't have
+        const remoteKeys = new Set(remoteCombos.map(comboKey));
+        const remoteNameMap = new Map(remoteCombos.map(c => [comboKey(c), c.aeTitle]));
+        const hasNewItems = mergedCombos.some(c => !remoteKeys.has(comboKey(c)));
+        const hasNewNames = mergedCombos.some(c => c.aeTitle && !remoteNameMap.get(comboKey(c)));
         const favsChanged = mergedFavs.length > remoteFavs.length;
-        const combosChanged = mergedCombos.length > remoteCombos.length;
-        if (favsChanged || combosChanged) {
+        if (favsChanged || hasNewItems || hasNewNames) {
           writeSyncSettingsResponse(currentUser.uid, mergedFavs, mergedCombos).catch(console.error);
         }
       }
