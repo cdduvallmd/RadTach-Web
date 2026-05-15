@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { firestoreService } from '../services/firestore';
-import { listenToCommandDoc, listenToUserSettings, writeStartCommand, writeStopCommand } from './services/sidecarFirestore';
+import { listenToCommandDoc, listenToUserSettings, writeStartCommand, writeStopCommand, writeSyncSettingsResponse } from './services/sidecarFirestore';
 import { buildCptTree, type ModalityGroup, type TreeLeaf } from './utils/buildCptTree';
 import { searchCpts, type SearchResult } from './utils/cptSearch';
 import type { CptDatabase, CptEntry, ChargemasterEntry } from '../types/cpt';
@@ -209,7 +209,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     }).catch(console.error);
   }, [systemName]);
 
-  // Listen for "completed" from RadTach → auto-return to home, clear pending indicator
+  // Listen for commands from RadTach
   useEffect(() => {
     if (!currentUser) return;
     const unsub = listenToCommandDoc(currentUser.uid, (cmd) => {
@@ -221,6 +221,36 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
         if (pendingStopTimer.current) {
           clearTimeout(pendingStopTimer.current);
           pendingStopTimer.current = null;
+        }
+      } else if (cmd?.action === 'sync_settings' && cmd.source === 'radtach') {
+        // RadTach sent Firestore favorites/combos — merge with localStorage
+        const remoteFavs: FavoriteEntry[] = Array.isArray(cmd.favorites) ? cmd.favorites as FavoriteEntry[] : [];
+        const localFavs = loadLocalFavorites();
+        const favSeen = new Set<string>();
+        const mergedFavs: FavoriteEntry[] = [];
+        for (const f of [...remoteFavs, ...localFavs]) {
+          if (!favSeen.has(f.cpt)) { favSeen.add(f.cpt); mergedFavs.push(f); }
+        }
+        setFavorites(mergedFavs);
+        saveLocalFavorites(mergedFavs);
+
+        const remoteCombos: SavedCombo[] = Array.isArray(cmd.sidecarCombos) ? cmd.sidecarCombos as SavedCombo[] : [];
+        const localCombos = loadSavedCombos();
+        const comboKey = (c: SavedCombo) => [...c.cpts].sort().join(',');
+        const comboSeen = new Set<string>();
+        const mergedCombos: SavedCombo[] = [];
+        for (const c of [...remoteCombos, ...localCombos]) {
+          const k = comboKey(c);
+          if (!comboSeen.has(k)) { comboSeen.add(k); mergedCombos.push(c); }
+        }
+        setSavedCombos(mergedCombos);
+        saveSavedCombos(mergedCombos);
+
+        // If local had items Firestore didn't, send back the merged set
+        const favsChanged = mergedFavs.length > remoteFavs.length;
+        const combosChanged = mergedCombos.length > remoteCombos.length;
+        if (favsChanged || combosChanged) {
+          writeSyncSettingsResponse(currentUser.uid, mergedFavs, mergedCombos).catch(console.error);
         }
       }
     });

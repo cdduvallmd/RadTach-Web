@@ -53,6 +53,21 @@ export function listenToUserSettings(
   });
 }
 
+export async function writeSyncSettingsResponse(
+  uid: string,
+  favorites: Array<{ cpt: string; aeTitle: string }>,
+  sidecarCombos: Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>,
+): Promise<void> {
+  const docRef = doc(db, 'users', uid, 'commands', 'current');
+  await setDoc(docRef, {
+    action: 'sync_settings_response' as const,
+    source: 'sidecar' as const,
+    favorites,
+    sidecarCombos,
+    timestamp: serverTimestamp(),
+  });
+}
+
 export async function writeStartCommand(
   uid: string,
   cpts: string[],

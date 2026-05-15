@@ -112,6 +112,17 @@ export const firestoreService = {
     await batch.commit();
   },
 
+  async writeSyncSettings(userId: string, favorites: Array<{ cpt: string; aeTitle: string }>, sidecarCombos: Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>) {
+    const docRef = doc(db, 'users', userId, 'commands', 'current');
+    await setDoc(docRef, {
+      action: 'sync_settings' as const,
+      source: 'radtach' as const,
+      favorites,
+      sidecarCombos,
+      timestamp: serverTimestamp(),
+    });
+  },
+
   async saveFavorites(userId: string, favorites: Array<{ cpt: string; aeTitle: string }>) {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
     await _retryUpdate(docRef, { favorites });

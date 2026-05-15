@@ -384,6 +384,9 @@ function RadTachInner() {
   const sessionStartMsRef = useRef<number>(0); // Wall-clock ms at session start (for drift correction)
   const processSidecarStartRef = useRef<(cmd: SidecarCommand) => void>(() => {});
   const processSidecarStopRef = useRef<() => void>(() => {});
+  // Cached Firestore favorites/combos for sync_settings relay to Sidecar
+  const firestoreFavoritesRef = useRef<Array<{ cpt: string; aeTitle: string }>>([]);
+  const firestoreCombosRef = useRef<Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>>([]);
 
   // ── Shadow mode-enum timer (parallel system for validation) ──────────
   const shadow = useTimerMode();
@@ -859,6 +862,13 @@ function RadTachInner() {
           if (typeof settings.targetRvuPerHour === 'number') {
             setTargetRvuPerHour(settings.targetRvuPerHour);
           }
+          // Cache favorites/combos for Sidecar sync relay
+          if (Array.isArray(settings.favorites)) {
+            firestoreFavoritesRef.current = settings.favorites;
+          }
+          if (Array.isArray(settings.sidecarCombos)) {
+            firestoreCombosRef.current = settings.sidecarCombos;
+          }
         }
 
         // Load display name from user profile (null = checked but missing)
@@ -950,10 +960,24 @@ function RadTachInner() {
         processSidecarStartRef.current(cmd);
       } else if (cmd.action === 'stop') {
         processSidecarStopRef.current();
+      } else if (cmd.action === 'sync_settings_response') {
+        // Sidecar sent back merged favorites/combos — write to Firestore
+        const newFavs = cmd.favorites;
+        const newCombos = cmd.sidecarCombos;
+        if (Array.isArray(newFavs) && newFavs.length > 0) {
+          firestoreFavoritesRef.current = newFavs;
+          firestoreService.saveFavorites(currentUser.uid, newFavs).catch(console.error);
+        }
+        if (Array.isArray(newCombos) && newCombos.length > 0) {
+          firestoreCombosRef.current = newCombos;
+          firestoreService.saveSidecarCombos(currentUser.uid, newCombos).catch(console.error);
+        }
       }
 
-      // Ack the command
-      firestoreService.ackCommandDoc(currentUser.uid).catch(console.error);
+      // Ack the command (skip ack for sync messages to avoid overwriting)
+      if (cmd.action !== 'sync_settings' && cmd.action !== 'sync_settings_response') {
+        firestoreService.ackCommandDoc(currentUser.uid).catch(console.error);
+      }
     });
     return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1457,7 +1481,12 @@ function RadTachInner() {
         }
       });
       firestoreService.writeSessionStatus(currentUser!.uid, true).catch(console.error);
-      firestoreService.clearCommandDoc(currentUser!.uid).catch(console.error);
+      // Send sync_settings to Sidecar via command doc (replaces clearCommandDoc)
+      firestoreService.writeSyncSettings(
+        currentUser!.uid,
+        firestoreFavoritesRef.current,
+        firestoreCombosRef.current,
+      ).catch(console.error);
     }
     // Reset all counters
     setSessionTime(0);
