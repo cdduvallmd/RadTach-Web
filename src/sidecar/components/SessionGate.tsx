@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { listenToSessionStatus, listenToCommandDoc } from '../services/sidecarFirestore';
 import { connectToGoose, type GooseMessage } from '../services/gooseWebSocket';
-import { SIDECAR_BUILD } from '../buildId';
+import { BUILD_ID } from '../../buildId';
 import SidecarMain from '../SidecarMain';
 
 type SessionState = 'loading' | 'waiting' | 'active' | 'ended';
@@ -120,7 +120,7 @@ export default function SessionGate() {
               <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-white text-lg">Waiting for RadTach session...</p>
               <p className="text-gray-500 text-sm">Start a session on your desktop to begin</p>
-              <p className="text-gray-600 text-xs mt-4">Build {SIDECAR_BUILD}</p>
+              <p className="text-gray-600 text-xs mt-4">Build {BUILD_ID}</p>
             </>
           )}
         </div>

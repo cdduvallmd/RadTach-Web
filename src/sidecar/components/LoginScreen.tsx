@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { SIDECAR_BUILD } from '../buildId';
+import { BUILD_ID } from '../../buildId';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -26,7 +26,7 @@ export default function LoginScreen() {
       <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
         <h1 className="text-2xl font-bold text-white text-center">Sidecar</h1>
         <p className="text-gray-400 text-center text-sm">RadTach Remote Control</p>
-        <p className="text-gray-600 text-center text-xs">Build {SIDECAR_BUILD}</p>
+        <p className="text-gray-600 text-center text-xs">Build {BUILD_ID}</p>
 
         {error && (
           <div className="bg-red-900/50 border border-red-600 text-red-200 px-3 py-2 rounded text-sm">

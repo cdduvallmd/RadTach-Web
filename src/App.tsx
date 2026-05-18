@@ -16,6 +16,7 @@ import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, buffere
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
 import { useTimerMode } from './hooks/useTimerMode';
+import { BUILD_ID } from './buildId';
 
 // ============================================================================
 // EXTERNAL INTEGRATION CONTRACT — HL7 / Middleware Interface
@@ -3056,6 +3057,7 @@ function RadTachInner() {
           <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl my-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-white">Par Time Settings</h2>
+              <span className="text-gray-600 text-xs ml-2">Build {BUILD_ID}</span>
               <div className="flex items-center space-x-2">
                 {!FIREBASE_ENABLED && (
                   <>
