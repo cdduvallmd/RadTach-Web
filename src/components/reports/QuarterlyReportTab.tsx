@@ -7,6 +7,7 @@ import { useGroupStats } from '../../hooks/useGroupStats';
 import { aggregateSessions, getQuarterRange, computeMonthlyTrend, computeDelta, findPersonalBests } from '../../utils/periodAggregation';
 import type { DateRange, DistributionStats, EffectiveRole } from '../../types/reports';
 import { format, subQuarters, addQuarters } from 'date-fns';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import GARPercentileGauge from './shared/GARPercentileGauge';
 import PresidentQuarterlySection from './sections/PresidentQuarterlySection';
 import HospitalQuarterlySection from './sections/HospitalQuarterlySection';
@@ -201,6 +202,39 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
               </div>
             </div>
           )}
+
+          {/* RVU/hr by Modality Trend (monthly data points) */}
+          {monthlyTrend.length > 1 && (() => {
+            const MODALITY_COLORS: Record<string, string> = {
+              'XR': '#3b82f6', 'FL': '#8b5cf6', 'CT': '#22c55e', 'US': '#06b6d4',
+              'MR': '#f97316', 'NM': '#ec4899', 'MA': '#eab308', 'PET-CT': '#ef4444',
+            };
+            const allMods = new Set<string>();
+            monthlyTrend.forEach(m => Object.keys(m.rvuPerHourByModality).forEach(mod => allMods.add(mod)));
+            const mods = [...allMods].sort();
+            if (mods.length === 0) return null;
+            const chartData = monthlyTrend.map(m => ({
+              month: m.monthLabel,
+              ...Object.fromEntries(mods.map(mod => [mod, m.rvuPerHourByModality[mod] ?? null])),
+            }));
+            return (
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">RVU/hr by Modality — Monthly Trend</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 20, left: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="month" stroke="#9ca3af" fontSize={11} />
+                    <YAxis stroke="#9ca3af" fontSize={11} />
+                    <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff' }} />
+                    <Legend />
+                    {mods.map(mod => (
+                      <Line key={mod} type="monotone" dataKey={mod} stroke={MODALITY_COLORS[mod] || '#6b7280'} strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
 
           {/* Personal bests */}
           {personalBests && (

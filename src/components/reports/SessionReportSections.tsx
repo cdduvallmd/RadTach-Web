@@ -787,26 +787,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
     );
   };
 
-  const renderPauseAnalysis = () => {
-    if (!summary) return null;
-    const { pauseAnalysis } = summary;
-    return (
-      <div className="report-section">
-        <h3 className="text-lg font-semibold text-white mb-3">7F. Pause Analysis</h3>
-        <div className="grid grid-cols-2 gap-4 text-center">
-          <div className="bg-gray-800 rounded-lg p-4"><div className="text-gray-400 text-xs mb-1">Avg Variance WITH Pause</div><div className="text-xl font-bold text-white">{pauseAnalysis.avgVarianceWithPause !== null ? formatMinSec(pauseAnalysis.avgVarianceWithPause) : 'N/A'}</div></div>
-          <div className="bg-gray-800 rounded-lg p-4"><div className="text-gray-400 text-xs mb-1">Avg Variance WITHOUT Pause</div><div className="text-xl font-bold text-white">{pauseAnalysis.avgVarianceWithoutPause !== null ? formatMinSec(pauseAnalysis.avgVarianceWithoutPause) : 'N/A'}</div></div>
-        </div>
-        {pauseAnalysis.avgVarianceWithPause !== null && pauseAnalysis.avgVarianceWithoutPause !== null && (
-          <div className="mt-2 text-sm text-center">
-            {pauseAnalysis.avgVarianceWithPause < pauseAnalysis.avgVarianceWithoutPause ? (<span className="text-green-400">Pausing improved variance by {formatMinSec(pauseAnalysis.avgVarianceWithoutPause - pauseAnalysis.avgVarianceWithPause)}</span>)
-              : pauseAnalysis.avgVarianceWithPause > pauseAnalysis.avgVarianceWithoutPause ? (<span className="text-yellow-400">Studies with pause had {formatMinSec(pauseAnalysis.avgVarianceWithPause - pauseAnalysis.avgVarianceWithoutPause)} worse variance</span>)
-              : (<span className="text-gray-400">No measurable difference</span>)}
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Pause analysis removed — Pause functionality replaced by Admin/Comms/Break
 
   const renderDraftEffectiveness = () => {
     if (!summary) return null;
@@ -926,7 +907,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
         {renderComplicationCost()}
         {renderInterstitialTrend()}
         {renderDoubleTapRate()}
-        {renderPauseAnalysis()}
+        {/* Pause analysis removed — ABC handles interruptions */}
         {renderDraftEffectiveness()}
         {renderProductiveTimeRatio()}
         {renderPeakRVUWindow()}

@@ -253,6 +253,33 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
             </div>
           )}
 
+          {/* RVU/hr by Modality */}
+          {Object.keys(summary.rvuPerHourByModality).length > 0 && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">RVU/hr by Modality</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-gray-500 text-xs uppercase tracking-wider border-b border-gray-700">
+                    <th className="text-left py-2">Modality</th>
+                    <th className="text-right py-2">Studies</th>
+                    <th className="text-right py-2">RVU/hr</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(summary.rvuPerHourByModality)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([mod, rate]) => (
+                      <tr key={mod} className="border-b border-gray-700/50 text-gray-300">
+                        <td className="py-1.5">{mod}</td>
+                        <td className="py-1.5 text-right">{summary.studiesByModality[mod] || 0}</td>
+                        <td className="py-1.5 text-right text-white font-medium">{rate.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {/* Tag frequency */}
           {Object.keys(summary.tagFrequency).length > 0 && (
             <div className="bg-gray-800 rounded-lg p-4">

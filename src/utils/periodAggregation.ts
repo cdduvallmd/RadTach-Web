@@ -399,6 +399,7 @@ export interface WeeklyTrendPoint {
   totalStudies: number;
   totalRVU: number;
   sessions: number;
+  rvuPerHourByModality: Record<string, number>;
 }
 
 export function computeWeeklyTrend(
@@ -422,6 +423,7 @@ export function computeWeeklyTrend(
       totalStudies: summary.totalStudies,
       totalRVU: summary.totalRVU,
       sessions: summary.totalSessions,
+      rvuPerHourByModality: summary.rvuPerHourByModality,
     });
   }
 
@@ -437,6 +439,7 @@ export interface MonthlyTrendPoint {
   totalStudies: number;
   totalRVU: number;
   sessions: number;
+  rvuPerHourByModality: Record<string, number>;
 }
 
 export function computeMonthlyTrend(sessions: StoredSession[]): MonthlyTrendPoint[] {
@@ -458,6 +461,7 @@ export function computeMonthlyTrend(sessions: StoredSession[]): MonthlyTrendPoin
       totalStudies: summary.totalStudies,
       totalRVU: summary.totalRVU,
       sessions: summary.totalSessions,
+      rvuPerHourByModality: summary.rvuPerHourByModality,
     });
   }
 

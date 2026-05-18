@@ -7,6 +7,7 @@ import { useGroupStats } from '../../hooks/useGroupStats';
 import { aggregateSessions, getMonthRange, computeWeeklyTrend } from '../../utils/periodAggregation';
 import type { DateRange, DistributionStats, EffectiveRole } from '../../types/reports';
 import { addMonths, subMonths, format } from 'date-fns';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import GARPercentileGauge from './shared/GARPercentileGauge';
 import { estimatePercentile } from '../../utils/percentileEstimation';
 import PresidentMonthlySection from './sections/PresidentMonthlySection';
@@ -178,6 +179,41 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
               </div>
             </div>
           )}
+
+          {/* RVU/hr by Modality Trend (weekly data points) */}
+          {weeklyTrend.length > 1 && (() => {
+            const MODALITY_COLORS: Record<string, string> = {
+              'XR': '#3b82f6', 'FL': '#8b5cf6', 'CT': '#22c55e', 'US': '#06b6d4',
+              'MR': '#f97316', 'NM': '#ec4899', 'MA': '#eab308', 'PET-CT': '#ef4444',
+            };
+            // Collect all modalities that appear in any week
+            const allMods = new Set<string>();
+            weeklyTrend.forEach(w => Object.keys(w.rvuPerHourByModality).forEach(m => allMods.add(m)));
+            const mods = [...allMods].sort();
+            if (mods.length === 0) return null;
+            // Build chart data: each point = one week, with a key per modality
+            const chartData = weeklyTrend.map(w => ({
+              week: w.weekLabel,
+              ...Object.fromEntries(mods.map(m => [m, w.rvuPerHourByModality[m] ?? null])),
+            }));
+            return (
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">RVU/hr by Modality — Weekly Trend</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 20, left: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="week" stroke="#9ca3af" fontSize={11} />
+                    <YAxis stroke="#9ca3af" fontSize={11} />
+                    <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff' }} />
+                    <Legend />
+                    {mods.map(mod => (
+                      <Line key={mod} type="monotone" dataKey={mod} stroke={MODALITY_COLORS[mod] || '#6b7280'} strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
 
           {/* Day of week analysis */}
           {Object.keys(summary.sessionsByDayOfWeek).length > 0 && (
