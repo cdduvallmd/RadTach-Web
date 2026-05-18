@@ -13,6 +13,7 @@ interface Props {
   gooseConnected: boolean;
   pendingStop?: boolean;
   favNames?: Map<string, string>;
+  syncLog?: string[];
   onOpenRecent: () => void;
   onOpenCommon: () => void;
   onOpenFavorites: () => void;
@@ -25,7 +26,7 @@ export default function HomeScreen({
   modalities, onSelectModality,
   comboCount, onOpenCombo,
   searchQuery, onSearchChange, searchResults, onSearchSelect,
-  gooseConnected, pendingStop, favNames,
+  gooseConnected, pendingStop, favNames, syncLog,
   onOpenRecent, onOpenCommon, onOpenFavorites, favoritesCount,
   savedComboCount, onOpenSavedCombos,
 }: Props) {
@@ -167,6 +168,19 @@ export default function HomeScreen({
           </>
         )}
       </div>
+      {/* Sync log */}
+      {syncLog && syncLog.length > 0 && (
+        <details className="p-2 border-t border-gray-800">
+          <summary className="text-gray-600 text-xs cursor-pointer select-none">Sync Log ({syncLog.length})</summary>
+          <div className="mt-1 max-h-32 overflow-y-auto text-xs font-mono space-y-0.5">
+            {syncLog.map((line, i) => (
+              <div key={i} className={`${line.includes('FAIL') ? 'text-red-400' : line.includes('OK') ? 'text-green-400' : 'text-gray-500'}`}>
+                {line}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
