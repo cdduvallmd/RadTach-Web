@@ -4,6 +4,12 @@
  * Runs in parallel with the production boolean-flag timers.
  * Records its own event stream to shadow_events subcollection.
  * After validation, this will replace the boolean system entirely.
+ *
+ * Clyde fixes applied (2026-05-18):
+ * - F1: Removed savedInterstitialStart spanning — ABC during interstitial
+ *   abandons pre-ABC fragment, starts fresh on ABC end (matches production)
+ * - F5: Removed dead wasInStudy in break path
+ * - F6: endSession includes accumulatedTime for interrupted studies
  */
 import { useRef, useCallback } from 'react';
 
@@ -77,8 +83,8 @@ interface StudyContext {
   targetRvuPerHour?: number;
   drafted: boolean;
   pauseTime: number;
-  accumulatedTime: number; // study time accumulated before ABC interruptions
-  originalStart: number;   // session time when study first started (for startTimeSession)
+  accumulatedTime: number;
+  originalStart: number;
   originalStartSystem: string;
 }
 
@@ -100,18 +106,13 @@ export interface UseTimerModeReturn {
 }
 
 export function useTimerMode(): UseTimerModeReturn {
-  // All state in refs to avoid re-renders (this is a silent observer)
   const mode = useRef<TimerMode>('idle');
   const modeEnteredAt = useRef<number>(0);
   const modeEnteredSystem = useRef<string>('');
   const events = useRef<ShadowEvent[]>([]);
   const studyContext = useRef<StudyContext | null>(null);
-  const priorModeBeforeABC = useRef<TimerMode>('interstitial');
-  const wasInStudy = useRef<boolean>(false); // was in study when ABC started
+  const wasInStudy = useRef<boolean>(false);
   const lastStudyModality = useRef<string | null>(null);
-  // Saved interstitial start time — when ABC interrupts an interstitial, we don't close it.
-  // Instead we save the start time and restore it when ABC ends, producing one spanning event.
-  const savedInterstitialStart = useRef<{ at: number; system: string } | null>(null);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -123,53 +124,16 @@ export function useTimerMode(): UseTimerModeReturn {
     const currentMode = mode.current;
 
     if (currentMode === 'interstitial' && duration > 0) {
-      events.current.push({
-        type: 'INTERSTITIAL',
-        startTimeSession: startSession,
-        startTimeSystem: startSystem,
-        endTimeSession: sessionTime,
-        endTimeSystem: endSystem,
-        duration,
-      });
+      events.current.push({ type: 'INTERSTITIAL', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
     } else if (currentMode === 'admin' && duration > 0) {
-      events.current.push({
-        type: 'ADMIN',
-        startTimeSession: startSession,
-        startTimeSystem: startSystem,
-        endTimeSession: sessionTime,
-        endTimeSystem: endSystem,
-        duration,
-      });
+      events.current.push({ type: 'ADMIN', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
     } else if (currentMode === 'comms' && duration > 0) {
-      events.current.push({
-        type: 'COMMS',
-        startTimeSession: startSession,
-        startTimeSystem: startSystem,
-        endTimeSession: sessionTime,
-        endTimeSystem: endSystem,
-        duration,
-      });
+      events.current.push({ type: 'COMMS', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
     } else if (currentMode === 'break' && duration > 0) {
-      events.current.push({
-        type: 'BREAK',
-        startTimeSession: startSession,
-        startTimeSystem: startSystem,
-        endTimeSession: sessionTime,
-        endTimeSystem: endSystem,
-        duration,
-      });
+      events.current.push({ type: 'BREAK', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
     } else if (currentMode === 'doubleTap' && duration > 0) {
-      events.current.push({
-        type: 'DOUBLE_TAP',
-        startTimeSession: startSession,
-        startTimeSystem: startSystem,
-        endTimeSession: sessionTime,
-        endTimeSystem: endSystem,
-        duration,
-        associatedModality: lastStudyModality.current,
-      });
+      events.current.push({ type: 'DOUBLE_TAP', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration, associatedModality: lastStudyModality.current });
     }
-    // Study mode is closed by study_complete signal, not here
   }, []);
 
   const enterMode = useCallback((newMode: TimerMode, sessionTime: number): void => {
@@ -185,9 +149,7 @@ export function useTimerMode(): UseTimerModeReturn {
 
     switch (action.type) {
       case 'study_start': {
-        if (currentMode === 'idle') break; // Session not started
-        // Study start closes everything — discard any saved interstitial
-        savedInterstitialStart.current = null;
+        if (currentMode === 'idle') break;
         // Close whatever mode we're in (interstitial, admin, comms)
         closeCurrentMode(sessionTime);
         // Save study context (or resume from existing context after draft restore)
@@ -218,12 +180,11 @@ export function useTimerMode(): UseTimerModeReturn {
         const ctx = studyContext.current;
         if (!ctx) break;
 
-        // Total elapsed = accumulated time from before ABC interruptions + current segment
         const currentSegment = sessionTime - modeEnteredAt.current;
         const elapsedTime = ctx.accumulatedTime + currentSegment;
         const variance = elapsedTime - ctx.parTime;
 
-        const studyEvent: ShadowStudyEvent = {
+        events.current.push({
           type: 'STUDY',
           studyNumber: ctx.studyNumber,
           startTimeSession: ctx.originalStart,
@@ -239,8 +200,7 @@ export function useTimerMode(): UseTimerModeReturn {
           drafted: ctx.drafted,
           ...(ctx.cpts ? { rvuSource: ctx.rvuSource, cpts: ctx.cpts } : {}),
           ...(ctx.rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour: ctx.targetRvuPerHour } : {}),
-        };
-        events.current.push(studyEvent);
+        });
 
         lastStudyModality.current = ctx.modality;
         studyContext.current = null;
@@ -249,23 +209,15 @@ export function useTimerMode(): UseTimerModeReturn {
       }
 
       case 'swap_detected': {
-        // Retroactively fix the last study and interstitial events
         const evts = events.current;
-        // Find last interstitial
         let lastInterIdx = -1;
         for (let i = evts.length - 1; i >= 0; i--) {
           if (evts[i].type === 'INTERSTITIAL') { lastInterIdx = i; break; }
         }
         if (lastInterIdx >= 0) {
           const inter = evts[lastInterIdx] as ShadowInterstitialEvent;
-          // Shorten interstitial to 10s
-          evts[lastInterIdx] = {
-            ...inter,
-            duration: 10,
-            endTimeSession: inter.startTimeSession + 10,
-          };
+          evts[lastInterIdx] = { ...inter, duration: 10, endTimeSession: inter.startTimeSession + 10 };
         }
-        // Find last study event and fix it
         let lastStudyIdx = -1;
         for (let i = evts.length - 1; i >= 0; i--) {
           if (evts[i].type === 'STUDY') { lastStudyIdx = i; break; }
@@ -291,26 +243,18 @@ export function useTimerMode(): UseTimerModeReturn {
           if (wasInStudy.current) {
             enterMode('study', sessionTime);
           } else {
-            // Restore interstitial with original start time (spans the admin interruption)
-            if (savedInterstitialStart.current) {
-              mode.current = 'interstitial';
-              modeEnteredAt.current = savedInterstitialStart.current.at;
-              modeEnteredSystem.current = savedInterstitialStart.current.system;
-              savedInterstitialStart.current = null;
-            } else {
-              enterMode('interstitial', sessionTime);
-            }
+            // F1: Start fresh interstitial (abandon pre-ABC fragment, match production)
+            enterMode('interstitial', sessionTime);
           }
           wasInStudy.current = false;
         } else {
           // Turning on admin
-          priorModeBeforeABC.current = currentMode;
           wasInStudy.current = currentMode === 'study';
-          if (currentMode === 'interstitial') {
-            savedInterstitialStart.current = { at: modeEnteredAt.current, system: modeEnteredSystem.current };
+          // F1: Don't close interstitial — abandon the pre-ABC fragment (production discards it)
+          if (currentMode !== 'interstitial') {
+            // Only close non-interstitial modes (study stays open conceptually via accumulatedTime)
           }
           if (currentMode === 'study' && studyContext.current) {
-            // Accumulate study time before this interruption
             studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
           }
           enterMode('admin', sessionTime);
@@ -324,22 +268,12 @@ export function useTimerMode(): UseTimerModeReturn {
           if (wasInStudy.current) {
             enterMode('study', sessionTime);
           } else {
-            if (savedInterstitialStart.current) {
-              mode.current = 'interstitial';
-              modeEnteredAt.current = savedInterstitialStart.current.at;
-              modeEnteredSystem.current = savedInterstitialStart.current.system;
-              savedInterstitialStart.current = null;
-            } else {
-              enterMode('interstitial', sessionTime);
-            }
+            // F1: Start fresh interstitial
+            enterMode('interstitial', sessionTime);
           }
           wasInStudy.current = false;
         } else {
-          priorModeBeforeABC.current = currentMode;
           wasInStudy.current = currentMode === 'study';
-          if (currentMode === 'interstitial') {
-            savedInterstitialStart.current = { at: modeEnteredAt.current, system: modeEnteredSystem.current };
-          }
           if (currentMode === 'study' && studyContext.current) {
             studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
           }
@@ -352,12 +286,11 @@ export function useTimerMode(): UseTimerModeReturn {
         if (currentMode === 'break') {
           closeCurrentMode(sessionTime);
           enterMode('interstitial', sessionTime);
-          wasInStudy.current = false;
+          // F5: wasInStudy not needed here — break always returns to interstitial
         } else {
-          priorModeBeforeABC.current = currentMode;
-          wasInStudy.current = currentMode === 'study';
-          // Break closes everything — discard any saved interstitial
-          savedInterstitialStart.current = null;
+          if (currentMode === 'study' && studyContext.current) {
+            studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
+          }
           closeCurrentMode(sessionTime);
           enterMode('break', sessionTime);
         }
@@ -379,14 +312,12 @@ export function useTimerMode(): UseTimerModeReturn {
       case 'draft_enter': {
         if (currentMode === 'study' && studyContext.current) {
           studyContext.current.drafted = true;
-          // Don't emit study event — it's suspended, will resume later
           enterMode('interstitial', sessionTime);
         }
         break;
       }
 
       case 'draft_exit': {
-        // Study context was preserved; mode stays interstitial until study_start
         if (studyContext.current) {
           studyContext.current.drafted = true;
         }
@@ -405,20 +336,19 @@ export function useTimerMode(): UseTimerModeReturn {
     studyContext.current = null;
     wasInStudy.current = false;
     lastStudyModality.current = null;
-    savedInterstitialStart.current = null;
   }, []);
 
   const endSession = useCallback((sessionTime: number): ShadowEvent[] => {
-    // Close whatever mode is active
     if (mode.current === 'study' && studyContext.current) {
-      // Force-complete the study
+      // F6: Include accumulatedTime for interrupted studies
       const ctx = studyContext.current;
-      const elapsedTime = sessionTime - modeEnteredAt.current;
+      const currentSegment = sessionTime - modeEnteredAt.current;
+      const elapsedTime = ctx.accumulatedTime + currentSegment;
       events.current.push({
         type: 'STUDY',
         studyNumber: ctx.studyNumber,
-        startTimeSession: modeEnteredAt.current,
-        startTimeSystem: modeEnteredSystem.current,
+        startTimeSession: ctx.originalStart,
+        startTimeSystem: ctx.originalStartSystem,
         modality: ctx.modality,
         complications: ctx.complications,
         parTime: ctx.parTime,
@@ -446,7 +376,6 @@ export function useTimerMode(): UseTimerModeReturn {
     studyContext.current = null;
     wasInStudy.current = false;
     lastStudyModality.current = null;
-    savedInterstitialStart.current = null;
   }, []);
 
   const getEvents = useCallback((): ShadowEvent[] => [...events.current], []);

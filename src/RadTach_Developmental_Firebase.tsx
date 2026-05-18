@@ -182,7 +182,7 @@ function RadTachInner() {
 
   // Pause timer tracking (Issue #2) - tracks pause duration per study
   // const [pauseTime, setPauseTime] = useState(0); // TODO: FIREBASE - Uncomment for Phase 3 (Issue #2). Tracks pause time per study for SESSION recording
-  const [isPaused, setIsPaused] = useState(false);
+  // Pause removed (2026-05-18) — use Admin/Comms/Break instead
 
   // Double Tap tracking (Issue #3) - tracks when reopening recently-completed studies
   const [doubleTapTime, setDoubleTapTime] = useState(0);
@@ -191,7 +191,7 @@ function RadTachInner() {
   // const [lastStudyModality, setLastStudyModality] = useState<Modality | null>(null); // TODO: FIREBASE - Uncomment for Phase 3 (Issue #3). Associates Double Tap events with modality for analytics
 
   // Track if Admin/Comms auto-paused a study (so we can resume it when they stop)
-  const [studyWasAutoPaused, setStudyWasAutoPaused] = useState(false);
+  // studyWasAutoPaused removed — ABC buttons stop study timer, study_start resumes
 
   // Total and Interstitial time tracking
   const [sessionTime, setSessionTime] = useState(0);
@@ -371,7 +371,7 @@ function RadTachInner() {
   const [interstitialStartTime, setInterstitialStartTime] = useState<{session: number, system: string} | null>(null);
   const [studyStartTime, setStudyStartTime] = useState<{session: number, system: string} | null>(null);
   const [lastStudyModality, setLastStudyModality] = useState<Modality | null>(null);
-  const [studyPauseTime, setStudyPauseTime] = useState(0);
+  // studyPauseTime removed — pause functionality replaced by ABC
 
   const timerRef = useRef<number | null>(null);
   const sessionTimeRef = useRef<number | null>(null);
@@ -380,7 +380,7 @@ function RadTachInner() {
   const commsTimeRef = useRef<number | null>(null);
   const breakTimeRef = useRef<number | null>(null);
   const timeSinceLastBreakRef = useRef<number | null>(null);
-  const pauseTimeRef = useRef<number | null>(null); // Issue #2: Pause timer
+  // pauseTimeRef removed — pause functionality replaced by ABC
   const doubleTapTimeRef = useRef<number | null>(null); // Issue #3: Double Tap timer
   const sessionStartMsRef = useRef<number>(0); // Wall-clock ms at session start (for drift correction)
   const processSidecarStartRef = useRef<(cmd: SidecarCommand) => void>(() => {});
@@ -528,24 +528,7 @@ function RadTachInner() {
     };
   }, [isRunning]);
 
-  // Pause timer effect (Issue #2) - tracks pause duration per study
-  useEffect(() => {
-    if (isPaused) {
-      pauseTimeRef.current = setInterval(() => {
-        setStudyPauseTime(prev => prev + 1); // Issue #1: Accumulate pause time for STUDY event recording
-      }, 1000);
-    } else {
-      if (pauseTimeRef.current) {
-        clearInterval(pauseTimeRef.current);
-      }
-    }
-
-    return () => {
-      if (pauseTimeRef.current) {
-        clearInterval(pauseTimeRef.current);
-      }
-    };
-  }, [isPaused]);
+  // Pause timer removed — ABC buttons handle interruptions
 
   // Double Tap timer effect (Issue #3) - tracks duration of double tap events
   useEffect(() => {
@@ -1515,7 +1498,7 @@ function RadTachInner() {
     setLastStudy(null);
     setTimeSinceLastBreak(0);
     setLastBreakDeclineTime(0);
-    setStudyPauseTime(0);
+
   };
 
   // Handle STOP SESSION button click (Issue #1)
@@ -1699,7 +1682,6 @@ function RadTachInner() {
     setIsCommsTimeRunning(false);
     setIsBreakTimeRunning(false);
     setIsDoubleTapRunning(false);
-    setIsPaused(false);
     setSessionStartDateTime(null);
     setSessionEvents([]);
     setSessionTime(0);
@@ -1727,7 +1709,7 @@ function RadTachInner() {
     setLastStudy(null);
     setTimeSinceLastBreak(0);
     setLastBreakDeclineTime(0);
-    setStudyPauseTime(0);
+
     setLastStudyModality(null);
     setAdminStartTime(null);
     setCommsStartTime(null);
@@ -1757,7 +1739,7 @@ function RadTachInner() {
     if (!isRunning) {
       // Starting/Resuming a study
       setIsRunning(true);
-      setIsPaused(false); // Issue #2: Stop pause tracking when resuming
+
       setIsInterstitialRunning(false); // Stop interstitial time
       setIsAdminTimeRunning(false); // Stop admin time
       setIsCommsTimeRunning(false); // Stop comms time
@@ -1798,7 +1780,7 @@ function RadTachInner() {
         setSessionEvents(prev => [...prev, evt]);
         recordEventLocally(evt);
         setAdminStartTime(null);
-        setStudyWasAutoPaused(false);
+
       }
 
       // Record Comms event if it was running
@@ -1814,7 +1796,7 @@ function RadTachInner() {
         setSessionEvents(prev => [...prev, evt]);
         recordEventLocally(evt);
         setCommsStartTime(null);
-        setStudyWasAutoPaused(false);
+
       }
 
       // Record Break event if it was running
@@ -1866,12 +1848,8 @@ function RadTachInner() {
           ...(rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour } : {}),
         }, sessionTime);
       }
-    } else {
-      // Pausing a study - stop elapsed time, start pause tracking and interstitial time
-      setIsRunning(false);
-      setIsPaused(true); // Issue #2: Start pause tracking
-      setIsInterstitialRunning(true); // Start tracking non-productive time
     }
+    // Pause branch removed — use Admin/Comms/Break to interrupt a study
   };
   
   // ── Sidecar / HL7 command processing ──────────────────────────────────────
@@ -2064,8 +2042,8 @@ function RadTachInner() {
         elapsedTime: effectiveTime,
         variance: variance,
         rvu: currentStudyRVU,
-        pauseTime: studyPauseTime,
-        pauseUsed: studyPauseTime > 0,
+        pauseTime: 0,
+        pauseUsed: false,
         drafted: wasDrafted,
         swapped: wasSwapped,
         ...(cptOverride ? { rvuSource: cptOverride.source, cpts: cptOverride.cpts } : {}),
@@ -2088,9 +2066,7 @@ function RadTachInner() {
 
     // Reset for next study
     setCurrentTime(0);
-    setStudyPauseTime(0); // Reset pause time for next study
     setStudyStartTime(null); // Reset study start time
-    setIsPaused(false); // Issue #2: Clear pause state
     setSelectedModality(null);
     setSelectedComplications([]);
 
@@ -2167,12 +2143,9 @@ function RadTachInner() {
       setAdminEvents(prev => prev + 1); // Issue #4: Increment event counter
       setAdminStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1: Track start time
 
-      // If study is in progress, auto-pause it
-      const isStudyInProgress = selectedModality !== null && isRunning;
-      if (isStudyInProgress) {
+      // Stop study timer if in progress (replaced auto-pause)
+      if (selectedModality !== null && isRunning) {
         setIsRunning(false);
-        setIsPaused(true);
-        setStudyWasAutoPaused(true);
       }
     } else {
       // Stopping Admin Time - record event (Issue #1)
@@ -2195,11 +2168,9 @@ function RadTachInner() {
       setIsInterstitialRunning(true);
       setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1
 
-      // If we auto-paused a study, resume it
-      if (studyWasAutoPaused) {
+      // Resume study timer if one was in progress
+      if (selectedModality !== null && currentTime > 0) {
         setIsRunning(true);
-        setIsPaused(false);
-        setStudyWasAutoPaused(false);
       }
     }
   };
@@ -2215,12 +2186,9 @@ function RadTachInner() {
       setCommsEvents(prev => prev + 1); // Issue #4: Increment event counter
       setCommsStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1: Track start time
 
-      // If study is in progress, auto-pause it
-      const isStudyInProgress = selectedModality !== null && isRunning;
-      if (isStudyInProgress) {
+      // Stop study timer if in progress (replaced auto-pause)
+      if (selectedModality !== null && isRunning) {
         setIsRunning(false);
-        setIsPaused(true);
-        setStudyWasAutoPaused(true);
       }
     } else {
       // Stopping Comms Time - record event (Issue #1)
@@ -2243,19 +2211,18 @@ function RadTachInner() {
       setIsInterstitialRunning(true);
       setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1
 
-      // If we auto-paused a study, resume it
-      if (studyWasAutoPaused) {
+      // Resume study timer if one was in progress
+      if (selectedModality !== null && currentTime > 0) {
         setIsRunning(true);
-        setIsPaused(false);
-        setStudyWasAutoPaused(false);
       }
     }
   };
 
   // Toggle Break Time
   const toggleBreakTime = () => {
-    shadow.signal({ type: 'break_toggle' }, sessionTime);
     if (!isBreakTimeRunning) {
+      // Signal shadow before starting break (no drift issue on start)
+      shadow.signal({ type: 'break_toggle' }, sessionTime);
       // Starting Break - pause Interstitial, Admin, and Comms
       setIsBreakTimeRunning(true);
       setIsInterstitialRunning(false);
@@ -2282,6 +2249,9 @@ function RadTachInner() {
       if (Math.abs(drift) > 2) {
         setSessionTime(wallClockElapsed);
       }
+
+      // F2: Signal shadow with corrected time (after drift correction)
+      shadow.signal({ type: 'break_toggle' }, correctedSessionTime);
 
       if (breakStartTime !== null) {
         const breakEvent: TimerEvent = {
