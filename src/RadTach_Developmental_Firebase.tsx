@@ -1667,6 +1667,8 @@ function RadTachInner() {
         .then(() => bufferedSaveUserSettings(currentUser!.uid, {
           parTimes, rvuValues, stealthMode, autoStartEnabled, useHMSFormat,
           gpciZip, gpciValues, rvuDerivedMode, targetRvuPerHour,
+          favorites: firestoreFavoritesRef.current,
+          sidecarCombos: firestoreCombosRef.current,
         }))
         .then(() => clearLocalEvents(key).catch(() => {}))
         .then(() => flushBuffer(currentUser!.uid))
