@@ -177,5 +177,17 @@ export interface PeriodSummary {
     studies: number;
     totalRVU: number;
     interstitialAvg: number;
+    rvuPerStudy: number;
+    studiesPerHour: number;
   }>;
+  // Performance Insights
+  hourlyProfile: Record<string, { avgStudies: number; avgRvu: number; sessionCount: number }>;
+  avgRvuPerStudy: number;
+  avgStudiesPerHour: number;
+  fastestCpts: Array<{ cpt: string; modality: string; avgVariance: number; totalCount: number }>;
+  slowestCpts: Array<{ cpt: string; modality: string; avgVariance: number; totalCount: number }>;
+  avgWarmupCost: number | null;
+  avgBreakROI: { avgBefore: number | null; avgAfter: number | null; totalBreaks: number };
+  avgTransitionPenalty: { same: number | null; different: number | null };
+  avgInterstitialTime: number;
 }

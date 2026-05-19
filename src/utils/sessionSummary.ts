@@ -134,6 +134,23 @@ export interface SessionSummary {
     studiesInDerivedMode: number;
     totalStudies: number;
   };
+  // ── Performance Insights (added 2026-05-19) ──
+  // Hourly profile: studies + RVU bucketed by clock hour
+  hourlyProfile?: Record<string, { studies: number; rvu: number }>;
+  // Deck quality metrics
+  avgRvuPerStudy?: number;
+  studiesPerHour?: number;
+  // Fastest/slowest CPTs (top/bottom 3 by avg variance, min 2 instances)
+  fastestCpts?: Array<{ cpt: string; modality: string; avgVariance: number; count: number }>;
+  slowestCpts?: Array<{ cpt: string; modality: string; avgVariance: number; count: number }>;
+  // First-study warmup cost
+  firstStudyWarmup?: {
+    firstElapsed: number;
+    avgRemainder: number;
+    warmupCost: number;
+  } | null;
+  // Average interstitial time
+  avgInterstitialTime?: number;
 }
 
 function avg(arr: number[]): number | null {
@@ -143,7 +160,8 @@ function avg(arr: number[]): number | null {
 
 export function computeSessionSummary(
   events: SessionEvent[],
-  totalSessionTime: number
+  totalSessionTime: number,
+  startDateTime?: string,
 ): SessionSummary {
   const studies = events.filter((e): e is StudyEvent => e.type === 'STUDY');
   const interstitials = events.filter((e): e is InterstitialEvent => e.type === 'INTERSTITIAL');
@@ -323,6 +341,59 @@ export function computeSessionSummary(
     };
   }
 
+  // ── Performance Insights ────────────────────────────────────────────────
+
+  // Hourly profile: bucket studies by wall-clock hour
+  const hourlyProfile: Record<string, { studies: number; rvu: number }> = {};
+  if (startDateTime) {
+    const sessionStartMs = new Date(startDateTime).getTime();
+    for (const s of studies) {
+      const studyMs = sessionStartMs + s.startTimeSession * 1000;
+      const hour = String(new Date(studyMs).getHours()).padStart(2, '0');
+      if (!hourlyProfile[hour]) hourlyProfile[hour] = { studies: 0, rvu: 0 };
+      hourlyProfile[hour].studies += 1;
+      hourlyProfile[hour].rvu += s.rvu;
+    }
+  }
+
+  // Deck quality metrics
+  const totalRvu = studies.reduce((sum, s) => sum + s.rvu, 0);
+  const avgRvuPerStudy = studies.length > 0 ? totalRvu / studies.length : 0;
+  const productiveHours = (totalSessionTime - totalBreakTime) / 3600;
+  const studiesPerHour = productiveHours > 0 ? studies.length / productiveHours : 0;
+
+  // Fastest/slowest CPTs (group by CPT or modality, avg variance, min 2 instances)
+  const cptVariances: Record<string, { modality: string; variances: number[] }> = {};
+  for (const s of studies) {
+    const key = (s as { cpts?: string[] }).cpts?.[0] || s.modality;
+    if (!cptVariances[key]) cptVariances[key] = { modality: s.modality, variances: [] };
+    cptVariances[key].variances.push(s.variance);
+  }
+  const cptStats = Object.entries(cptVariances)
+    .filter(([, v]) => v.variances.length >= 2)
+    .map(([cpt, v]) => ({
+      cpt,
+      modality: v.modality,
+      avgVariance: v.variances.reduce((a, b) => a + b, 0) / v.variances.length,
+      count: v.variances.length,
+    }));
+  const fastestCpts = [...cptStats].sort((a, b) => a.avgVariance - b.avgVariance).slice(0, 3);
+  const slowestCpts = [...cptStats].sort((a, b) => b.avgVariance - a.avgVariance).slice(0, 3);
+
+  // First-study warmup
+  let firstStudyWarmup: SessionSummary['firstStudyWarmup'] = null;
+  if (sortedStudies.length >= 5) {
+    const firstElapsed = sortedStudies[0].elapsedTime;
+    const remainder = sortedStudies.slice(1, 5).map(s => s.elapsedTime);
+    const avgRemainder = remainder.reduce((a, b) => a + b, 0) / remainder.length;
+    firstStudyWarmup = { firstElapsed, avgRemainder, warmupCost: firstElapsed - avgRemainder };
+  }
+
+  // Average interstitial time
+  const avgInterstitialTime = interstitials.length > 0
+    ? interstitials.reduce((sum, e) => sum + e.duration, 0) / interstitials.length
+    : 0;
+
   return {
     studiesByModality,
     rvuPerHourByModality,
@@ -343,6 +414,13 @@ export function computeSessionSummary(
     complicationStacking,
     modalityTransitionPenalty,
     ...(rvuDerivedSummary ? { rvuDerivedSummary } : {}),
+    hourlyProfile,
+    avgRvuPerStudy,
+    studiesPerHour,
+    fastestCpts,
+    slowestCpts,
+    firstStudyWarmup,
+    avgInterstitialTime,
   };
 }
 

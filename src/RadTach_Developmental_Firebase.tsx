@@ -1624,7 +1624,7 @@ function RadTachInner() {
       const preserved = buildSessionData();
       setLastSessionEvents(finalEvents);
       setLastSessionData(preserved.session);
-      setLastSessionSummary(computeSessionSummary(finalEvents, sessionTime));
+      setLastSessionSummary(computeSessionSummary(finalEvents, sessionTime, sessionStartDateTime || undefined));
     }
 
     // Shadow: finalize and flush
@@ -1642,7 +1642,7 @@ function RadTachInner() {
       const startIdx = lastFlushedIndex.current;
       const unsent = finalEvents.slice(startIdx);
       const key = localSessionKeyRef.current;
-      const summary = computeSessionSummary(finalEvents, sessionTime);
+      const summary = computeSessionSummary(finalEvents, sessionTime, sessionStartDateTime || undefined);
 
       (unsent.length > 0
         ? bufferedFlushEvents(currentUser!.uid, key, unsent, startIdx)

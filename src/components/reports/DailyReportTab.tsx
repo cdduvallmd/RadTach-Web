@@ -77,7 +77,7 @@ export default function DailyReportTab({ userId, userSystem, formatTime, role = 
   // Compute full session summary from combined events
   const fullSummary = useMemo(() => {
     if (!combinedEvents || !combinedSessionData) return null;
-    return computeSessionSummary(combinedEvents, combinedSessionData.totalSessionTime);
+    return computeSessionSummary(combinedEvents, combinedSessionData.totalSessionTime, combinedSessionData.startDateTime);
   }, [combinedEvents, combinedSessionData]);
 
   const garAvg = useMemo(() => {

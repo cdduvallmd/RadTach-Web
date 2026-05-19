@@ -356,8 +356,83 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
       studies: s.studiesCompleted,
       totalRVU: s.totalRVU,
       interstitialAvg: intAvg,
+      rvuPerStudy: s.studiesCompleted > 0 ? s.totalRVU / s.studiesCompleted : 0,
+      studiesPerHour: hours > 0 ? s.studiesCompleted / hours : 0,
     };
   });
+
+  // ── Performance Insights aggregation ──────────────────────────────────
+
+  // Hourly profile: aggregate across sessions
+  const hourlyProfile: Record<string, { totalStudies: number; totalRvu: number; sessionCount: number }> = {};
+  for (const s of filtered) {
+    const hp = s.summary?.hourlyProfile;
+    if (!hp) continue;
+    for (const [hour, data] of Object.entries(hp)) {
+      if (!hourlyProfile[hour]) hourlyProfile[hour] = { totalStudies: 0, totalRvu: 0, sessionCount: 0 };
+      hourlyProfile[hour].totalStudies += data.studies;
+      hourlyProfile[hour].totalRvu += data.rvu;
+      hourlyProfile[hour].sessionCount += 1;
+    }
+  }
+  const hourlyProfileAvg: Record<string, { avgStudies: number; avgRvu: number; sessionCount: number }> = {};
+  for (const [hour, data] of Object.entries(hourlyProfile)) {
+    hourlyProfileAvg[hour] = {
+      avgStudies: data.sessionCount > 0 ? data.totalStudies / data.sessionCount : 0,
+      avgRvu: data.sessionCount > 0 ? data.totalRvu / data.sessionCount : 0,
+      sessionCount: data.sessionCount,
+    };
+  }
+
+  // Deck quality metrics
+  const avgRvuPerStudy = totalStudies > 0 ? totalRVU / totalStudies : 0;
+  const periodProductiveHours = (totalStudyTime + totalInterstitialTime + totalAdminTime + totalCommsTime + totalDoubleTapTime) / 3600;
+  const avgStudiesPerHour = periodProductiveHours > 0 ? totalStudies / periodProductiveHours : 0;
+
+  // Fastest/slowest CPTs aggregated
+  const cptAgg: Record<string, { modality: string; totalVariance: number; count: number }> = {};
+  for (const s of filtered) {
+    if (!s.summary?.fastestCpts) continue;
+    for (const c of [...(s.summary.fastestCpts || []), ...(s.summary.slowestCpts || [])]) {
+      if (!cptAgg[c.cpt]) cptAgg[c.cpt] = { modality: c.modality, totalVariance: 0, count: 0 };
+      cptAgg[c.cpt].totalVariance += c.avgVariance * c.count;
+      cptAgg[c.cpt].count += c.count;
+    }
+  }
+  const cptAggList = Object.entries(cptAgg)
+    .filter(([, v]) => v.count >= 2)
+    .map(([cpt, v]) => ({ cpt, modality: v.modality, avgVariance: v.totalVariance / v.count, totalCount: v.count }));
+  const fastestCpts = [...cptAggList].sort((a, b) => a.avgVariance - b.avgVariance).slice(0, 3);
+  const slowestCpts = [...cptAggList].sort((a, b) => b.avgVariance - a.avgVariance).slice(0, 3);
+
+  // First-study warmup averaged
+  const warmupCosts = filtered
+    .map(s => s.summary?.firstStudyWarmup?.warmupCost)
+    .filter((c): c is number => c !== undefined && c !== null);
+  const avgWarmupCost = warmupCosts.length > 0
+    ? warmupCosts.reduce((a, b) => a + b, 0) / warmupCosts.length
+    : null;
+
+  // Break ROI aggregated
+  const breakBefore = filtered.map(s => s.summary?.breakROI?.avgVarianceBefore).filter((v): v is number => v !== null && v !== undefined);
+  const breakAfter = filtered.map(s => s.summary?.breakROI?.avgVarianceAfter).filter((v): v is number => v !== null && v !== undefined);
+  const totalBreaks = filtered.reduce((sum, s) => sum + (s.summary?.breakROI?.breakCount || 0), 0);
+  const avgBreakROI = {
+    avgBefore: breakBefore.length > 0 ? breakBefore.reduce((a, b) => a + b, 0) / breakBefore.length : null,
+    avgAfter: breakAfter.length > 0 ? breakAfter.reduce((a, b) => a + b, 0) / breakAfter.length : null,
+    totalBreaks,
+  };
+
+  // Modality transition aggregated
+  const transSame = filtered.map(s => s.summary?.modalityTransitionPenalty?.avgInterstitialSameModality).filter((v): v is number => v !== null && v !== undefined);
+  const transDiff = filtered.map(s => s.summary?.modalityTransitionPenalty?.avgInterstitialDifferentModality).filter((v): v is number => v !== null && v !== undefined);
+  const avgTransitionPenalty = {
+    same: transSame.length > 0 ? transSame.reduce((a, b) => a + b, 0) / transSame.length : null,
+    different: transDiff.length > 0 ? transDiff.reduce((a, b) => a + b, 0) / transDiff.length : null,
+  };
+
+  // Average interstitial time
+  const avgInterstitialTime = totalStudies > 0 ? totalInterstitialTime / totalStudies : 0;
 
   return {
     dateRange,
@@ -394,6 +469,16 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
     complicationCostAggregated: complicationCostResult,
     bestSession,
     sessionDataPoints,
+    // Performance Insights
+    hourlyProfile: hourlyProfileAvg,
+    avgRvuPerStudy,
+    avgStudiesPerHour,
+    fastestCpts,
+    slowestCpts,
+    avgWarmupCost,
+    avgBreakROI,
+    avgTransitionPenalty,
+    avgInterstitialTime,
   };
 }
 
@@ -409,6 +494,9 @@ export interface WeeklyTrendPoint {
   totalRVU: number;
   sessions: number;
   rvuPerHourByModality: Record<string, number>;
+  avgInterstitialTime: number;
+  avgRvuPerStudy: number;
+  studiesPerHour: number;
 }
 
 export function computeWeeklyTrend(
@@ -433,6 +521,9 @@ export function computeWeeklyTrend(
       totalRVU: summary.totalRVU,
       sessions: summary.totalSessions,
       rvuPerHourByModality: summary.rvuPerHourByModality,
+      avgInterstitialTime: summary.avgInterstitialTime,
+      avgRvuPerStudy: summary.avgRvuPerStudy,
+      studiesPerHour: summary.avgStudiesPerHour,
     });
   }
 
@@ -449,6 +540,9 @@ export interface MonthlyTrendPoint {
   totalRVU: number;
   sessions: number;
   rvuPerHourByModality: Record<string, number>;
+  avgInterstitialTime: number;
+  avgRvuPerStudy: number;
+  studiesPerHour: number;
 }
 
 export function computeMonthlyTrend(sessions: StoredSession[]): MonthlyTrendPoint[] {
@@ -471,6 +565,9 @@ export function computeMonthlyTrend(sessions: StoredSession[]): MonthlyTrendPoin
       totalRVU: summary.totalRVU,
       sessions: summary.totalSessions,
       rvuPerHourByModality: summary.rvuPerHourByModality,
+      avgInterstitialTime: summary.avgInterstitialTime,
+      avgRvuPerStudy: summary.avgRvuPerStudy,
+      studiesPerHour: summary.avgStudiesPerHour,
     });
   }
 
