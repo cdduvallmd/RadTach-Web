@@ -129,8 +129,17 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
 
   const avgVariance = sessionVariances.length > 0
     ? sessionVariances.reduce((a, b) => a + b, 0) / sessionVariances.length : 0;
-  const avgProductiveRatio = sessionProductiveRatios.length > 0
-    ? sessionProductiveRatios.reduce((a, b) => a + b, 0) / sessionProductiveRatios.length : 0;
+  // Productive ratio weighted by session duration: (Σ ratio×duration) / Σ duration
+  const avgProductiveRatio = (() => {
+    let weightedSum = 0, totalDuration = 0;
+    for (const s of sessions) {
+      const ratio = s.summary?.productiveTimeRatio ??
+        (s.totalSessionTime > 0 ? (s.totalSessionTime - s.interstitialTime - s.adminTime - s.commsTime - s.breakTime) / s.totalSessionTime : 0);
+      weightedSum += ratio * s.totalSessionTime;
+      totalDuration += s.totalSessionTime;
+    }
+    return totalDuration > 0 ? weightedSum / totalDuration : 0;
+  })();
 
   // Modality breakdowns
   const studiesByModality: Record<string, number> = {};
