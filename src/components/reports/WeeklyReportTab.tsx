@@ -7,6 +7,7 @@ import { useGroupStats } from '../../hooks/useGroupStats';
 import { aggregateSessions, getWeekRange } from '../../utils/periodAggregation';
 import type { DateRange, DistributionStats, EffectiveRole } from '../../types/reports';
 import { addWeeks, subWeeks, format } from 'date-fns';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import GARPercentileGauge from './shared/GARPercentileGauge';
 import PresidentWeeklySection from './sections/PresidentWeeklySection';
 import HospitalWeeklySection from './sections/HospitalWeeklySection';
@@ -277,6 +278,84 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
                     ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Deck Quality Decomposition */}
+          <div className="bg-gray-800 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Deck Quality vs Throughput</h3>
+            <p className="text-gray-500 text-xs mb-3">RVU/hr = (wRVU/Study) × (Studies/hr). Separates deck quality from reading speed.</p>
+            <div className="grid grid-cols-2 gap-4 text-center">
+              <div className="bg-gray-700/50 rounded-lg p-3">
+                <div className="text-gray-400 text-xs mb-1">wRVU/Study (Deck Quality)</div>
+                <div className="text-2xl font-bold text-white">{summary.avgRvuPerStudy.toFixed(2)}</div>
+              </div>
+              <div className="bg-gray-700/50 rounded-lg p-3">
+                <div className="text-gray-400 text-xs mb-1">Studies/hr (Throughput)</div>
+                <div className="text-2xl font-bold text-white">{summary.avgStudiesPerHour.toFixed(1)}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Fastest/Slowest CPTs */}
+          {(summary.fastestCpts.length > 0 || summary.slowestCpts.length > 0) && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Fastest & Slowest Studies</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-green-400 text-xs font-semibold mb-2">Fastest (vs Par)</h4>
+                  {summary.fastestCpts.map(c => (
+                    <div key={c.cpt} className="flex justify-between text-sm py-0.5">
+                      <span className="text-gray-300">{c.cpt} <span className="text-gray-500 text-xs">({c.totalCount})</span></span>
+                      <span className="text-green-400">{Math.round(c.avgVariance)}s</span>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <h4 className="text-red-400 text-xs font-semibold mb-2">Slowest (vs Par)</h4>
+                  {summary.slowestCpts.map(c => (
+                    <div key={c.cpt} className="flex justify-between text-sm py-0.5">
+                      <span className="text-gray-300">{c.cpt} <span className="text-gray-500 text-xs">({c.totalCount})</span></span>
+                      <span className="text-red-400">+{Math.round(c.avgVariance)}s</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Hourly Productivity Profile */}
+          {Object.keys(summary.hourlyProfile).length > 0 && (() => {
+            const hours = Object.entries(summary.hourlyProfile)
+              .map(([hour, data]) => ({ hour: `${Number(hour) % 12 || 12}${Number(hour) < 12 ? 'a' : 'p'}`, studies: data.avgStudies, rvuPerStudy: data.avgStudies > 0 ? data.avgRvu / data.avgStudies : 0, sessions: data.sessionCount }))
+              .sort((a, b) => a.hour.localeCompare(b.hour));
+            if (hours.length < 2) return null;
+            return (
+              <div className="bg-gray-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Hourly Productivity Profile</h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={hours} margin={{ top: 5, right: 20, bottom: 20, left: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="hour" stroke="#9ca3af" fontSize={11} />
+                    <YAxis stroke="#9ca3af" fontSize={11} />
+                    <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff' }} />
+                    <Bar dataKey="studies" fill="#3b82f6" name="Avg Studies" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
+
+          {/* Warmup Cost */}
+          {summary.avgWarmupCost !== null && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">First-Study Warmup</h3>
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${summary.avgWarmupCost > 0 ? 'text-yellow-400' : 'text-green-400'}`}>
+                  {summary.avgWarmupCost > 0 ? '+' : ''}{Math.round(summary.avgWarmupCost)}s
+                </div>
+                <div className="text-gray-500 text-xs mt-1">First study vs average of studies #2-5</div>
+              </div>
             </div>
           )}
 
