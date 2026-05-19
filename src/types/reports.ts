@@ -146,6 +146,9 @@ export interface PeriodSummary {
   sessionsByRotation: Record<string, number>;
   rvuPerHourByRotation: Record<string, number>;
   avgVarianceByRotation: Record<string, number>;
+  studiesByRotation: Record<string, number>;
+  avgRvuPerStudyByRotation: Record<string, number>;
+  studiesPerHourByRotation: Record<string, number>;
   sessionsByDayOfWeek: Record<string, number>;
   avgRVUPerHourByDayOfWeek: Record<string, number>;
   tagFrequency: Record<string, number>;

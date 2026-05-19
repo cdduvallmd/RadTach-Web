@@ -340,8 +340,11 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
                   <tr className="text-gray-400 border-b border-gray-700">
                     <th className="text-left py-2">Rotation</th>
                     <th className="text-right py-2">Sessions</th>
+                    <th className="text-right py-2">Studies</th>
                     <th className="text-right py-2">RVU/hr</th>
-                    <th className="text-right py-2">Avg Variance</th>
+                    <th className="text-right py-2">wRVU/Study</th>
+                    <th className="text-right py-2">Studies/hr</th>
+                    <th className="text-right py-2">Variance</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -351,7 +354,10 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
                       <tr key={rot} className="border-b border-gray-800 text-gray-300">
                         <td className="py-2">{rot}</td>
                         <td className="py-2 text-right">{count}</td>
+                        <td className="py-2 text-right">{summary.studiesByRotation[rot] || 0}</td>
                         <td className="py-2 text-right">{(summary.rvuPerHourByRotation[rot] || 0).toFixed(2)}</td>
+                        <td className="py-2 text-right">{(summary.avgRvuPerStudyByRotation[rot] || 0).toFixed(2)}</td>
+                        <td className="py-2 text-right">{(summary.studiesPerHourByRotation[rot] || 0).toFixed(1)}</td>
                         <td className={`py-2 text-right ${(summary.avgVarianceByRotation[rot] || 0) <= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {Math.round(summary.avgVarianceByRotation[rot] || 0)}s
                         </td>

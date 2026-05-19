@@ -207,12 +207,14 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
   const rvuPerHourByRotation: Record<string, number> = {};
   const varianceByRotation: Record<string, number[]> = {};
   const rvuByRotation: Record<string, number> = {};
+  const studiesByRotation: Record<string, number> = {};
   const hoursMinusBreakByRotation: Record<string, number> = {};
 
   for (const s of filtered) {
     const rot = s.rotation || 'Unknown';
     sessionsByRotation[rot] = (sessionsByRotation[rot] || 0) + 1;
     rvuByRotation[rot] = (rvuByRotation[rot] || 0) + s.totalRVU;
+    studiesByRotation[rot] = (studiesByRotation[rot] || 0) + s.studiesCompleted;
     hoursMinusBreakByRotation[rot] = (hoursMinusBreakByRotation[rot] || 0) + (s.totalSessionTime - s.breakTime) / 3600;
 
     if (s.summary?.avgVarianceByModality) {
@@ -232,6 +234,16 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
   const avgVarianceByRotation: Record<string, number> = {};
   for (const [rot, variances] of Object.entries(varianceByRotation)) {
     avgVarianceByRotation[rot] = variances.reduce((a, b) => a + b, 0) / variances.length;
+  }
+
+  // Rotation deck quality decomposition
+  const avgRvuPerStudyByRotation: Record<string, number> = {};
+  const studiesPerHourByRotation: Record<string, number> = {};
+  for (const rot of Object.keys(sessionsByRotation)) {
+    const studies = studiesByRotation[rot] || 0;
+    const hours = hoursMinusBreakByRotation[rot] || 0;
+    avgRvuPerStudyByRotation[rot] = studies > 0 ? (rvuByRotation[rot] || 0) / studies : 0;
+    studiesPerHourByRotation[rot] = hours > 0 ? studies / hours : 0;
   }
 
   // Day of week
@@ -460,6 +472,9 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
     sessionsByRotation,
     rvuPerHourByRotation,
     avgVarianceByRotation,
+    studiesByRotation,
+    avgRvuPerStudyByRotation,
+    studiesPerHourByRotation,
     sessionsByDayOfWeek,
     avgRVUPerHourByDayOfWeek,
     tagFrequency,
