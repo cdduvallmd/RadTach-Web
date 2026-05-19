@@ -1,3 +1,5 @@
+import { useState, useEffect, useRef } from 'react';
+
 interface Props {
   examDesc: string;
   onSignReport: () => void;
@@ -5,6 +7,18 @@ interface Props {
 }
 
 export default function ActiveStudy({ examDesc, onSignReport, disabled }: Props) {
+  const [elapsed, setElapsed] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    setElapsed(0);
+    intervalRef.current = setInterval(() => setElapsed(prev => prev + 1), 1000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [examDesc]);
+
+  const min = Math.floor(elapsed / 60);
+  const sec = elapsed % 60;
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
       <div className="text-center space-y-4 mb-12">
@@ -13,7 +27,9 @@ export default function ActiveStudy({ examDesc, onSignReport, disabled }: Props)
         </div>
         <p className="text-gray-400 text-sm uppercase tracking-wide">Study in progress</p>
         <h2 className="text-xl font-bold text-white">{examDesc}</h2>
-        <p className="text-gray-500 text-sm">Tap SIGN REPORT when done</p>
+        <div className="text-4xl font-mono font-bold text-green-400">
+          {min}:{String(sec).padStart(2, '0')}
+        </div>
       </div>
 
       <button
