@@ -9,6 +9,7 @@ import type { DateRange, DistributionStats, EffectiveRole } from '../../types/re
 import { addMonths, subMonths, format } from 'date-fns';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import GARPercentileGauge from './shared/GARPercentileGauge';
+import ModalityPerformance from './shared/ModalityPerformance';
 import { estimatePercentile } from '../../utils/percentileEstimation';
 import PresidentMonthlySection from './sections/PresidentMonthlySection';
 import HospitalMonthlySection from './sections/HospitalMonthlySection';
@@ -317,6 +318,18 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
               </div>
             </div>
           )}
+
+          {/* Performance by Modality — tabbed view */}
+          <ModalityPerformance
+            studiesByModality={summary.studiesByModality}
+            rvuPerHourByModality={summary.rvuPerHourByModality}
+            avgVarianceByModality={summary.avgVarianceByModality}
+            rvuByModality={summary.rvuByModality}
+            totalStudies={summary.totalStudies}
+            trendPoints={weeklyTrend.map(w => ({ label: w.weekLabel, rvuPerHourByModality: w.rvuPerHourByModality }))}
+            trendLabel="Week"
+            formatTime={formatTime}
+          />
 
           {/* Rotation comparison */}
           {Object.keys(summary.sessionsByRotation).length > 1 && (

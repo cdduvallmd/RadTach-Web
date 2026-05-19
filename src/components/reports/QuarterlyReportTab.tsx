@@ -9,6 +9,7 @@ import type { DateRange, DistributionStats, EffectiveRole } from '../../types/re
 import { format, subQuarters, addQuarters } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import GARPercentileGauge from './shared/GARPercentileGauge';
+import ModalityPerformance from './shared/ModalityPerformance';
 import PresidentQuarterlySection from './sections/PresidentQuarterlySection';
 import HospitalQuarterlySection from './sections/HospitalQuarterlySection';
 import ITQuarterlySection from './sections/ITQuarterlySection';
@@ -236,6 +237,51 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
             );
           })()}
 
+          {/* Deck Quality vs Throughput Trend */}
+          {monthlyTrend.length > 1 && (() => {
+            const deckData = monthlyTrend.map(m => ({
+              month: m.monthLabel,
+              rvuPerStudy: Math.round(m.avgRvuPerStudy * 100) / 100,
+              studiesPerHour: Math.round(m.studiesPerHour * 10) / 10,
+              productiveRatio: Math.round(m.avgProductiveRatio * 1000) / 10,
+              interstitial: Math.round(m.avgInterstitialTime),
+            }));
+            return (
+              <>
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Deck Quality vs Throughput — Monthly Trend</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={deckData} margin={{ top: 5, right: 20, bottom: 20, left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="month" stroke="#9ca3af" fontSize={11} />
+                      <YAxis yAxisId="left" stroke="#3b82f6" fontSize={11} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#8b5cf6" fontSize={11} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff' }} />
+                      <Legend />
+                      <Line yAxisId="left" type="monotone" dataKey="rvuPerStudy" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="wRVU/Study" />
+                      <Line yAxisId="right" type="monotone" dataKey="studiesPerHour" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 4 }} name="Studies/hr" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Productive Ratio & Interstitial — Monthly Trend</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={deckData} margin={{ top: 5, right: 20, bottom: 20, left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="month" stroke="#9ca3af" fontSize={11} />
+                      <YAxis yAxisId="left" stroke="#22c55e" fontSize={11} unit="%" />
+                      <YAxis yAxisId="right" orientation="right" stroke="#f97316" fontSize={11} unit="s" />
+                      <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff' }} />
+                      <Legend />
+                      <Line yAxisId="left" type="monotone" dataKey="productiveRatio" stroke="#22c55e" strokeWidth={2} dot={{ r: 4 }} name="Productive %" />
+                      <Line yAxisId="right" type="monotone" dataKey="interstitial" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} name="Avg Interstitial (s)" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
+            );
+          })()}
+
           {/* Personal bests */}
           {personalBests && (
             <div className="bg-gray-800 rounded-lg p-4">
@@ -268,6 +314,18 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
               </div>
             </div>
           )}
+
+          {/* Performance by Modality — tabbed view */}
+          <ModalityPerformance
+            studiesByModality={summary.studiesByModality}
+            rvuPerHourByModality={summary.rvuPerHourByModality}
+            avgVarianceByModality={summary.avgVarianceByModality}
+            rvuByModality={summary.rvuByModality}
+            totalStudies={summary.totalStudies}
+            trendPoints={monthlyTrend.map(m => ({ label: m.monthLabel, rvuPerHourByModality: m.rvuPerHourByModality }))}
+            trendLabel="Month"
+            formatTime={formatTime}
+          />
 
           {/* Modality efficiency table */}
           {Object.keys(summary.studiesByModality).length > 0 && (
