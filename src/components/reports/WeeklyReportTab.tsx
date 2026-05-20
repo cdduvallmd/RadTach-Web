@@ -419,12 +419,13 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
                 {summary.sessionDataPoints.map((dp, i) => {
                   const maxRVU = Math.max(...summary.sessionDataPoints.map(d => d.rvuPerHour), 1);
                   const height = (dp.rvuPerHour / maxRVU) * 100;
+                  const dateStr = (() => { try { const d = new Date(dp.date); return d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }); } catch { return ''; } })();
                   return (
                     <div
                       key={i}
                       className="flex-1 rounded-t"
                       style={{ height: `${height}%`, backgroundColor: '#3b82f6', minWidth: 4 }}
-                      title={`${dp.rvuPerHour.toFixed(2)} RVU/hr`}
+                      title={`${dp.rvuPerHour.toFixed(2)} RVU/hr\n${dateStr}\n${dp.rotation} · ${dp.office}\n${dp.studies} studies · ${dp.totalRVU.toFixed(2)} RVU`}
                     />
                   );
                 })}

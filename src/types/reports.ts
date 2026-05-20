@@ -174,6 +174,8 @@ export interface PeriodSummary {
   sessionsWithVerifiedRVU: number;
   sessionDataPoints: Array<{
     date: string;
+    rotation: string;
+    office: string;
     rvuPerHour: number;
     variance: number;
     productiveRatio: number;

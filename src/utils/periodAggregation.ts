@@ -362,6 +362,8 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
 
     return {
       date: s.startDateTime,
+      rotation: s.rotation || 'Unknown',
+      office: s.workstationId || 'Unknown',
       rvuPerHour: rvuHr,
       variance,
       productiveRatio: pr,
