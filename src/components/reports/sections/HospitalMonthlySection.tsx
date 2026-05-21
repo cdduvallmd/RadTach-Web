@@ -152,6 +152,34 @@ export default function HospitalMonthlySection({ system, dateRange }: HospitalMo
         </div>
       )}
 
+      {/* Value-Added Services */}
+      {(monthTotals.totalCommsHours > 0 || monthTotals.totalAdminHours > 0) && (
+        <div style={{ backgroundColor: '#064e3b', borderRadius: 8, padding: 16, border: '1px solid #065f46' }}>
+          <h3 style={{ color: '#6ee7b7', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+            Value-Added Services This Month
+          </h3>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: 12 }}>
+              <div style={{ color: '#6ee7b7', fontSize: 11 }}>Phone Consultations</div>
+              <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{monthTotals.totalCommsHours.toFixed(1)} hrs</div>
+            </div>
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: 12 }}>
+              <div style={{ color: '#6ee7b7', fontSize: 11 }}>Administrative</div>
+              <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{monthTotals.totalAdminHours.toFixed(1)} hrs</div>
+            </div>
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: 12 }}>
+              <div style={{ color: '#6ee7b7', fontSize: 11 }}>Total Service Hours</div>
+              <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{(monthTotals.totalCommsHours + monthTotals.totalAdminHours).toFixed(1)} hrs</div>
+            </div>
+          </div>
+          {monthTotals.daysReported > 0 && (
+            <div style={{ color: '#a7f3d0', fontSize: 12, marginTop: 8, textAlign: 'center' }}>
+              Average {((monthTotals.totalCommsHours + monthTotals.totalAdminHours) / monthTotals.daysReported).toFixed(1)} hrs/day communication + administrative support
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Time utilization breakdown */}
       <div style={{ backgroundColor: '#1f2937', borderRadius: 8, padding: 16 }}>
         <h3 style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>

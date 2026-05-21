@@ -48,7 +48,10 @@ export default function HospitalQuarterlySection({ system, dateRange }: Hospital
       }
     }
 
-    return { totalRVU, totalStudies, sessionCount, totalSessionHours, byModality, tagFreq, daysReported: garDays.length };
+    const totalAdminHours = garDays.reduce((sum, g) => sum + g.groupTotals.totalAdminHours, 0);
+    const totalCommsHours = garDays.reduce((sum, g) => sum + g.groupTotals.totalCommsHours, 0);
+
+    return { totalRVU, totalStudies, sessionCount, totalSessionHours, totalAdminHours, totalCommsHours, byModality, tagFreq, daysReported: garDays.length };
   }, [garDays]);
 
   // Monthly breakdown within quarter
@@ -167,6 +170,29 @@ export default function HospitalQuarterlySection({ system, dateRange }: Hospital
                 ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Value-Added Services */}
+      {quarterTotals && (quarterTotals.totalCommsHours > 0 || quarterTotals.totalAdminHours > 0) && (
+        <div style={{ backgroundColor: '#064e3b', borderRadius: 8, padding: 16, border: '1px solid #065f46' }}>
+          <h3 style={{ color: '#6ee7b7', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+            Value-Added Services This Quarter
+          </h3>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: 12 }}>
+              <div style={{ color: '#6ee7b7', fontSize: 11 }}>Phone Consultations</div>
+              <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{quarterTotals.totalCommsHours.toFixed(1)} hrs</div>
+            </div>
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: 12 }}>
+              <div style={{ color: '#6ee7b7', fontSize: 11 }}>Administrative</div>
+              <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{quarterTotals.totalAdminHours.toFixed(1)} hrs</div>
+            </div>
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: 12 }}>
+              <div style={{ color: '#6ee7b7', fontSize: 11 }}>Total Service Hours</div>
+              <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{(quarterTotals.totalCommsHours + quarterTotals.totalAdminHours).toFixed(1)} hrs</div>
+            </div>
+          </div>
         </div>
       )}
 
