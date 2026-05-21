@@ -846,6 +846,10 @@ function RadTachInner() {
           if (typeof settings.targetRvuPerHour === 'number') {
             setTargetRvuPerHour(settings.targetRvuPerHour);
           }
+          // Load system from Firestore if not set locally (needed for HA/admin report access)
+          if (typeof settings.currentSystem === 'string' && settings.currentSystem) {
+            setSystemInput(settings.currentSystem);
+          }
           // Cache favorites/combos for Sidecar sync relay
           if (Array.isArray(settings.favorites)) {
             firestoreFavoritesRef.current = settings.favorites;

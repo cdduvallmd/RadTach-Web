@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator, doc, setDoc, updateDoc } from 'firebase/firestore';
 
 const app = initializeApp({ apiKey: 'fake', authDomain: 'localhost', projectId: 'radtach' });
 const auth = getAuth(app);
@@ -21,10 +21,16 @@ await setDoc(doc(db, 'users', uid), {
 });
 console.log('Profile created');
 
-await setDoc(doc(db, 'users', uid, 'settings', 'current'), {
-  currentSystem: 'Test System',
-});
-console.log('Settings created with system = Test System');
+try {
+  await updateDoc(doc(db, 'users', uid, 'settings', 'current'), {
+    currentSystem: 'Test System',
+  });
+} catch {
+  await setDoc(doc(db, 'users', uid, 'settings', 'current'), {
+    currentSystem: 'Test System',
+  });
+}
+console.log('Settings updated with system = Test System');
 
 console.log('Done. Login as ha@test.radtach.com / Test123!');
 process.exit(0);
