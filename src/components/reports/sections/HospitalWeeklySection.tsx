@@ -22,6 +22,7 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
     const totalSessionHours = garDays.reduce((sum, g) => sum + g.groupTotals.totalSessionHours, 0);
     const totalBreakHours = garDays.reduce((sum, g) => sum + g.groupTotals.totalBreakHours, 0);
     const totalAdminHours = garDays.reduce((sum, g) => sum + g.groupTotals.totalAdminHours, 0);
+    const totalCommsHours = garDays.reduce((sum, g) => sum + g.groupTotals.totalCommsHours, 0);
     const sessionCount = garDays.reduce((sum, g) => sum + g.sessionCount, 0);
 
     // Modality totals
@@ -46,7 +47,7 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
 
     return {
       totalRVU, totalStudies, totalSessionHours, totalBreakHours,
-      totalAdminHours, sessionCount, byModality, tagFreq, networkInterference,
+      totalAdminHours, totalCommsHours, sessionCount, byModality, tagFreq, networkInterference,
       daysReported: garDays.length,
     };
   }, [garDays]);
@@ -71,7 +72,7 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
       {/* Summary cards */}
       <div className="grid grid-cols-4 gap-4">
         <div className="bg-gray-800 rounded-lg p-4 text-center">
-          <div className="text-gray-400 text-xs mb-1">Total RVU</div>
+          <div className="text-gray-400 text-xs mb-1">Total wRVU</div>
           <div className="text-2xl font-bold text-white">{weekTotals.totalRVU.toFixed(2)}</div>
         </div>
         <div className="bg-gray-800 rounded-lg p-4 text-center">
@@ -87,6 +88,34 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
           <div className="text-2xl font-bold text-white">{weekTotals.daysReported}</div>
         </div>
       </div>
+
+      {/* Value-Added Services */}
+      {(weekTotals.totalCommsHours > 0 || weekTotals.totalAdminHours > 0) && (
+        <div style={{ backgroundColor: '#064e3b', borderRadius: 8, padding: 16, border: '1px solid #065f46' }}>
+          <h3 style={{ color: '#6ee7b7', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+            Value-Added Services This Week
+          </h3>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: 12 }}>
+              <div style={{ color: '#6ee7b7', fontSize: 11 }}>Phone Consultations</div>
+              <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalCommsHours.toFixed(1)} hrs</div>
+            </div>
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: 12 }}>
+              <div style={{ color: '#6ee7b7', fontSize: 11 }}>Administrative</div>
+              <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalAdminHours.toFixed(1)} hrs</div>
+            </div>
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 6, padding: 12 }}>
+              <div style={{ color: '#6ee7b7', fontSize: 11 }}>Total Service Hours</div>
+              <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{(weekTotals.totalCommsHours + weekTotals.totalAdminHours).toFixed(1)} hrs</div>
+            </div>
+          </div>
+          {weekTotals.daysReported > 0 && (
+            <div style={{ color: '#a7f3d0', fontSize: 12, marginTop: 8, textAlign: 'center' }}>
+              Average {((weekTotals.totalCommsHours + weekTotals.totalAdminHours) / weekTotals.daysReported).toFixed(1)} hrs/day communication + administrative support
+            </div>
+          )}
+        </div>
+      )}
 
       {/* RVU by modality */}
       {Object.keys(weekTotals.byModality).length > 0 && (
@@ -126,18 +155,22 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
         <h3 style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
           Time Utilization (Hours)
         </h3>
-        <div className="grid grid-cols-3 gap-4 text-center">
+        <div className="grid grid-cols-4 gap-4 text-center">
           <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
             <div style={{ color: '#9ca3af', fontSize: 11 }}>Session Hours</div>
-            <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalSessionHours.toFixed(2)}</div>
+            <div style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalSessionHours.toFixed(1)}</div>
           </div>
           <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
             <div style={{ color: '#9ca3af', fontSize: 11 }}>Break Hours</div>
-            <div style={{ color: '#ec4899', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalBreakHours.toFixed(2)}</div>
+            <div style={{ color: '#ec4899', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalBreakHours.toFixed(1)}</div>
           </div>
           <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
             <div style={{ color: '#9ca3af', fontSize: 11 }}>Admin Hours</div>
-            <div style={{ color: '#f97316', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalAdminHours.toFixed(2)}</div>
+            <div style={{ color: '#f97316', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalAdminHours.toFixed(1)}</div>
+          </div>
+          <div style={{ backgroundColor: '#111827', borderRadius: 6, padding: 12 }}>
+            <div style={{ color: '#9ca3af', fontSize: 11 }}>Comms Hours</div>
+            <div style={{ color: '#06b6d4', fontSize: 20, fontWeight: 700 }}>{weekTotals.totalCommsHours.toFixed(1)}</div>
           </div>
         </div>
       </div>

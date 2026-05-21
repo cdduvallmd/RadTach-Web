@@ -46,10 +46,13 @@ interface CptEntry {
   cpt: string;
   description: string;
   workRvu: number;
+  tcRvu: number;
   modality: string;
   bodyPart: string;
   protocol: string;
 }
+
+type ShiftType = 'early' | 'standard' | 'late';
 
 interface RadiologistProfile {
   name: string;
@@ -63,6 +66,7 @@ interface RadiologistProfile {
   dayLength: number;     // hours (8-10)
   avgRVUPerHour: number; // rolled stat, used for speed variance
   offices: string[];     // 4-5 of the 10 offices
+  shift: ShiftType;      // weekday shift assignment
 }
 
 interface SessionEvent {
@@ -132,7 +136,7 @@ const OFFICES = [
   'Office 6', 'Office 7', 'Office 8', 'Office 9', 'Office 10',
 ];
 
-const ROTATIONS = ['Body', 'Neuro', 'MSK', 'Chest', 'ER', 'Mammo'];
+const ROTATIONS = ['Body', 'Neuro', 'MSK', 'Chest', 'ER', 'Mammo', 'Call', 'Weekend'];
 
 const DOC_TEMPLATES: Array<{
   firstName: string; lastName: string; initials: string; gender: 'M' | 'F'; specialty: Specialty;
@@ -336,7 +340,7 @@ function findCptForComponent(
 function selectCptForStudy(
   modality: Modality,
   rotation: string,
-): { cpt: string; workRvu: number } {
+): { cpt: string; workRvu: number; tcRvu: number } {
   const bodyPartWeights = ROTATION_BODY_PART_WEIGHTS[rotation] || ROTATION_BODY_PART_WEIGHTS['ER'];
 
   // Collect candidates weighted by bodyPartAffinity * protocolWeight
@@ -354,9 +358,9 @@ function selectCptForStudy(
   // Fallback: modality-wide pool (rare modality+rotation combos)
   if (candidates.length === 0) {
     const pool = cptByModality.get(modality) || [];
-    if (pool.length === 0) return { cpt: '99199', workRvu: 0.5 }; // Ultimate fallback
+    if (pool.length === 0) return { cpt: '99199', workRvu: 0.5, tcRvu: 1.25 }; // Ultimate fallback
     const entry = pick(pool);
-    return { cpt: entry.cpt, workRvu: entry.workRvu };
+    return { cpt: entry.cpt, workRvu: entry.workRvu, tcRvu: entry.tcRvu || entry.workRvu * 2.5 };
   }
 
   // Weighted random selection
@@ -364,16 +368,16 @@ function selectCptForStudy(
   let r = seededRandom() * total;
   for (const c of candidates) {
     r -= c.weight;
-    if (r <= 0) return { cpt: c.entry.cpt, workRvu: c.entry.workRvu };
+    if (r <= 0) return { cpt: c.entry.cpt, workRvu: c.entry.workRvu, tcRvu: c.entry.tcRvu || c.entry.workRvu * 2.5 };
   }
   const last = candidates[candidates.length - 1];
-  return { cpt: last.entry.cpt, workRvu: last.entry.workRvu };
+  return { cpt: last.entry.cpt, workRvu: last.entry.workRvu, tcRvu: last.entry.tcRvu || last.entry.workRvu * 2.5 };
 }
 
 function tryComboStudy(
   modality: Modality,
   rotation: string,
-): { cpts: string[]; workRvu: number; parTime: number } | null {
+): { cpts: string[]; workRvu: number; tcRvu: number; parTime: number } | null {
   const eligible = COMBO_TEMPLATES.filter(t =>
     t.modality === modality && t.affinityRotations.includes(rotation)
   );
@@ -382,13 +386,15 @@ function tryComboStudy(
   const template = pick(eligible);
   const cpts: string[] = [];
   let totalRvu = 0;
+  let totalTcRvu = 0;
   let totalParTime = 0;
 
   for (const comp of template.components) {
     const entry = findCptForComponent(modality, comp.bodyParts, comp.preferProtocol);
-    if (!entry) return null; // Can't fill component — fall back to single study
+    if (!entry) return null;
     cpts.push(entry.cpt);
     totalRvu += entry.workRvu;
+    totalTcRvu += entry.tcRvu || entry.workRvu * 2.5;
     const { floor, perRvu } = PAR_TIME_PARAMS[modality];
     totalParTime += floor + entry.workRvu * perRvu;
   }
@@ -396,7 +402,8 @@ function tryComboStudy(
   return {
     cpts,
     workRvu: Math.round(totalRvu * 100) / 100,
-    parTime: Math.round(totalParTime * 0.85), // 15% overlap discount
+    tcRvu: Math.round(totalTcRvu * 100) / 100,
+    parTime: Math.round(totalParTime * 0.85),
   };
 }
 
@@ -408,9 +415,14 @@ function computeParTime(modality: Modality, workRvu: number): number {
 // ── Stat Rolling ───────────────────────────────────────────────────────────
 
 function rollProfiles(): RadiologistProfile[] {
-  return DOC_TEMPLATES.map(tmpl => {
+  // Shift assignments: index 0 = early, 1-6 = standard, 7 = late
+  const SHIFT_MAP: ShiftType[] = ['early', 'standard', 'standard', 'standard', 'standard', 'standard', 'standard', 'late', 'standard', 'standard'];
+
+  return DOC_TEMPLATES.map((tmpl, idx) => {
+    const shift = SHIFT_MAP[idx];
+    // Day length based on shift: early=8h, standard=9h, late=8h
+    const dayLength = shift === 'standard' ? 9 : 8;
     const speed = randInt(8, 14);
-    const dayLength = randInt(8, 10);
     const avgRVUPerHour = randFloat(6, 10);
     const numOffices = randInt(4, 5);
     const offices = pickN(OFFICES, numOffices);
@@ -427,6 +439,7 @@ function rollProfiles(): RadiologistProfile[] {
       dayLength,
       avgRVUPerHour,
       offices,
+      shift,
     };
   });
 }
@@ -443,44 +456,71 @@ function generateComplications(): string[] {
   return complications;
 }
 
-function getWorkday(dayIndex: number): Date {
+function getCalendarDay(dayIndex: number): Date {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  let workdaysBack = 30 - dayIndex;
   const date = new Date(today);
-  while (workdaysBack > 0) {
-    date.setDate(date.getDate() - 1);
-    const dow = date.getDay();
-    if (dow !== 0 && dow !== 6) workdaysBack--;
-  }
+  date.setDate(date.getDate() - (30 - dayIndex));
   return date;
+}
+
+function isWeekend(date: Date): boolean {
+  const dow = date.getDay();
+  return dow === 0 || dow === 6;
+}
+
+function getWeekNumber(date: Date): number {
+  // Week number within the 30-day window (for vacation assignment)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysDiff = Math.floor((today.getTime() - date.getTime()) / 86400000);
+  return Math.floor(daysDiff / 7);
 }
 
 function generateSession(
   profile: RadiologistProfile,
   date: Date,
   sessionNumber: number,
+  weekendSlot?: 'morning' | 'afternoon',
 ): { sessionData: Record<string, unknown>; events: SessionEvent[] } {
   const events: SessionEvent[] = [];
 
-  // Session start time: 7-8 AM with some variance
-  const startHour = 7 + randFloat(0, 1);
+  // Session start time based on shift type or weekend slot
+  let startHour: number;
+  let dayDurationHrsBase: number;
+  if (weekendSlot === 'morning') {
+    startHour = 7 + randFloat(0, 0.3);
+    dayDurationHrsBase = 6; // 7am-1pm
+  } else if (weekendSlot === 'afternoon') {
+    startHour = 13 + randFloat(0, 0.3);
+    dayDurationHrsBase = 6; // 1pm-7pm
+  } else if (profile.shift === 'early') {
+    startHour = 6 + randFloat(0, 0.3);
+    dayDurationHrsBase = 8; // 6am-2pm
+  } else if (profile.shift === 'late') {
+    startHour = 11 + randFloat(0, 0.3);
+    dayDurationHrsBase = 8; // 11am-7pm
+  } else {
+    startHour = 8 + randFloat(0, 0.3);
+    dayDurationHrsBase = 9; // 8am-5pm
+  }
   const sessionStart = new Date(date);
   sessionStart.setHours(Math.floor(startHour), Math.round((startHour % 1) * 60), 0, 0);
 
   // Slight day-to-day variance in speed and duration
   const daySpeed = Math.max(4, profile.speed + gaussianIsh(0, 1.5));
-  const dayDurationHrs = profile.dayLength + gaussianIsh(0, 0.5);
+  const dayDurationHrs = dayDurationHrsBase + gaussianIsh(0, 0.3);
   const totalStudies = Math.round(daySpeed * dayDurationHrs);
   const totalSessionSec = Math.round(dayDurationHrs * 3600);
 
   const office = pick(profile.offices);
-  const rotation = weightedPick(SPECIALTY_ROTATION_WEIGHTS[profile.specialty]);
+  const rotation = weekendSlot ? pick(['Call', 'Weekend']) : weightedPick(SPECIALTY_ROTATION_WEIGHTS[profile.specialty]);
   const isOffice7 = office === 'Office 7';
 
   let sessionTimeCursor = 0; // seconds into session
   let studyNumber = 0;
   let totalRVU = 0;
+  let totalTcRVU = 0;
   let cumulativeParTime = 0;
   let totalStudyTime = 0;
   let totalInterstitialTime = 0;
@@ -567,6 +607,7 @@ function generateSession(
 
     let studyCpts: string[];
     let workRvu: number;
+    let tcRvu: number;
     let parTime: number;
 
     // Check for combo study
@@ -578,11 +619,13 @@ function generateSession(
     if (combo) {
       studyCpts = combo.cpts;
       workRvu = combo.workRvu;
+      tcRvu = combo.tcRvu ?? combo.workRvu * 2.5; // fallback estimate
       parTime = combo.parTime;
     } else {
       const selected = selectCptForStudy(modality, rotation);
       studyCpts = [selected.cpt];
       workRvu = selected.workRvu;
+      tcRvu = selected.tcRvu || selected.workRvu * 2.5; // fallback estimate
       parTime = computeParTime(modality, workRvu);
     }
 
@@ -628,6 +671,7 @@ function generateSession(
     });
 
     totalRVU += workRvu;
+    totalTcRVU += tcRvu;
     cumulativeParTime += parTime;
     totalStudyTime += elapsedTime;
     sessionTimeCursor += elapsedTime + pauseTime;
@@ -686,7 +730,8 @@ function generateSession(
     doubleTapTime: totalDoubleTapTime,
     doubleTapEvents: doubleTapEventCount,
     swapEvents: 0,
-    totalRVU: Math.round(totalRVU * 10) / 10,
+    totalRVU: Math.round(totalRVU * 100) / 100,
+    totalTcRVU: Math.round(totalTcRVU * 100) / 100,
     displayName,
   };
 
@@ -880,6 +925,18 @@ async function main() {
     modalityCounts: new Map(),
   }));
 
+  // Pre-compute vacation weeks per radiologist (1 in 5 chance per week)
+  const vacationWeeks: Set<string>[] = profiles.map(() => {
+    const weeks = new Set<string>();
+    for (let w = 0; w < 5; w++) { // 5 weeks in 30 days
+      if (seededRandom() < 0.20) weeks.add(String(w));
+    }
+    return weeks;
+  });
+
+  // Weekend rotation: assign 2 radiologists per weekend day (rotating)
+  const weekendAssignments = new Map<string, Array<{ docIdx: number; slot: 'morning' | 'afternoon' }>>();
+
   for (let docIdx = 0; docIdx < profiles.length; docIdx++) {
     const profile = profiles[docIdx];
     const uid = userUIDs[docIdx];
@@ -891,13 +948,34 @@ async function main() {
     await signInWithEmailAndPassword(auth, email, 'Test123!');
 
     for (let dayIdx = 0; dayIdx < 30; dayIdx++) {
-      const date = getWorkday(dayIdx);
+      const date = getCalendarDay(dayIdx);
+      const weekNum = getWeekNumber(date);
+      const weekend = isWeekend(date);
 
-      // Not every doc works every day (85% chance of working)
-      if (seededRandom() < 0.15) continue;
+      // Vacation: skip entire week
+      if (vacationWeeks[docIdx].has(String(weekNum))) continue;
+
+      // Determine if this radiologist works today
+      let weekendSlot: 'morning' | 'afternoon' | undefined;
+      if (weekend) {
+        const dayKey = date.toISOString().slice(0, 10);
+        if (!weekendAssignments.has(dayKey)) {
+          const morningIdx = (dayIdx * 3 + 0) % profiles.length;
+          const afternoonIdx = (dayIdx * 3 + 1) % profiles.length;
+          weekendAssignments.set(dayKey, [
+            { docIdx: morningIdx, slot: 'morning' },
+            { docIdx: afternoonIdx, slot: 'afternoon' },
+          ]);
+        }
+        const assignment = weekendAssignments.get(dayKey)!.find(a => a.docIdx === docIdx);
+        if (!assignment) continue;
+        weekendSlot = assignment.slot;
+      } else {
+        if (seededRandom() < 0.10) continue;
+      }
 
       sessionCount++;
-      const { sessionData, events } = generateSession(profile, date, sessionCount);
+      const { sessionData, events } = generateSession(profile, date, sessionCount, weekendSlot);
 
       // Collect stats
       stats.sessions++;
