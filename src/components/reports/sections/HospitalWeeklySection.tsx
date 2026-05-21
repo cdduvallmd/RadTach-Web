@@ -18,6 +18,7 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
   const weekTotals = useMemo(() => {
     if (garDays.length === 0) return null;
     const totalRVU = garDays.reduce((sum, g) => sum + g.groupTotals.totalRVU, 0);
+    const totalTcRVU = garDays.reduce((sum, g) => sum + (g.groupTotals.totalTcRVU || 0), 0);
     const totalStudies = garDays.reduce((sum, g) => sum + g.groupTotals.totalStudies, 0);
     const totalSessionHours = garDays.reduce((sum, g) => sum + g.groupTotals.totalSessionHours, 0);
     const totalBreakHours = garDays.reduce((sum, g) => sum + g.groupTotals.totalBreakHours, 0);
@@ -46,7 +47,7 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
     const networkInterference = tagFreq['Network & Application Interference'] || 0;
 
     return {
-      totalRVU, totalStudies, totalSessionHours, totalBreakHours,
+      totalRVU, totalTcRVU, totalStudies, totalSessionHours, totalBreakHours,
       totalAdminHours, totalCommsHours, sessionCount, byModality, tagFreq, networkInterference,
       daysReported: garDays.length,
     };
@@ -70,7 +71,11 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
+        <div className="bg-gray-800 rounded-lg p-4 text-center">
+          <div className="text-gray-400 text-xs mb-1">Total tcRVU</div>
+          <div className="text-2xl font-bold text-cyan-400">{weekTotals.totalTcRVU.toFixed(2)}</div>
+        </div>
         <div className="bg-gray-800 rounded-lg p-4 text-center">
           <div className="text-gray-400 text-xs mb-1">Total wRVU</div>
           <div className="text-2xl font-bold text-white">{weekTotals.totalRVU.toFixed(2)}</div>

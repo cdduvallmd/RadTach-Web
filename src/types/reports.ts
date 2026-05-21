@@ -77,6 +77,7 @@ export interface GroupStats {
   tagFrequency: Record<string, number>;
   groupTotals: {
     totalRVU: number;
+    totalTcRVU?: number;
     totalStudies: number;
     totalSessionHours: number;
     totalAdminHours: number;

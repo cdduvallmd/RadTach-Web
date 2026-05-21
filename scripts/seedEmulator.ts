@@ -868,18 +868,35 @@ async function main() {
   }
   console.log('  Config/admins bootstrapped via REST API (admin = Andrew Brown)');
 
+  // Create a hospital admin test account (ha@test.radtach.com)
+  let haUid: string;
+  try {
+    const haCred = await createUserWithEmailAndPassword(auth, 'ha@test.radtach.com', 'Test123!');
+    haUid = haCred.user.uid;
+    console.log(`  Created hospital admin user: ha@test.radtach.com → ${haUid}`);
+  } catch {
+    const haCred = await signInWithEmailAndPassword(auth, 'ha@test.radtach.com', 'Test123!');
+    haUid = haCred.user.uid;
+    console.log(`  Existing hospital admin user: ha@test.radtach.com → ${haUid}`);
+  }
+
+  // Sign back in as Andrew Brown (admin) for system config writes
+  await signInWithEmailAndPassword(auth, 'ab@test.radtach.com', 'Test123!');
+
   // Primary: systems/{system}
+  const presidentMap: Record<string, boolean> = { [userUIDs[0]]: true };
+  const hospitalAdminMap: Record<string, boolean> = { [haUid]: true };
   await setDoc(doc(db, 'systems', SYSTEM_NAME), {
     offices: OFFICES,
     rotations: ROTATIONS,
     admins: adminMap,
-    presidents: {},
-    hospitalAdmins: {},
+    presidents: presidentMap,
+    hospitalAdmins: hospitalAdminMap,
     itAccess: {},
     hospitalAdminIndividualAccess: false,
     adminIndividualAccess: false,
   });
-  console.log('  systems/Test System created');
+  console.log('  systems/Test System created (AB=president, HA=hospitalAdmin)');
 
   // Legacy fallback
   await setDoc(doc(db, 'Config', 'Systems'), {
