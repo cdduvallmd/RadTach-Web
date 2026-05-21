@@ -4,6 +4,7 @@
 
 import { useMemo } from 'react';
 import { useGroupStats } from '../../../hooks/useGroupStats';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { DateRange } from '../../../types/reports';
 
 interface HospitalWeeklySectionProps {
@@ -46,10 +47,20 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
 
     const networkInterference = tagFreq['Network & Application Interference'] || 0;
 
+    // Hourly studies aggregated across all days
+    const hourlyStudies: Record<string, number> = {};
+    for (const g of garDays) {
+      const hs = (g as unknown as Record<string, unknown>).hourlyStudies as Record<string, number> | undefined;
+      if (!hs) continue;
+      for (const [hour, count] of Object.entries(hs)) {
+        hourlyStudies[hour] = (hourlyStudies[hour] || 0) + count;
+      }
+    }
+
     return {
       totalRVU, totalTcRVU, totalStudies, totalSessionHours, totalBreakHours,
       totalAdminHours, totalCommsHours, sessionCount, byModality, tagFreq, networkInterference,
-      daysReported: garDays.length,
+      daysReported: garDays.length, hourlyStudies,
     };
   }, [garDays]);
 
@@ -154,6 +165,34 @@ export default function HospitalWeeklySection({ system, dateRange }: HospitalWee
           </table>
         </div>
       )}
+
+      {/* Hourly Study Volume */}
+      {Object.keys(weekTotals.hourlyStudies).length > 0 && (() => {
+        const data = Object.entries(weekTotals.hourlyStudies)
+          .map(([hour, count]) => ({
+            hour: `${Number(hour) % 12 || 12}${Number(hour) < 12 ? 'a' : 'p'}`,
+            hourNum: Number(hour),
+            studies: count,
+            avgPerDay: weekTotals.daysReported > 0 ? Math.round(count / weekTotals.daysReported * 10) / 10 : 0,
+          }))
+          .sort((a, b) => a.hourNum - b.hourNum);
+        return (
+          <div style={{ backgroundColor: '#1f2937', borderRadius: 8, padding: 16 }}>
+            <h3 style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+              Studies by Hour of Day (Weekly Average)
+            </h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={data} margin={{ top: 5, right: 20, bottom: 20, left: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="hour" stroke="#9ca3af" fontSize={11} />
+                <YAxis stroke="#9ca3af" fontSize={11} />
+                <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff' }} />
+                <Bar dataKey="avgPerDay" fill="#0891b2" name="Avg Studies/Day" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        );
+      })()}
 
       {/* Time utilization */}
       <div style={{ backgroundColor: '#1f2937', borderRadius: 8, padding: 16 }}>
