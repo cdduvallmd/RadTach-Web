@@ -326,6 +326,9 @@ export function useTimerMode(): UseTimerModeReturn {
       case 'draft_enter': {
         if (currentMode === 'study' && studyContext.current) {
           studyContext.current.drafted = true;
+          // Accumulate pre-draft study time so it's preserved when the draft
+          // is resumed and eventually completed.
+          studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
           enterMode('interstitial', sessionTime);
         }
         break;

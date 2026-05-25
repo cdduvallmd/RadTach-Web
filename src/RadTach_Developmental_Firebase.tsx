@@ -2459,10 +2459,13 @@ function RadTachInner() {
       setSelectedModality(null);
       setSelectedComplications([]);
       setCurrentTime(0);
-      
-      // Start interstitial time
+
+      // Start interstitial time AT the Draft press, so the post-Draft span
+      // is tracked. Without this, an ABC absorbs nothing or a Resume's
+      // interstitial event has a stale start.
       setIsInterstitialRunning(true);
-      
+      setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
+
       // Enter draft mode
       setIsDraftMode(true);
     } else {
