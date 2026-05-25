@@ -7,9 +7,17 @@
  *
  * Clyde fixes applied (2026-05-18):
  * - F1: Removed savedInterstitialStart spanning — ABC during interstitial
- *   abandons pre-ABC fragment, starts fresh on ABC end (matches production)
+ *   abandons pre-ABC fragment (now superseded by absorption rule below)
  * - F5: Removed dead wasInStudy in break path
  * - F6: endSession includes accumulatedTime for interrupted studies
+ *
+ * Absorption rule (2026-05-25):
+ * - When ANY mode (ADMIN/COMMS/BREAK/DOUBLE_TAP) toggles ON during interstitial,
+ *   the new mode's start time is back-dated to the interstitial's start time.
+ *   The pre-toggle interstitial fragment is absorbed into the new mode event;
+ *   no separate INTERSTITIAL event is emitted. Rationale: pressing any of
+ *   these buttons is a deliberate transition out of "should be reading" mode,
+ *   so the time leading up to that decision belongs to that mode.
  */
 import { useRef, useCallback } from 'react';
 
@@ -243,21 +251,21 @@ export function useTimerMode(): UseTimerModeReturn {
           if (wasInStudy.current) {
             enterMode('study', sessionTime);
           } else {
-            // F1: Start fresh interstitial (abandon pre-ABC fragment, match production)
+            // Start fresh interstitial post-admin
             enterMode('interstitial', sessionTime);
           }
           wasInStudy.current = false;
         } else {
-          // Turning on admin
           wasInStudy.current = currentMode === 'study';
-          // F1: Don't close interstitial — abandon the pre-ABC fragment (production discards it)
-          if (currentMode !== 'interstitial') {
-            // Only close non-interstitial modes (study stays open conceptually via accumulatedTime)
+          if (currentMode === 'interstitial') {
+            // Absorb pre-toggle interstitial — keep modeEnteredAt at the interstitial's start
+            mode.current = 'admin';
+          } else {
+            if (currentMode === 'study' && studyContext.current) {
+              studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
+            }
+            enterMode('admin', sessionTime);
           }
-          if (currentMode === 'study' && studyContext.current) {
-            studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
-          }
-          enterMode('admin', sessionTime);
         }
         break;
       }
@@ -268,16 +276,19 @@ export function useTimerMode(): UseTimerModeReturn {
           if (wasInStudy.current) {
             enterMode('study', sessionTime);
           } else {
-            // F1: Start fresh interstitial
             enterMode('interstitial', sessionTime);
           }
           wasInStudy.current = false;
         } else {
           wasInStudy.current = currentMode === 'study';
-          if (currentMode === 'study' && studyContext.current) {
-            studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
+          if (currentMode === 'interstitial') {
+            mode.current = 'comms';
+          } else {
+            if (currentMode === 'study' && studyContext.current) {
+              studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
+            }
+            enterMode('comms', sessionTime);
           }
-          enterMode('comms', sessionTime);
         }
         break;
       }
@@ -286,13 +297,16 @@ export function useTimerMode(): UseTimerModeReturn {
         if (currentMode === 'break') {
           closeCurrentMode(sessionTime);
           enterMode('interstitial', sessionTime);
-          // F5: wasInStudy not needed here — break always returns to interstitial
         } else {
-          if (currentMode === 'study' && studyContext.current) {
-            studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
+          if (currentMode === 'interstitial') {
+            mode.current = 'break';
+          } else {
+            if (currentMode === 'study' && studyContext.current) {
+              studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
+            }
+            closeCurrentMode(sessionTime);
+            enterMode('break', sessionTime);
           }
-          closeCurrentMode(sessionTime);
-          enterMode('break', sessionTime);
         }
         break;
       }
@@ -302,9 +316,9 @@ export function useTimerMode(): UseTimerModeReturn {
           closeCurrentMode(sessionTime);
           enterMode('interstitial', sessionTime);
         } else if (currentMode === 'interstitial') {
-          closeCurrentMode(sessionTime);
+          // Absorb pre-toggle interstitial into DOUBLE_TAP
+          mode.current = 'doubleTap';
           if (action.modality) lastStudyModality.current = action.modality;
-          enterMode('doubleTap', sessionTime);
         }
         break;
       }

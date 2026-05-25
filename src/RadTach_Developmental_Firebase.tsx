@@ -1475,6 +1475,11 @@ function RadTachInner() {
     setSessionEvents([]);
     shadow.startSession();
     shadowFlushIdx.current = 0;
+    // Start interstitial at session start so the first-study auto-swap has a
+    // prior INTERSTITIAL fragment to harvest if the timer wasn't started
+    // when the rad opened the study in PACS.
+    setIsInterstitialRunning(true);
+    setInterstitialStartTime({ session: 0, system: now });
 
     // Firebase: create session document via IDB write-ahead buffer
     if (FIREBASE_ENABLED) {
@@ -2237,7 +2242,10 @@ function RadTachInner() {
       setIsInterstitialRunning(false);
       setIsCommsTimeRunning(false);
       setAdminEvents(prev => prev + 1); // Issue #4: Increment event counter
-      setAdminStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1: Track start time
+      // Absorb pre-toggle interstitial into ADMIN start time (unified absorption rule)
+      const adminStart = interstitialStartTime ?? { session: sessionTime, system: getCurrentDateTime() };
+      setAdminStartTime(adminStart);
+      setInterstitialStartTime(null);
 
       // Stop study timer if in progress (replaced auto-pause)
       if (selectedModality !== null && isRunning) {
@@ -2280,7 +2288,10 @@ function RadTachInner() {
       setIsInterstitialRunning(false);
       setIsAdminTimeRunning(false);
       setCommsEvents(prev => prev + 1); // Issue #4: Increment event counter
-      setCommsStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1: Track start time
+      // Absorb pre-toggle interstitial into COMMS start time
+      const commsStart = interstitialStartTime ?? { session: sessionTime, system: getCurrentDateTime() };
+      setCommsStartTime(commsStart);
+      setInterstitialStartTime(null);
 
       // Stop study timer if in progress (replaced auto-pause)
       if (selectedModality !== null && isRunning) {
@@ -2329,7 +2340,10 @@ function RadTachInner() {
       setLastBreakDeclineTime(0);
       // Increment breaks taken
       setBreaksTaken(prev => prev + 1);
-      setBreakStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1: Track start time
+      // Absorb pre-toggle interstitial into BREAK start time
+      const breakStart = interstitialStartTime ?? { session: sessionTime, system: getCurrentDateTime() };
+      setBreakStartTime(breakStart);
+      setInterstitialStartTime(null);
       // Firebase: flush events on break start (user is idle, good time to write)
       if (FIREBASE_ENABLED && firestoreSessionId) {
         flushEventsToFirestore(sessionEvents, firestoreSessionId);
@@ -2385,7 +2399,10 @@ function RadTachInner() {
       setIsDoubleTapRunning(true);
       setIsInterstitialRunning(false);
       setDoubleTapEvents(prev => prev + 1);
-      setDoubleTapStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1: Track start time
+      // Absorb pre-toggle interstitial into DOUBLE_TAP start time
+      const dtStart = interstitialStartTime ?? { session: sessionTime, system: getCurrentDateTime() };
+      setDoubleTapStartTime(dtStart);
+      setInterstitialStartTime(null);
     } else {
       // Stopping Double Tap - record event (Issue #1)
       if (doubleTapStartTime !== null) {
