@@ -64,7 +64,9 @@ export default function CptListScreen({ title, cpts, recentEntries, entries, onS
                   );
                 }
 
-                // Combo entry — stacked CPTs with left accent border colored by modality
+                // Combo entry — stacked CPTs with left accent border colored by modality.
+                // When the user has renamed the combo (aeTitle set), show the rename as
+                // a compact header to match the SavedCombos list visual treatment.
                 const modalities = new Set(re.cpts.map(c => entries[c]?.modality));
                 const singleMod = modalities.size === 1 ? [...modalities][0] : undefined;
                 const cc = comboColor(singleMod);
@@ -75,35 +77,54 @@ export default function CptListScreen({ title, cpts, recentEntries, entries, onS
                     className="w-full text-left p-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
                     style={{ borderLeft: `3px solid ${cc}` }}
                   >
-                    {re.cpts.map((cpt, ci) => {
-                      const e = entries[cpt];
-                      return (
-                        <div key={cpt} className={ci > 0 ? 'mt-1.5 pt-1.5 border-t border-gray-700' : ''}>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span
-                              className="text-xs font-bold px-1.5 py-0.5 rounded"
-                              style={{ backgroundColor: MODALITY_COLORS[e.modality] || '#6b7280', color: 'white' }}
-                            >
-                              {e.modality}
+                    {re.aeTitle ? (
+                      /* Compact titled view — mirrors SavedCombosScreen */
+                      <>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          {singleMod && (
+                            <span className="text-xs font-bold px-1.5 py-0.5 rounded"
+                              style={{ backgroundColor: cc, color: '#000' }}>
+                              {singleMod}
                             </span>
-                            <span className="text-gray-400 text-xs">{cpt}</span>
-                            {ci === 0 && (
-                              <span className="text-xs font-bold px-1.5 py-0.5 rounded ml-auto"
-                                style={{ backgroundColor: cc, color: '#000' }}>
-                                COMBO ({re.cpts.length})
+                          )}
+                          <span className="text-xs font-bold" style={{ color: cc }}>
+                            COMBO ({re.cpts.length})
+                          </span>
+                        </div>
+                        <p className="text-white text-sm font-medium">{re.aeTitle}</p>
+                        <p className="text-gray-500 text-xs mt-0.5">{re.cpts.join(', ')}</p>
+                      </>
+                    ) : (
+                      re.cpts.map((cpt, ci) => {
+                        const e = entries[cpt];
+                        return (
+                          <div key={cpt} className={ci > 0 ? 'mt-1.5 pt-1.5 border-t border-gray-700' : ''}>
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span
+                                className="text-xs font-bold px-1.5 py-0.5 rounded"
+                                style={{ backgroundColor: MODALITY_COLORS[e.modality] || '#6b7280', color: 'white' }}
+                              >
+                                {e.modality}
                               </span>
-                            )}
-                            {ci > 0 && (
-                              <span className="text-gray-500 text-xs ml-auto">{e.bodyPart}</span>
+                              <span className="text-gray-400 text-xs">{cpt}</span>
+                              {ci === 0 && (
+                                <span className="text-xs font-bold px-1.5 py-0.5 rounded ml-auto"
+                                  style={{ backgroundColor: cc, color: '#000' }}>
+                                  COMBO ({re.cpts.length})
+                                </span>
+                              )}
+                              {ci > 0 && (
+                                <span className="text-gray-500 text-xs ml-auto">{e.bodyPart}</span>
+                              )}
+                            </div>
+                            <p className="text-white text-sm">{e.description}</p>
+                            {e.variant && (
+                              <p className="text-gray-400 text-xs mt-0.5">{e.variant}</p>
                             )}
                           </div>
-                          <p className="text-white text-sm">{e.description}</p>
-                          {e.variant && (
-                            <p className="text-gray-400 text-xs mt-0.5">{e.variant}</p>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                   </button>
                 );
               })}

@@ -38,7 +38,7 @@ export default function BodyPartScreen({ modality, group, savedCombos, entries, 
               >
                 <div className="flex items-center justify-between">
                   <span className="text-white text-sm truncate mr-2">
-                    {combo.cpts.map(c => entries[c]?.description || c).join(' + ')}
+                    {combo.aeTitle ?? combo.cpts.map(c => entries[c]?.description || c).join(' + ')}
                   </span>
                   <span className="text-xs font-bold shrink-0" style={{ color: comboColor(combo.modality) }}>COMBO ({combo.cpts.length})</span>
                 </div>

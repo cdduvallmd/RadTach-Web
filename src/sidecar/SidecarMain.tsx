@@ -43,6 +43,7 @@ export interface FavoriteEntry {
 export interface RecentEntry {
   cpts: string[];
   bilateralFlags: boolean[];
+  aeTitle?: string;  // user's combo rename, surfaced in Recent + Modality views
 }
 
 export interface SavedCombo {
@@ -306,15 +307,19 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
         ? exams[0].entry.description
         : exams.map(e => e.entry.description).join(' + ');
 
-    // Track recent (full combo, deduplicated by sorted CPT set)
+    // Track recent (full combo, deduplicated by sorted CPT set).
+    // Preserve any prior aeTitle when re-running a known combo without a new title.
     const entry: RecentEntry = {
       cpts: exams.map(e => e.cpt),
       bilateralFlags: exams.map(e => e.bilateral),
+      ...(effectiveTitle ? { aeTitle: effectiveTitle } : {}),
     };
     setRecentEntries(prev => {
       const key = (e: RecentEntry) => [...e.cpts].sort().join(',');
       const entryKey = key(entry);
-      const next = [entry, ...prev.filter(e => key(e) !== entryKey)].slice(0, MAX_RECENT);
+      const existing = prev.find(e => key(e) === entryKey);
+      const merged: RecentEntry = { ...entry, aeTitle: entry.aeTitle || existing?.aeTitle };
+      const next = [merged, ...prev.filter(e => key(e) !== entryKey)].slice(0, MAX_RECENT);
       saveRecent(next);
       return next;
     });
