@@ -39,6 +39,16 @@ export interface StoredSession {
   notes?: SessionNotes;
   displayName?: string;
   summary?: import('../utils/sessionSummary').SessionSummary;
+
+  // ── PVC (Practice Value Customization) — Phase 1 ────────────────────────────
+  // Frozen at session start. Absent for sessions created before PVC was enabled
+  // for the system, or while pvc.enabled === false.
+  pvcShiftCredit?: number;            // 0, 0.5, 1.0, 2.0
+  pvcBonusRvu?: number;               // computed at start, frozen
+  pvcRotationAtStart?: string;        // immutable record of qualifying rotation
+  pvcPendingClassification?: boolean; // Phase 2a: admin blocks ≥30 min await user review
+  pvcMeetingHours?: number;           // Phase 2a: sum of classified meeting time
+  pvcOutageReported?: boolean;        // Phase 2b: crash-recovery outage prompt answered Yes
 }
 
 // ── Date & Role ───────────────────────────────────────────────────────────────

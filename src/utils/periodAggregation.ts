@@ -8,6 +8,8 @@ import {
   format, getDay, parseISO, isWithinInterval,
 } from 'date-fns';
 import type { StoredSession, DateRange, PeriodSummary } from '../types/reports';
+import type { PvcConfig, UserPvcSettings } from '../types/pvc';
+import { anyRotationHasBonus } from './pvcConfig';
 
 // ── Date Range Helpers ────────────────────────────────────────────────────────
 
@@ -673,4 +675,144 @@ export function findPersonalBests(sessions: StoredSession[]): PersonalBests {
   }
 
   return { bestSession, bestWeek, bestMonth, longestUnderParStreak };
+}
+
+// ── PVC Aggregation ───────────────────────────────────────────────────────────
+// Plan: /Users/charlesduvall/.claude/plans/vast-snuggling-kernighan.md
+//
+// Computes compensation-oriented totals for a period. Adaptive columns let the
+// caller (report section) decide which to render based on what the practice has
+// configured. Pure function — caller filters sessions to the desired range first.
+
+export interface PvcColumnsToShow {
+  shifts: boolean;            // always true when PVC enabled
+  wrvu: boolean;              // always true
+  bonusRvu: boolean;          // true if any rotation has bonus OR any session earned
+  meetingRvu: boolean;        // true if any meetings logged (Phase 2a)
+  allInRvuPerShift: boolean;  // true if bonus or meeting columns active
+  estimatedDollars: boolean;  // true if shiftValue !== null
+}
+
+export interface PvcAggregation {
+  enabled: boolean;
+  shiftLabel: 'shift' | 'workingDay';
+  totalShifts: number;
+  totalWrvu: number;          // sum of session.totalRVU (already PVC-corrected via chokepoint)
+  totalBonusRvu: number;      // sum of session.pvcBonusRvu
+  totalMeetingRvu: number;    // sum of session.pvcMeetingHours × user's effective rate (Phase 2a)
+  allInWrvu: number;          // totalWrvu + totalBonusRvu + totalMeetingRvu
+  allInRvuPerShift: number;   // allInWrvu / totalShifts (0 if no shifts)
+  wrvuPerShift: number;       // totalWrvu / totalShifts (0 if no shifts)
+  estimatedDollars: number;   // totalShifts × shiftValue (0 if shiftValue null)
+  columnsToShow: PvcColumnsToShow;
+}
+
+export function aggregatePvc(
+  sessions: StoredSession[],
+  config: PvcConfig,
+  userPvcSettings?: UserPvcSettings,
+): PvcAggregation {
+  const baseColumns: PvcColumnsToShow = {
+    shifts: config.enabled,
+    wrvu: config.enabled,
+    bonusRvu: false,
+    meetingRvu: false,
+    allInRvuPerShift: false,
+    estimatedDollars: false,
+  };
+
+  if (!config.enabled) {
+    return {
+      enabled: false,
+      shiftLabel: config.shiftLabel,
+      totalShifts: 0,
+      totalWrvu: 0,
+      totalBonusRvu: 0,
+      totalMeetingRvu: 0,
+      allInWrvu: 0,
+      allInRvuPerShift: 0,
+      wrvuPerShift: 0,
+      estimatedDollars: 0,
+      columnsToShow: baseColumns,
+    };
+  }
+
+  let totalShifts = 0;
+  let totalWrvu = 0;
+  let totalBonusRvu = 0;
+  let totalMeetingHours = 0;
+  let anySessionHasBonus = false;
+  let anySessionHasMeeting = false;
+
+  for (const s of sessions) {
+    totalShifts += s.pvcShiftCredit ?? 0;
+    totalWrvu += s.totalRVU ?? 0;
+    totalBonusRvu += s.pvcBonusRvu ?? 0;
+    totalMeetingHours += s.pvcMeetingHours ?? 0;
+    if ((s.pvcBonusRvu ?? 0) > 0) anySessionHasBonus = true;
+    if ((s.pvcMeetingHours ?? 0) > 0) anySessionHasMeeting = true;
+  }
+
+  // Meeting rate: per-user override beats system default; default 7 if neither set.
+  const meetingRate =
+    userPvcSettings?.meetingRvuRateOverride ??
+    config.defaultMeetingRvuRate ??
+    7;
+  const totalMeetingRvu = +(totalMeetingHours * meetingRate).toFixed(2);
+  const allInWrvu = +(totalWrvu + totalBonusRvu + totalMeetingRvu).toFixed(2);
+  const wrvuPerShift = totalShifts > 0 ? +(totalWrvu / totalShifts).toFixed(2) : 0;
+  const allInRvuPerShift = totalShifts > 0 ? +(allInWrvu / totalShifts).toFixed(2) : 0;
+  const estimatedDollars = config.shiftValue != null
+    ? +(totalShifts * config.shiftValue).toFixed(2)
+    : 0;
+
+  const showBonus = anyRotationHasBonus(config) || anySessionHasBonus;
+  const showMeeting = anySessionHasMeeting;
+  const showAllIn = showBonus || showMeeting;
+  const showDollars = config.shiftValue != null;
+
+  return {
+    enabled: true,
+    shiftLabel: config.shiftLabel,
+    totalShifts: +totalShifts.toFixed(2),
+    totalWrvu: +totalWrvu.toFixed(2),
+    totalBonusRvu: +totalBonusRvu.toFixed(2),
+    totalMeetingRvu,
+    allInWrvu,
+    allInRvuPerShift,
+    wrvuPerShift,
+    estimatedDollars,
+    columnsToShow: {
+      shifts: true,
+      wrvu: true,
+      bonusRvu: showBonus,
+      meetingRvu: showMeeting,
+      allInRvuPerShift: showAllIn,
+      estimatedDollars: showDollars,
+    },
+  };
+}
+
+// "So far this {period}" range — start of the requested period through "now".
+// Returns null if the period hasn't started yet. Used by adaptive labels in reports.
+export function getPeriodToDateRange(
+  period: 'month' | 'quarter' | 'year' | 'week',
+  reference: Date = new Date(),
+): DateRange {
+  switch (period) {
+    case 'month':
+      return { start: startOfMonth(reference), end: reference };
+    case 'quarter':
+      return { start: startOfQuarter(reference), end: reference };
+    case 'year':
+      return { start: startOfYear(reference), end: reference };
+    case 'week':
+      return { start: startOfWeek(reference, { weekStartsOn: 1 }), end: reference };
+  }
+}
+
+// True when `range.end` is before today — i.e., the period is fully complete.
+// Drives "So far this X" vs "X Totals" label choice in reports.
+export function isCompletedPeriod(range: DateRange, reference: Date = new Date()): boolean {
+  return range.end < startOfDay(reference);
 }

@@ -48,6 +48,7 @@ interface ReportControlPanelProps {
   allowedReportTypes: ReportType[];
   onSelectionChange: (selection: ReportSelection) => void;
   onOpenSettings: () => void;
+  onOpenPvcSettings?: () => void;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ export default function ReportControlPanel({
   allowedReportTypes,
   onSelectionChange,
   onOpenSettings,
+  onOpenPvcSettings,
 }: ReportControlPanelProps) {
   // System selection — globalAdmin can switch; others locked to their system
   const canPickSystem = role === 'globalAdmin';
@@ -240,6 +242,17 @@ export default function ReportControlPanel({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
+          </button>
+        )}
+
+        {/* PVC settings button (admin/president — globalAdmin auto via president promotion) */}
+        {(effectiveRole === 'admin' || effectiveRole === 'president') && onOpenPvcSettings && (
+          <button
+            onClick={onOpenPvcSettings}
+            className={`${effectiveRole === 'president' ? '' : 'ml-auto'} px-2 py-1 text-xs font-medium text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 rounded transition-colors`}
+            title="Practice Value Customization"
+          >
+            PVC
           </button>
         )}
       </div>

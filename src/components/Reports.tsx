@@ -5,6 +5,7 @@ import type { EffectiveRole } from '../types/reports';
 import ReportControlPanel from './reports/ReportControlPanel';
 import type { ReportSelection, ReportType } from './reports/ReportControlPanel';
 import ReportSettings from './reports/ReportSettings';
+import PvcSettings from './pvc/PvcSettings';
 import SessionReportSections from './reports/SessionReportSections';
 import { firestoreService } from '../services/firestore';
 
@@ -132,6 +133,7 @@ export default function Reports({
   // ── RCP State ────────────────────────────────────────────────────────────
   const [rcpSelection, setRcpSelection] = useState<ReportSelection | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPvcSettings, setShowPvcSettings] = useState(false);
   const [allSystems, setAllSystems] = useState<string[]>([]);
   const [reportAccess, setReportAccess] = useState<Record<string, string[]> | null>(null);
 
@@ -285,6 +287,7 @@ export default function Reports({
             allowedReportTypes={allowedReportTypes}
             onSelectionChange={setRcpSelection}
             onOpenSettings={() => setShowSettings(true)}
+            onOpenPvcSettings={() => setShowPvcSettings(true)}
           />
         </div>
 
@@ -294,6 +297,17 @@ export default function Reports({
             <ReportSettings
               system={rcpSelection?.system || userSystem || null}
               onClose={() => setShowSettings(false)}
+            />
+          </div>
+        )}
+
+        {/* PVC Settings (admin/president, shown on demand) */}
+        {showPvcSettings && (effectiveRole === 'admin' || effectiveRole === 'president') && userId && (
+          <div className="no-print">
+            <PvcSettings
+              system={rcpSelection?.system || userSystem || null}
+              userId={userId}
+              onClose={() => setShowPvcSettings(false)}
             />
           </div>
         )}

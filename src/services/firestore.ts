@@ -21,6 +21,8 @@ import {
 import type { StoredSession, GroupStats, CompositeStats, WorkstationStats } from '../types/reports';
 import type { CptDatabase, ChargemasterEntry } from '../types/cpt';
 import type { SidecarCommand } from '../types/sidecar';
+import type { PvcConfig, UserPvcSettings } from '../types/pvc';
+import { DEFAULT_PVC_CONFIG, DEFAULT_USER_PVC_SETTINGS } from '../types/pvc';
 
 // Retry helper for flaky hospital network connections (3 attempts, 1s/2s delays)
 async function _retryUpdate(docRef: ReturnType<typeof doc>, data: Record<string, any>, maxRetries = 3): Promise<void> {
@@ -359,6 +361,98 @@ export const firestoreService = {
   async setReportAccess(system: string, access: Record<string, string[]>): Promise<void> {
     const docRef = doc(db, 'systems', system);
     await updateDoc(docRef, { reportAccess: access });
+  },
+
+  // ── PVC (Practice Value Customization) Config ────────────────────────────
+  // Per-system config stored as nested field `pvc` on systems/{system}.
+  // Returns null when system not found; missing or partial `pvc` field merges
+  // into the default config so newly-added schema fields work on old docs.
+
+  async getPvcConfig(system: string): Promise<PvcConfig | null> {
+    const docRef = doc(db, 'systems', system);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    const data = docSnap.data();
+    const raw = (data.pvc && typeof data.pvc === 'object') ? data.pvc as Partial<PvcConfig> : {};
+    return {
+      ...DEFAULT_PVC_CONFIG,
+      ...raw,
+      rotationConfig: { ...(raw.rotationConfig ?? {}) },
+      cptAdjustments: Array.isArray(raw.cptAdjustments) ? [...raw.cptAdjustments] : [],
+      productivityTiers: Array.isArray(raw.productivityTiers) ? [...raw.productivityTiers] : [],
+    };
+  },
+
+  // Write the full PVC config. Caller should have read the previous config and
+  // passed it to writePvcConfigHistory() before calling this to preserve audit.
+  async setPvcConfig(system: string, config: PvcConfig, updatedBy: string): Promise<void> {
+    const docRef = doc(db, 'systems', system);
+    const toWrite = {
+      ...config,
+      updatedAt: serverTimestamp(),
+      updatedBy,
+    };
+    await updateDoc(docRef, { pvc: toWrite });
+  },
+
+  // Audit subcollection. Lets us answer "what was the South bonus in Q2?" later.
+  async writePvcConfigHistory(
+    system: string,
+    prevConfig: PvcConfig | null,
+    nextConfig: PvcConfig,
+    updatedBy: string,
+  ): Promise<void> {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const histRef = doc(db, 'systems', system, 'pvcConfigHistory', stamp);
+    await setDoc(histRef, {
+      prevConfig: prevConfig ?? null,
+      nextConfig,
+      updatedBy,
+      recordedAt: serverTimestamp(),
+    });
+  },
+
+  // Per-user PVC settings (e.g., President's 11 RVU/hr meeting rate override).
+  // Stored as nested `pvc` field on users/{uid}/settings/current alongside
+  // existing favorites and sidecarCombos.
+  async getUserPvcSettings(userId: string): Promise<UserPvcSettings> {
+    const settings = await this.getUserSettings(userId);
+    const raw = settings?.pvc;
+    if (raw && typeof raw === 'object') {
+      return { ...DEFAULT_USER_PVC_SETTINGS, ...raw };
+    }
+    return { ...DEFAULT_USER_PVC_SETTINGS };
+  },
+
+  async setUserPvcSettings(userId: string, settings: UserPvcSettings): Promise<void> {
+    const docRef = doc(db, 'users', userId, 'settings', 'current');
+    await _retryUpdate(docRef, { pvc: settings });
+  },
+
+  // Query today's prior sessions for PVC shift-credit calculation.
+  // Caller passes ISO date (YYYY-MM-DD) computed in the user's timezone.
+  // Returns minimal projection — only fields needed by computeShiftCredit().
+  async getTodaysPriorSessionsForPvc(
+    userId: string,
+    isoDate: string,
+  ): Promise<Array<{ pvcShiftCredit?: number; pvcRotationAtStart?: string }>> {
+    const sessionsRef = collection(db, 'users', userId, 'sessions');
+    const datePrefix = isoDate.replace(/-/g, '');
+    const endPrefix = datePrefix.slice(0, -1) +
+      String.fromCharCode(datePrefix.charCodeAt(datePrefix.length - 1) + 1);
+    const q = query(
+      sessionsRef,
+      where('sessionId', '>=', datePrefix),
+      where('sessionId', '<', endPrefix),
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => {
+      const data = d.data();
+      return {
+        pvcShiftCredit: typeof data.pvcShiftCredit === 'number' ? data.pvcShiftCredit : undefined,
+        pvcRotationAtStart: typeof data.pvcRotationAtStart === 'string' ? data.pvcRotationAtStart : undefined,
+      };
+    });
   },
 
   // ── Role Request Functions ──────────────────────────────────────────────────
