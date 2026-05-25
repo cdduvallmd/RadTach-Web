@@ -12,6 +12,13 @@ import { lookupGpci } from './utils/gpciLookup';
 import type { GpciValues } from './utils/gpciLookup';
 import type { SidecarCommand, RvuSource } from './types/sidecar';
 import type { CptDatabase } from './types/cpt';
+import type { PvcConfig } from './types/pvc';
+import {
+  applyCptAdjustmentsToBreakdown,
+  applyModalityOnlyAdjustment,
+  computeShiftCredit,
+  isoDateInTimezone,
+} from './utils/pvcConfig';
 import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, bufferedSaveUserSettings, flushBuffer, hasPendingEndSession, addLocalEvent, getLocalEvents, clearLocalEvents } from './services/offlineBuffer';
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
@@ -77,6 +84,9 @@ interface StudyEvent {
   cpts?: string[];
   rvuDerivedMode?: boolean;
   targetRvuPerHour?: number;
+  // PVC audit fields — present when CPT or modality adjustment applied
+  rvuRaw?: number;          // pre-adjustment value (CMS / GPCI-adjusted)
+  rvuAdjustment?: number;   // delta applied (positive or negative)
 }
 
 interface InterstitialEvent {
@@ -267,11 +277,18 @@ function RadTachInner() {
   const [cptOverride, setCptOverride] = useState<{
     cpts: string[];
     rvu: number;
+    rvuRaw?: number;          // pre-PVC adjustment total
     breakdown: Array<{ cpt: string; description: string; raw: number; adjusted: number }>;
     bilateral: boolean;
     source: RvuSource;
     examDesc: string;
   } | null>(null);
+
+  // PVC (Practice Value Customization) — loaded when system is verified.
+  // Null = not loaded yet or no PVC config for this system. Always check
+  // pvcConfig?.enabled before applying any PVC behavior.
+  const [pvcConfig, setPvcConfig] = useState<PvcConfig | null>(null);
+  const [userTimezone, setUserTimezone] = useState<string | undefined>(undefined);
 
   // Non-RVU complications — still add par time in RVU-derived mode (case complexity not in RVU)
   const NON_RVU_COMPLICATIONS: Complication[] = ['Age >70', 'Cancer Follow', 'Prior Surg Hx', 'Complex Hx'];
@@ -437,7 +454,8 @@ function RadTachInner() {
   };
   
   const calculateRVU = () => {
-    // CPT override takes precedence (Sidecar/HL7)
+    // CPT override takes precedence (Sidecar/HL7) — PVC CPT adjustments are
+    // already baked into cptOverride.rvu at processSidecarStart time.
     if (cptOverride) return cptOverride.rvu;
 
     if (!selectedModality) return 0;
@@ -470,6 +488,13 @@ function RadTachInner() {
     // Apply Bilateral 1.5x multiplier last (matches typical wRVU bilateral/unilateral ratio)
     if (hasBilateral) {
       total *= 1.5;
+    }
+
+    // PVC: apply modality-only adjustments to the no-Sidecar path.
+    // Per-CPT adjustments cannot apply here (no CPT context); only matchType:'modality' rules fire.
+    if (pvcConfig?.enabled && pvcConfig.cptAdjustments.length > 0) {
+      const { adjusted } = applyModalityOnlyAdjustment(total, selectedModality, pvcConfig.cptAdjustments);
+      return adjusted;
     }
 
     return total;
@@ -870,6 +895,10 @@ function RadTachInner() {
             setUserFirstName(profile.firstName);
           } else {
             setUserDisplayName(null);
+          }
+          // PVC: cache user timezone for "today" boundary in shift-credit logic
+          if (profile?.timezone) {
+            setUserTimezone(profile.timezone);
           }
         }
       } catch (error) {
@@ -1377,8 +1406,11 @@ function RadTachInner() {
     Promise.all([
       firestoreService.getSystemOffices(system),
       firestoreService.getSystemRotations(system),
+      firestoreService.getPvcConfig(system),
     ])
-      .then(([officeResult, rotations]) => {
+      .then(([officeResult, rotations, pvc]) => {
+        // PVC config (null if system not found — handled below)
+        setPvcConfig(pvc);
         if (officeResult) {
           // Use canonical key from Firestore (fixes case-sensitivity)
           setSystemInput(officeResult.key);
@@ -1449,15 +1481,43 @@ function RadTachInner() {
       const localKey = await generateSessionIdAsync();
       localSessionKeyRef.current = localKey;
       setFirestoreSessionId(localKey);
+
+      // PVC: compute shift credit + bonus for this session start.
+      // Reload pvcConfig at session start so admin config changes take effect
+      // without forcing the user to re-verify the system.
+      const rotationName = selectedRotation || 'Unassigned';
+      let pvcFields: Record<string, unknown> = {};
+      try {
+        const freshPvc = await firestoreService.getPvcConfig(systemInput.trim());
+        if (freshPvc) setPvcConfig(freshPvc);
+        if (freshPvc?.enabled) {
+          const isoDate = isoDateInTimezone(new Date(), userTimezone);
+          const priorSessions = await firestoreService.getTodaysPriorSessionsForPvc(
+            currentUser!.uid,
+            isoDate,
+          );
+          const credit = computeShiftCredit(rotationName, halfDay, priorSessions, freshPvc);
+          pvcFields = {
+            pvcShiftCredit: credit.pvcShiftCredit,
+            pvcBonusRvu: credit.pvcBonusRvu,
+            pvcRotationAtStart: credit.pvcRotationAtStart,
+          };
+        }
+      } catch (err) {
+        // Non-fatal: PVC unavailable → session still starts, just without credit.
+        console.warn('PVC shift-credit lookup failed:', err);
+      }
+
       bufferedCreateSession(currentUser!.uid, localKey, {
         sessionId: localKey,
         userAbbrev: currentUser!.uid,
         workstationId: workstationId,
         system: systemInput.trim(),
-        rotation: selectedRotation || 'Unassigned',
+        rotation: rotationName,
         halfDay: halfDay,
         startDateTime: now,
         ...(userDisplayName ? { displayName: userDisplayName } : {}),
+        ...pvcFields,
       }).then(ok => {
         if (ok) health.reportSuccess();
         else health.reportFailure(false);
@@ -1892,9 +1952,31 @@ function RadTachInner() {
       breakdown = combo.breakdown;
       cpts = effectiveCpts;
 
+      // PVC: apply practice-wide CPT adjustments at the wRVU chokepoint.
+      // The corrected value replaces rvu; the pre-PVC total is preserved as rvuRaw
+      // so the StudyEvent can record the audit delta. Display always shows the
+      // corrected value only (no CMS reminder per user requirement).
+      let rvuRaw: number | undefined;
+      if (pvcConfig?.enabled && pvcConfig.cptAdjustments.length > 0) {
+        const adjustedCombo = applyCptAdjustmentsToBreakdown(
+          breakdown,
+          cptDatabase.entries,
+          pvcConfig.cptAdjustments,
+        );
+        rvuRaw = adjustedCombo.totalRaw;
+        rvu = adjustedCombo.total;
+        breakdown = adjustedCombo.breakdown.map(b => ({
+          cpt: b.cpt,
+          description: b.description,
+          raw: b.raw,
+          adjusted: b.adjusted,
+        }));
+      }
+
       setCptOverride({
         cpts,
         rvu,
+        ...(rvuRaw !== undefined ? { rvuRaw } : {}),
         breakdown,
         bilateral: cmd.bilateral || false,
         source: cmd.source === 'hl7' ? 'hl7' : 'sidecar',
@@ -2035,6 +2117,15 @@ function RadTachInner() {
     // Record STUDY event (Issue #1)
     if (studyStartTime !== null && selectedModality) {
       const eventStart = swapStartOverride ?? studyStartTime;
+      // PVC audit fields — present only when an adjustment fired on this study.
+      // Sidecar path: rvuRaw comes from cptOverride. Modality path: rvuRaw
+      // would require re-running modality-only adjustment in reverse, which we
+      // skip in Phase 1 since modality adjustments are rare.
+      const pvcAudit: { rvuRaw?: number; rvuAdjustment?: number } = {};
+      if (cptOverride?.rvuRaw !== undefined && cptOverride.rvuRaw !== cptOverride.rvu) {
+        pvcAudit.rvuRaw = cptOverride.rvuRaw;
+        pvcAudit.rvuAdjustment = +(cptOverride.rvu - cptOverride.rvuRaw).toFixed(4);
+      }
       const studyEvent: StudyEvent = {
         type: 'STUDY',
         studyNumber: studiesCompleted + 1,
@@ -2052,6 +2143,7 @@ function RadTachInner() {
         swapped: wasSwapped,
         ...(cptOverride ? { rvuSource: cptOverride.source, cpts: cptOverride.cpts } : {}),
         ...(rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour } : {}),
+        ...pvcAudit,
       };
       setSessionEvents(prev => [...prev, studyEvent]);
       recordEventLocally(studyEvent);
