@@ -511,38 +511,20 @@ function computeComplicationCost(
 }
 
 // ── Interstitial trend ─────────────────────────────────────────────────────
-// For each study (in order), find the interstitial that ended just before it started.
-// Subtract any overlapping break/admin/comms/double-tap duration from the
-// interstitial's reported duration so those timers don't contaminate the trend.
+// Chronological list of recorded INTERSTITIAL event durations — natural and
+// swap-adjusted alike. Post-absorption-rule (2026-05-25), interstitial events
+// no longer span ABC time, so no overlap subtraction is needed. _studies and
+// _timerEvents are unused but the signature is preserved for backward
+// compatibility with the call site.
 function computeInterstitialTrend(
-  studies: StudyEvent[],
+  _studies: StudyEvent[],
   interstitials: InterstitialEvent[],
-  timerEvents: TimerEvent[]
+  _timerEvents: TimerEvent[]
 ): number[] {
-  const trend: number[] = [];
-  for (const study of studies) {
-    // Find interstitial that ended closest before (or at) this study's start
-    const preceding = interstitials
-      .filter(i => i.endTimeSession <= study.startTimeSession)
-      .sort((a, b) => b.endTimeSession - a.endTimeSession);
-    if (preceding.length === 0) {
-      trend.push(0);
-      continue;
-    }
-    const inter = preceding[0];
-    // Subtract overlapping timer event durations from the interstitial
-    let overlap = 0;
-    for (const te of timerEvents) {
-      const overlapStart = Math.max(inter.startTimeSession, te.startTimeSession);
-      const overlapEnd = Math.min(inter.endTimeSession, te.endTimeSession);
-      if (overlapEnd > overlapStart) {
-        overlap += overlapEnd - overlapStart;
-      }
-    }
-    const corrected = inter.duration - overlap;
-    trend.push(corrected > 0 ? corrected : 0);
-  }
-  return trend;
+  return interstitials
+    .slice()
+    .sort((a, b) => a.startTimeSession - b.startTimeSession)
+    .map(i => i.duration);
 }
 
 // ── Peak RVU window ────────────────────────────────────────────────────────

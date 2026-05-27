@@ -754,13 +754,14 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
 
   const renderInterstitialTrend = () => {
     if (!summary || summary.interstitialTrend.length === 0) return null;
-    const data = summary.interstitialTrend.map((v, i) => ({ study: i + 1, interstitial: v }));
+    const data = summary.interstitialTrend.map((v, i) => ({ event: i + 1, interstitial: v }));
     return (
       <div className="report-section">
         <h3 className="text-lg font-semibold text-white mb-3">7D. Interstitial Trend</h3>
+        <p className="text-gray-500 text-xs mb-2">Each point is one recorded INTERSTITIAL event in time order (natural or swap-adjusted). ABC time is no longer included.</p>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={data} margin={{ top: 5, right: 30, bottom: 20, left: 30 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" /><XAxis dataKey="study" stroke="#9ca3af" label={{ value: 'Study #', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#374151" /><XAxis dataKey="event" stroke="#9ca3af" label={{ value: 'Interstitial #', position: 'insideBottom', offset: -10, fill: '#9ca3af' }} />
             <YAxis stroke="#9ca3af" domain={[0, 300]} tickFormatter={(v: number) => `${v}s`} /><Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff' }} formatter={(value: number | undefined) => [`${value ?? 0}s`, 'Interstitial']} />
             <Line type="monotone" dataKey="interstitial" stroke="#f97316" dot={{ r: 3 }} />
           </LineChart>
