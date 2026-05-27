@@ -383,7 +383,7 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
                 + Add tier
               </button>
             </div>
-            <div className="flex gap-4 mb-2">
+            <div className="flex gap-4 mb-2 flex-wrap">
               <label className="flex items-center gap-1.5 text-xs text-gray-300">
                 <input
                   type="checkbox"
@@ -391,7 +391,16 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
                   onChange={e => updateConfig({ productivityTiersActive: e.target.checked })}
                   className="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700"
                 />
-                Active (engine wired in Phase 3)
+                Active (compute bonus shifts in reports)
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={config.allowNegativeBonus}
+                  onChange={e => updateConfig({ allowNegativeBonus: e.target.checked })}
+                  className="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700"
+                />
+                Allow negative bonus (months below lowest threshold deduct shifts)
               </label>
               <label className="flex items-center gap-1.5 text-xs text-gray-300">
                 Mode:
@@ -400,8 +409,8 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
                   onChange={e => updateConfig({ productivityTierMode: e.target.value as 'stacked' | 'marginal' })}
                   className="px-1 py-0.5 bg-gray-700 text-white rounded border border-gray-600 text-xs"
                 >
+                  <option value="marginal">Marginal (recommended)</option>
                   <option value="stacked">Stacked</option>
-                  <option value="marginal">Marginal</option>
                 </select>
               </label>
               <label className="flex items-center gap-1.5 text-xs text-gray-300">

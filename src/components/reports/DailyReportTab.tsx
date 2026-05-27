@@ -17,6 +17,7 @@ import GARPercentileGauge from './shared/GARPercentileGauge';
 import PresidentWeeklySection from './sections/PresidentWeeklySection';
 import HospitalWeeklySection from './sections/HospitalWeeklySection';
 import ITWeeklySection from './sections/ITWeeklySection';
+import PvcReportSection from './sections/PvcReportSection';
 
 interface DailyReportTabProps {
   userId: string | null;
@@ -225,6 +226,18 @@ export default function DailyReportTab({ userId, userSystem, formatTime, role = 
                 />
               </div>
             </div>
+          )}
+
+          {/* PVC section — self-hides if PVC disabled */}
+          {userId && userSystem && (
+            <PvcReportSection
+              userId={userId}
+              system={userSystem}
+              sessions={sessions}
+              dateRange={dayRange}
+              periodType="daily"
+              periodLabel={format(currentDate, 'EEEE, MMMM d, yyyy')}
+            />
           )}
 
           {/* Role-specific sections */}

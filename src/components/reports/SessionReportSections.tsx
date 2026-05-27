@@ -888,6 +888,29 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
     );
   };
 
+  const renderDeckQualityThroughput = () => {
+    if (!summary) return null;
+    const avgRvuPerStudy = summary.avgRvuPerStudy;
+    const studiesPerHour = summary.studiesPerHour;
+    if (avgRvuPerStudy === undefined && studiesPerHour === undefined) return null;
+    return (
+      <div className="report-section">
+        <h3 className="text-lg font-semibold text-white mb-3">7M. Deck Quality & Throughput</h3>
+        <p className="text-gray-500 text-xs mb-3">RVU/hr = (wRVU/Study) × (Studies/hr). Separates deck quality from reading speed.</p>
+        <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="bg-gray-700/50 rounded-lg p-3">
+            <div className="text-gray-400 text-xs mb-1">wRVU/Study (Deck Quality)</div>
+            <div className="text-2xl font-bold text-white">{(avgRvuPerStudy ?? 0).toFixed(2)}</div>
+          </div>
+          <div className="bg-gray-700/50 rounded-lg p-3">
+            <div className="text-gray-400 text-xs mb-1">Studies/hr (Throughput)</div>
+            <div className="text-2xl font-bold text-white">{(studiesPerHour ?? 0).toFixed(1)}</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ── Main render ─────────────────────────────────────────────────────────
 
   return (
@@ -914,6 +937,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
         {renderInterruptionRecovery()}
         {renderComplicationStacking()}
         {renderModalityTransitionPenalty()}
+        {renderDeckQualityThroughput()}
       </div>
     </div>
   );

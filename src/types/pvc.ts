@@ -30,6 +30,18 @@ export interface CptAdjustment {
   disabled?: boolean;                  // soft toggle without delete
 }
 
+// Productivity tier row. `multiplier` is the bonus-shifts-per-RVU rate that
+// applies to Adjusted wRVU within this tier's slice (from this threshold up to
+// the next threshold). In 'marginal' mode each tier contributes only its
+// slice; in 'stacked' mode each tier contributes (avg - threshold) * multiplier
+// when avg ≥ threshold.
+//
+// User's group canonical formula (2026-05-27):
+//   tier 1: { threshold: 50, multiplier: 0.02 }   // (avg-50)/50 in [50,60]
+//   tier 2: { threshold: 60, multiplier: 0.01667 } // (avg-60)/60 above 60 (80% rate)
+//   mode: 'marginal'
+//   allowNegativeBonus: true
+//   computationPeriod: 'monthly'
 export interface ProductivityTier {
   thresholdDailyWrvu: number;
   multiplier: number;
@@ -52,8 +64,9 @@ export interface PvcConfig {
 
   productivityTiers: ProductivityTier[];
   productivityTierMode: ProductivityTierMode;
-  productivityTierPeriod: ProductivityTierPeriod;
-  productivityTiersActive: boolean;        // Phase 3 sub-flag; default false
+  productivityTierPeriod: ProductivityTierPeriod;  // Adjusted wRVU averaging window
+  productivityTiersActive: boolean;        // sub-flag; default false until math is verified
+  allowNegativeBonus: boolean;             // default true — months below lowest threshold deduct shifts
 
   updatedAt?: unknown;                     // Firestore Timestamp
   updatedBy?: string;
@@ -80,9 +93,10 @@ export const DEFAULT_PVC_CONFIG: PvcConfig = {
   rotationConfig: {},
   cptAdjustments: [],
   productivityTiers: [],
-  productivityTierMode: 'stacked',
+  productivityTierMode: 'marginal',
   productivityTierPeriod: 'monthly',
   productivityTiersActive: false,
+  allowNegativeBonus: true,
 };
 
 export const DEFAULT_USER_PVC_SETTINGS: UserPvcSettings = {

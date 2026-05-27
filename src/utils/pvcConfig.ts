@@ -8,6 +8,8 @@ import type {
   PvcConfig,
   RotationOverlay,
   CptAdjustment,
+  ProductivityTier,
+  ProductivityTierMode,
   ShiftCredit,
 } from '../types/pvc';
 
@@ -208,6 +210,76 @@ export function applyModalityOnlyAdjustment(
 // Used by adaptive report columns.
 export function anyRotationHasBonus(config: PvcConfig): boolean {
   return Object.values(config.rotationConfig).some(o => o.bonusRvu > 0);
+}
+
+// Productivity bonus shifts per shift, computed from a period's Adjusted wRVU
+// average. `multiplier` on each tier is interpreted as bonus-shifts-per-RVU
+// for that tier's slice.
+//
+// Marginal mode (recommended): each tier contributes its slice
+//   slice = min(avg, nextThreshold) - tier.threshold
+// User's group example (tier1@50/0.02, tier2@60/0.01667, avg=66, marginal):
+//   tier1 slice = min(66,60) - 50 = 10 → 10 × 0.02 = 0.2
+//   tier2 slice = 66 - 60 = 6        → 6 × 0.01667 = 0.1
+//   total bonus per shift = 0.3
+//
+// Stacked mode: each tier contributes (avg - threshold) × multiplier when
+// avg ≥ threshold. Kept for compatibility but generally over-credits at the
+// upper end since the lower-tier rate keeps applying past its slice.
+export function computeBonusShiftsPerShift(
+  avgAdjustedRvu: number,
+  tiers: ProductivityTier[],
+  mode: ProductivityTierMode,
+  allowNegativeBonus: boolean,
+): number {
+  if (tiers.length === 0) return 0;
+  const sorted = [...tiers].sort((a, b) => a.thresholdDailyWrvu - b.thresholdDailyWrvu);
+  let bonus = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const tier = sorted[i];
+    const nextThreshold = i + 1 < sorted.length
+      ? sorted[i + 1].thresholdDailyWrvu
+      : Number.POSITIVE_INFINITY;
+    if (mode === 'marginal') {
+      const sliceUpper = Math.min(avgAdjustedRvu, nextThreshold);
+      const slice = sliceUpper - tier.thresholdDailyWrvu;
+      if (slice >= 0) {
+        bonus += slice * tier.multiplier;
+      } else if (allowNegativeBonus) {
+        // Only the lowest tier produces negative slice; higher tiers' slice is
+        // already 0 or positive due to the cap above.
+        bonus += slice * tier.multiplier;
+      }
+    } else {
+      // stacked
+      if (avgAdjustedRvu >= tier.thresholdDailyWrvu) {
+        bonus += (avgAdjustedRvu - tier.thresholdDailyWrvu) * tier.multiplier;
+      } else if (allowNegativeBonus && i === 0) {
+        bonus += (avgAdjustedRvu - tier.thresholdDailyWrvu) * tier.multiplier;
+      }
+    }
+  }
+  return +bonus.toFixed(4);
+}
+
+// ISO calendar-month key (YYYY-MM) for a Date.
+export function monthKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+// Returns the calendar quarter key (YYYY-Qn) for a Date. Quarters are calendar
+// by default; fiscal year offset would be handled separately.
+export function quarterKey(date: Date): string {
+  const year = date.getFullYear();
+  const q = Math.floor(date.getMonth() / 3) + 1;
+  return `${year}-Q${q}`;
+}
+
+// Day key (YYYY-MM-DD).
+export function dayKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
 }
 
 // Returns ISO date (YYYY-MM-DD) for a given Date in the specified IANA timezone.

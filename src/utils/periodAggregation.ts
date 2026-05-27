@@ -8,8 +8,8 @@ import {
   format, getDay, parseISO, isWithinInterval,
 } from 'date-fns';
 import type { StoredSession, DateRange, PeriodSummary } from '../types/reports';
-import type { PvcConfig, UserPvcSettings } from '../types/pvc';
-import { anyRotationHasBonus } from './pvcConfig';
+import type { PvcConfig, UserPvcSettings, ProductivityTierPeriod } from '../types/pvc';
+import { anyRotationHasBonus, computeBonusShiftsPerShift, monthKey, quarterKey, dayKey } from './pvcConfig';
 
 // ── Date Range Helpers ────────────────────────────────────────────────────────
 
@@ -691,6 +691,20 @@ export interface PvcColumnsToShow {
   meetingRvu: boolean;        // true if any meetings logged (Phase 2a)
   allInRvuPerShift: boolean;  // true if bonus or meeting columns active
   estimatedDollars: boolean;  // true if shiftValue !== null
+  clockHours: boolean;        // always true when PVC enabled (session totalSessionTime)
+  productivityBonus: boolean; // true if productivityTiersActive AND tiers configured
+}
+
+// One row in the period-breakdown table. The unit of "period" is determined by
+// pvcConfig.productivityTierPeriod (daily / monthly / quarterly).
+export interface PvcPeriodBreakdownRow {
+  key: string;              // YYYY-MM (monthly), YYYY-Qn (quarterly), YYYY-MM-DD (daily)
+  label: string;            // human-readable, e.g., "May 2026", "2026 Q2", "May 27"
+  isComplete: boolean;      // true if the period ended before today (frozen)
+  shifts: number;
+  totalAdjustedRvu: number; // wRVU + bonus RVU + meeting RVU for this period
+  avgAdjustedRvuPerShift: number;
+  bonusShifts: number;      // productivity bonus shifts earned in this period
 }
 
 export interface PvcAggregation {
@@ -700,11 +714,66 @@ export interface PvcAggregation {
   totalWrvu: number;          // sum of session.totalRVU (already PVC-corrected via chokepoint)
   totalBonusRvu: number;      // sum of session.pvcBonusRvu
   totalMeetingRvu: number;    // sum of session.pvcMeetingHours × user's effective rate (Phase 2a)
+  totalClockHours: number;    // sum of session.totalSessionTime / 3600
   allInWrvu: number;          // totalWrvu + totalBonusRvu + totalMeetingRvu
   allInRvuPerShift: number;   // allInWrvu / totalShifts (0 if no shifts)
   wrvuPerShift: number;       // totalWrvu / totalShifts (0 if no shifts)
-  estimatedDollars: number;   // totalShifts × shiftValue (0 if shiftValue null)
+  estimatedDollars: number;   // (totalShifts + totalBonusShifts) × shiftValue
+  totalBonusShifts: number;   // sum of bonusShifts across periodBreakdown
+  totalCreditShifts: number;  // totalShifts + totalBonusShifts
+  periodBreakdown: PvcPeriodBreakdownRow[];  // per-period rows (sorted by key)
+  computationPeriod: ProductivityTierPeriod;
   columnsToShow: PvcColumnsToShow;
+}
+
+// Group sessions by computation period key.
+function groupSessionsByComputationPeriod(
+  sessions: StoredSession[],
+  period: ProductivityTierPeriod,
+): Map<string, StoredSession[]> {
+  const grouped = new Map<string, StoredSession[]>();
+  for (const s of sessions) {
+    const d = parseISO(s.startDateTime);
+    const key = period === 'daily' ? dayKey(d) : period === 'quarterly' ? quarterKey(d) : monthKey(d);
+    const existing = grouped.get(key) || [];
+    existing.push(s);
+    grouped.set(key, existing);
+  }
+  return grouped;
+}
+
+// Render-friendly label for a period key.
+function labelForPeriodKey(key: string, period: ProductivityTierPeriod): string {
+  if (period === 'daily') {
+    const d = parseISO(key);
+    return format(d, 'MMM d');
+  }
+  if (period === 'quarterly') {
+    // key looks like "2026-Q2"
+    return key.replace('-', ' ');
+  }
+  // monthly
+  const [y, m] = key.split('-');
+  const d = new Date(Number(y), Number(m) - 1, 1);
+  return format(d, 'MMMM yyyy');
+}
+
+// Is the period containing this key fully in the past?
+function isPeriodComplete(key: string, period: ProductivityTierPeriod, now: Date = new Date()): boolean {
+  if (period === 'daily') {
+    const d = parseISO(key);
+    return endOfDay(d) < startOfDay(now);
+  }
+  if (period === 'quarterly') {
+    const [yStr, qStr] = key.split('-Q');
+    const y = Number(yStr);
+    const q = (Number(qStr) - 1) * 3;
+    const periodEnd = endOfQuarter(new Date(y, q, 1));
+    return periodEnd < startOfDay(now);
+  }
+  const [yStr, mStr] = key.split('-');
+  const periodEnd = endOfMonth(new Date(Number(yStr), Number(mStr) - 1, 1));
+  return periodEnd < startOfDay(now);
 }
 
 export function aggregatePvc(
@@ -719,6 +788,8 @@ export function aggregatePvc(
     meetingRvu: false,
     allInRvuPerShift: false,
     estimatedDollars: false,
+    clockHours: config.enabled,
+    productivityBonus: false,
   };
 
   if (!config.enabled) {
@@ -729,10 +800,15 @@ export function aggregatePvc(
       totalWrvu: 0,
       totalBonusRvu: 0,
       totalMeetingRvu: 0,
+      totalClockHours: 0,
       allInWrvu: 0,
       allInRvuPerShift: 0,
       wrvuPerShift: 0,
       estimatedDollars: 0,
+      totalBonusShifts: 0,
+      totalCreditShifts: 0,
+      periodBreakdown: [],
+      computationPeriod: config.productivityTierPeriod,
       columnsToShow: baseColumns,
     };
   }
@@ -741,6 +817,7 @@ export function aggregatePvc(
   let totalWrvu = 0;
   let totalBonusRvu = 0;
   let totalMeetingHours = 0;
+  let totalClockSeconds = 0;
   let anySessionHasBonus = false;
   let anySessionHasMeeting = false;
 
@@ -749,6 +826,7 @@ export function aggregatePvc(
     totalWrvu += s.totalRVU ?? 0;
     totalBonusRvu += s.pvcBonusRvu ?? 0;
     totalMeetingHours += s.pvcMeetingHours ?? 0;
+    totalClockSeconds += s.totalSessionTime ?? 0;
     if ((s.pvcBonusRvu ?? 0) > 0) anySessionHasBonus = true;
     if ((s.pvcMeetingHours ?? 0) > 0) anySessionHasMeeting = true;
   }
@@ -762,14 +840,71 @@ export function aggregatePvc(
   const allInWrvu = +(totalWrvu + totalBonusRvu + totalMeetingRvu).toFixed(2);
   const wrvuPerShift = totalShifts > 0 ? +(totalWrvu / totalShifts).toFixed(2) : 0;
   const allInRvuPerShift = totalShifts > 0 ? +(allInWrvu / totalShifts).toFixed(2) : 0;
+  const totalClockHours = +(totalClockSeconds / 3600).toFixed(1);
+
+  // Per-period breakdown — used both for display and for productivity bonus
+  // calculation. Adjusted wRVU = wRVU + bonus RVU + meeting RVU within the
+  // period; bonus shifts come from the configured tier formula applied to the
+  // period's avg.
+  const groups = groupSessionsByComputationPeriod(sessions, config.productivityTierPeriod);
+  const periodBreakdown: PvcPeriodBreakdownRow[] = [];
+  let totalBonusShifts = 0;
+
+  const sortedKeys = [...groups.keys()].sort();
+  for (const key of sortedKeys) {
+    const periodSessions = groups.get(key)!;
+    let pShifts = 0;
+    let pWrvu = 0;
+    let pBonus = 0;
+    let pMeetingHours = 0;
+    for (const s of periodSessions) {
+      pShifts += s.pvcShiftCredit ?? 0;
+      pWrvu += s.totalRVU ?? 0;
+      pBonus += s.pvcBonusRvu ?? 0;
+      pMeetingHours += s.pvcMeetingHours ?? 0;
+    }
+    const pMeetingRvu = pMeetingHours * meetingRate;
+    const pTotalAdjusted = pWrvu + pBonus + pMeetingRvu;
+    const pAvgAdjusted = pShifts > 0 ? pTotalAdjusted / pShifts : 0;
+
+    let pBonusShifts = 0;
+    if (config.productivityTiersActive && config.productivityTiers.length > 0 && pShifts > 0) {
+      const bonusPerShift = computeBonusShiftsPerShift(
+        pAvgAdjusted,
+        config.productivityTiers,
+        config.productivityTierMode,
+        config.allowNegativeBonus,
+      );
+      pBonusShifts = +(bonusPerShift * pShifts).toFixed(2);
+      // Only count completed periods toward the running bonus total — in-progress
+      // periods are tentative and may change.
+      if (isPeriodComplete(key, config.productivityTierPeriod)) {
+        totalBonusShifts += pBonusShifts;
+      }
+    }
+
+    periodBreakdown.push({
+      key,
+      label: labelForPeriodKey(key, config.productivityTierPeriod),
+      isComplete: isPeriodComplete(key, config.productivityTierPeriod),
+      shifts: +pShifts.toFixed(2),
+      totalAdjustedRvu: +pTotalAdjusted.toFixed(2),
+      avgAdjustedRvuPerShift: +pAvgAdjusted.toFixed(2),
+      bonusShifts: pBonusShifts,
+    });
+  }
+
+  totalBonusShifts = +totalBonusShifts.toFixed(2);
+  const totalCreditShifts = +(totalShifts + totalBonusShifts).toFixed(2);
   const estimatedDollars = config.shiftValue != null
-    ? +(totalShifts * config.shiftValue).toFixed(2)
+    ? +(totalCreditShifts * config.shiftValue).toFixed(2)
     : 0;
 
   const showBonus = anyRotationHasBonus(config) || anySessionHasBonus;
   const showMeeting = anySessionHasMeeting;
   const showAllIn = showBonus || showMeeting;
   const showDollars = config.shiftValue != null;
+  const showProductivity = config.productivityTiersActive && config.productivityTiers.length > 0;
 
   return {
     enabled: true,
@@ -778,10 +913,15 @@ export function aggregatePvc(
     totalWrvu: +totalWrvu.toFixed(2),
     totalBonusRvu: +totalBonusRvu.toFixed(2),
     totalMeetingRvu,
+    totalClockHours,
     allInWrvu,
     allInRvuPerShift,
     wrvuPerShift,
     estimatedDollars,
+    totalBonusShifts,
+    totalCreditShifts,
+    periodBreakdown,
+    computationPeriod: config.productivityTierPeriod,
     columnsToShow: {
       shifts: true,
       wrvu: true,
@@ -789,6 +929,8 @@ export function aggregatePvc(
       meetingRvu: showMeeting,
       allInRvuPerShift: showAllIn,
       estimatedDollars: showDollars,
+      clockHours: true,
+      productivityBonus: showProductivity,
     },
   };
 }

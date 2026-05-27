@@ -11,6 +11,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import GARPercentileGauge from './shared/GARPercentileGauge';
 import ModalityPerformance from './shared/ModalityPerformance';
 import PresidentQuarterlySection from './sections/PresidentQuarterlySection';
+import PvcReportSection from './sections/PvcReportSection';
 import HospitalQuarterlySection from './sections/HospitalQuarterlySection';
 import ITQuarterlySection from './sections/ITQuarterlySection';
 
@@ -451,6 +452,18 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
             </div>
           )}
         </div>
+      )}
+
+      {/* PVC section — self-hides if PVC disabled */}
+      {userId && userSystem && (
+        <PvcReportSection
+          userId={userId}
+          system={userSystem}
+          sessions={sessions}
+          dateRange={quarterRange}
+          periodType="quarterly"
+          periodLabel={`${format(quarterRange.start, 'yyyy')} Q${Math.floor(quarterRange.start.getMonth() / 3) + 1}`}
+        />
       )}
 
       {/* President section */}

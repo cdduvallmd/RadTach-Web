@@ -10,6 +10,7 @@ import { addWeeks, subWeeks, format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import GARPercentileGauge from './shared/GARPercentileGauge';
 import PresidentWeeklySection from './sections/PresidentWeeklySection';
+import PvcReportSection from './sections/PvcReportSection';
 import HospitalWeeklySection from './sections/HospitalWeeklySection';
 import ITWeeklySection from './sections/ITWeeklySection';
 
@@ -455,6 +456,18 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
             </div>
           )}
         </div>
+      )}
+
+      {/* PVC section — self-hides if PVC disabled */}
+      {userId && userSystem && (
+        <PvcReportSection
+          userId={userId}
+          system={userSystem}
+          sessions={sessions}
+          dateRange={weekRange}
+          periodType="weekly"
+          periodLabel={`Week of ${format(weekRange.start, 'MMM d, yyyy')}`}
+        />
       )}
 
       {/* President section */}

@@ -14,7 +14,7 @@ import { estimatePercentile } from '../../utils/percentileEstimation';
 import PresidentMonthlySection from './sections/PresidentMonthlySection';
 import HospitalMonthlySection from './sections/HospitalMonthlySection';
 import ITMonthlySection from './sections/ITMonthlySection';
-import PvcMonthlySection from './sections/PvcMonthlySection';
+import PvcReportSection from './sections/PvcReportSection';
 
 interface MonthlyReportTabProps {
   userId: string | null;
@@ -571,11 +571,12 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
 
       {/* PVC section — self-hides if PVC disabled for this system */}
       {userId && userSystem && (
-        <PvcMonthlySection
+        <PvcReportSection
           userId={userId}
           system={userSystem}
           sessions={sessions}
           dateRange={monthRange}
+          periodType="monthly"
           periodLabel={format(currentDate, 'MMMM yyyy')}
         />
       )}
