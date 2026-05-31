@@ -46,13 +46,14 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
   // Per-day Deck Quality + Studies/hr for the visible week. Aggregates across
   // any same-day sessions (workstation crash, multi-block days) by summing
   // numerators and denominators rather than averaging session-level metrics.
+  type DeckBand = 'default' | 'green' | 'yellow' | 'red';
   type DayMetric = {
     date: string;        // ISO YYYY-MM-DD
     label: string;       // "Mon 5/26"
     deckQuality: number; // totalRVU / totalStudies
     studiesPerHour: number; // totalStudies / productiveHours
     studyCount: number;  // for tooltip
-    redFlag: boolean;    // deckQuality < baselineMean - 2*SD
+    deckBand: DeckBand;  // band relative to baseline mean ± 1 SD
   };
   function aggregateByDay(daySessions: StoredSession[]): { rvu: number; studies: number; productiveSec: number } {
     let rvu = 0;
@@ -99,23 +100,40 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
       byDay.set(key, arr);
     }
     const days = eachDayOfInterval({ start: weekRange.start, end: weekRange.end });
-    const threshold = deckQualityBaseline ? deckQualityBaseline.mean - 2 * deckQualityBaseline.sd : null;
     return days.map(d => {
       const key = d.toISOString().slice(0, 10);
       const list = byDay.get(key) ?? [];
       const { rvu, studies, productiveSec } = aggregateByDay(list);
       const deckQuality = studies > 0 ? +(rvu / studies).toFixed(2) : 0;
       const studiesPerHour = productiveSec > 0 ? +(studies / (productiveSec / 3600)).toFixed(1) : 0;
+      let deckBand: DeckBand = 'default';
+      if (studies > 0 && deckQualityBaseline) {
+        const { mean, sd } = deckQualityBaseline;
+        if (deckQuality > mean + sd) deckBand = 'green';
+        else if (deckQuality >= mean - sd) deckBand = 'yellow';
+        else deckBand = 'red';
+      }
       return {
         date: key,
         label: format(d, 'EEE M/d'),
         deckQuality,
         studiesPerHour,
         studyCount: studies,
-        redFlag: studies > 0 && threshold !== null && deckQuality < threshold,
+        deckBand,
       };
     });
   }, [sessions, weekRange.start.getTime(), weekRange.end.getTime(), deckQualityBaseline]);
+
+  // Deck Quality bar fill — defaults green when no baseline is available;
+  // once a 10+ day baseline lands we drive bands off mean ± 1 SD. Studies/hr
+  // stays blue across the board (the user wanted that one stable).
+  const DECK_BAND_COLOR: Record<DeckBand, string> = {
+    default: '#22c55e', // green
+    green:   '#22c55e',
+    yellow:  '#eab308',
+    red:     '#ef4444',
+  };
+  const STUDIES_PER_HOUR_COLOR = '#3b82f6'; // blue
 
   // Average GAR distributions across all days in the period
   const garAvg = useMemo(() => {
@@ -388,12 +406,12 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
                 <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Daily Deck Quality &amp; Throughput</h3>
                 {deckQualityBaseline && (
                   <span className="text-[11px] text-gray-500">
-                    Baseline ({deckQualityBaseline.n} days): mean wRVU/Study = {deckQualityBaseline.mean.toFixed(2)}, SD = {deckQualityBaseline.sd.toFixed(2)}. Red bars = day below mean &minus; 2 SD (rough deck day, not your fault).
+                    Baseline ({deckQualityBaseline.n} days): mean wRVU/Study = {deckQualityBaseline.mean.toFixed(2)}, SD = {deckQualityBaseline.sd.toFixed(2)}. Bars: green &gt; +1 SD, yellow ±1 SD, red &lt; &minus;1 SD.
                   </span>
                 )}
                 {!deckQualityBaseline && (
                   <span className="text-[11px] text-gray-500">
-                    Baseline needs ≥10 days in the prior 90 — keep reading and the red-flag highlighting will activate.
+                    Baseline needs ≥10 days in the prior 90 — keep reading and the green/yellow/red banding will activate.
                   </span>
                 )}
               </div>
@@ -401,8 +419,8 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
                 <BarChart data={dailyMetrics} margin={{ top: 10, right: 20, bottom: 20, left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="label" stroke="#9ca3af" fontSize={11} />
-                  <YAxis yAxisId="left" stroke="#06b6d4" fontSize={11} domain={[0, (dataMax: number) => Math.max(2, Math.ceil(dataMax * 1.1 * 10) / 10)]} tickFormatter={(v: number) => v.toFixed(2)} label={{ value: 'wRVU / Study', angle: -90, position: 'insideLeft', fill: '#06b6d4', fontSize: 11 }} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#a855f7" fontSize={11} domain={[0, (dataMax: number) => Math.max(10, Math.ceil(dataMax * 1.1))]} label={{ value: 'Studies / hr', angle: 90, position: 'insideRight', fill: '#a855f7', fontSize: 11 }} />
+                  <YAxis yAxisId="left" stroke="#22c55e" fontSize={11} domain={[0, (dataMax: number) => Math.max(2, Math.ceil(dataMax * 1.1 * 10) / 10)]} tickFormatter={(v: number) => v.toFixed(2)} label={{ value: 'wRVU / Study', angle: -90, position: 'insideLeft', fill: '#22c55e', fontSize: 11 }} />
+                  <YAxis yAxisId="right" orientation="right" stroke={STUDIES_PER_HOUR_COLOR} fontSize={11} domain={[0, (dataMax: number) => Math.max(10, Math.ceil(dataMax * 1.1))]} label={{ value: 'Studies / hr', angle: 90, position: 'insideRight', fill: STUDIES_PER_HOUR_COLOR, fontSize: 11 }} />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff' }}
                     formatter={(value, name) => {
@@ -415,16 +433,19 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
                       const m = payload?.[0]?.payload as DayMetric | undefined;
                       const text = typeof label === 'string' ? label : String(label ?? '');
                       if (!m) return text;
-                      return `${text} — ${m.studyCount} studies${m.redFlag ? ' • flagged' : ''}`;
+                      const bandNote = m.deckBand === 'red' ? ' • below −1 SD'
+                        : m.deckBand === 'green' ? ' • above +1 SD'
+                        : '';
+                      return `${text} — ${m.studyCount} studies${bandNote}`;
                     }}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar yAxisId="left" dataKey="deckQuality" name="Deck Quality (wRVU/Study)" fill="#06b6d4">
+                  <Bar yAxisId="left" dataKey="deckQuality" name="Deck Quality (wRVU/Study)" fill={DECK_BAND_COLOR.default}>
                     {dailyMetrics.map((entry, idx) => (
-                      <Cell key={idx} fill={entry.redFlag ? '#ef4444' : '#06b6d4'} />
+                      <Cell key={idx} fill={DECK_BAND_COLOR[entry.deckBand]} />
                     ))}
                   </Bar>
-                  <Bar yAxisId="right" dataKey="studiesPerHour" name="Studies/hr" fill="#a855f7" />
+                  <Bar yAxisId="right" dataKey="studiesPerHour" name="Studies/hr" fill={STUDIES_PER_HOUR_COLOR} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
