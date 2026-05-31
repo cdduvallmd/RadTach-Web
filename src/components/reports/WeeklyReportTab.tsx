@@ -5,9 +5,9 @@ import { useState, useMemo } from 'react';
 import { useSessionData } from '../../hooks/useSessionData';
 import { useGroupStats } from '../../hooks/useGroupStats';
 import { aggregateSessions, getWeekRange } from '../../utils/periodAggregation';
-import type { DateRange, DistributionStats, EffectiveRole } from '../../types/reports';
-import { addWeeks, subWeeks, format } from 'date-fns';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import type { DateRange, DistributionStats, EffectiveRole, StoredSession } from '../../types/reports';
+import { addWeeks, subWeeks, format, subDays, parseISO, eachDayOfInterval } from 'date-fns';
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import GARPercentileGauge from './shared/GARPercentileGauge';
 import PresidentWeeklySection from './sections/PresidentWeeklySection';
 import PvcReportSection from './sections/PvcReportSection';
@@ -33,6 +33,89 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
     () => sessions.length > 0 ? aggregateSessions(sessions, weekRange) : null,
     [sessions, weekRange]
   );
+
+  // 90-day baseline used to compute mean/SD of daily Deck Quality so weak-deck
+  // days can be flagged red on the chart. Wider window than the visible week
+  // — the rad needs context for what their normal range looks like.
+  const baselineRange: DateRange = useMemo(
+    () => ({ start: subDays(weekRange.start, 90), end: weekRange.start }),
+    [weekRange.start.getTime()],
+  );
+  const { sessions: baselineSessions } = useSessionData(userId, baselineRange);
+
+  // Per-day Deck Quality + Studies/hr for the visible week. Aggregates across
+  // any same-day sessions (workstation crash, multi-block days) by summing
+  // numerators and denominators rather than averaging session-level metrics.
+  type DayMetric = {
+    date: string;        // ISO YYYY-MM-DD
+    label: string;       // "Mon 5/26"
+    deckQuality: number; // totalRVU / totalStudies
+    studiesPerHour: number; // totalStudies / productiveHours
+    studyCount: number;  // for tooltip
+    redFlag: boolean;    // deckQuality < baselineMean - 2*SD
+  };
+  function aggregateByDay(daySessions: StoredSession[]): { rvu: number; studies: number; productiveSec: number } {
+    let rvu = 0;
+    let studies = 0;
+    let productiveSec = 0;
+    for (const s of daySessions) {
+      rvu += s.totalRVU ?? 0;
+      studies += s.studiesCompleted ?? 0;
+      // Productive time = total session time minus break time. Mirrors the
+      // working definition used in the daily-session header table.
+      productiveSec += Math.max(0, (s.totalSessionTime ?? 0) - (s.breakTime ?? 0));
+    }
+    return { rvu, studies, productiveSec };
+  }
+
+  // Baseline mean/SD of daily Deck Quality.
+  const deckQualityBaseline = useMemo(() => {
+    if (baselineSessions.length === 0) return null;
+    const byDay = new Map<string, StoredSession[]>();
+    for (const s of baselineSessions) {
+      const key = parseISO(s.startDateTime).toISOString().slice(0, 10);
+      const arr = byDay.get(key) ?? [];
+      arr.push(s);
+      byDay.set(key, arr);
+    }
+    const dailyDeck: number[] = [];
+    for (const [, list] of byDay) {
+      const { rvu, studies } = aggregateByDay(list);
+      if (studies > 0) dailyDeck.push(rvu / studies);
+    }
+    if (dailyDeck.length < 10) return null; // need a reasonable sample
+    const mean = dailyDeck.reduce((a, b) => a + b, 0) / dailyDeck.length;
+    const variance = dailyDeck.reduce((a, b) => a + (b - mean) ** 2, 0) / dailyDeck.length;
+    const sd = Math.sqrt(variance);
+    return { mean, sd, n: dailyDeck.length };
+  }, [baselineSessions]);
+
+  const dailyMetrics: DayMetric[] = useMemo(() => {
+    const byDay = new Map<string, StoredSession[]>();
+    for (const s of sessions) {
+      const key = parseISO(s.startDateTime).toISOString().slice(0, 10);
+      const arr = byDay.get(key) ?? [];
+      arr.push(s);
+      byDay.set(key, arr);
+    }
+    const days = eachDayOfInterval({ start: weekRange.start, end: weekRange.end });
+    const threshold = deckQualityBaseline ? deckQualityBaseline.mean - 2 * deckQualityBaseline.sd : null;
+    return days.map(d => {
+      const key = d.toISOString().slice(0, 10);
+      const list = byDay.get(key) ?? [];
+      const { rvu, studies, productiveSec } = aggregateByDay(list);
+      const deckQuality = studies > 0 ? +(rvu / studies).toFixed(2) : 0;
+      const studiesPerHour = productiveSec > 0 ? +(studies / (productiveSec / 3600)).toFixed(1) : 0;
+      return {
+        date: key,
+        label: format(d, 'EEE M/d'),
+        deckQuality,
+        studiesPerHour,
+        studyCount: studies,
+        redFlag: studies > 0 && threshold !== null && deckQuality < threshold,
+      };
+    });
+  }, [sessions, weekRange.start.getTime(), weekRange.end.getTime(), deckQualityBaseline]);
 
   // Average GAR distributions across all days in the period
   const garAvg = useMemo(() => {
@@ -297,6 +380,55 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
               </div>
             </div>
           </div>
+
+          {/* Deck Quality + Throughput — daily bars */}
+          {dailyMetrics.some(d => d.studyCount > 0) && (
+            <div className="bg-gray-800 rounded-lg p-4">
+              <div className="flex items-baseline justify-between mb-1">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Daily Deck Quality &amp; Throughput</h3>
+                {deckQualityBaseline && (
+                  <span className="text-[11px] text-gray-500">
+                    Baseline ({deckQualityBaseline.n} days): mean wRVU/Study = {deckQualityBaseline.mean.toFixed(2)}, SD = {deckQualityBaseline.sd.toFixed(2)}. Red bars = day below mean &minus; 2 SD (rough deck day, not your fault).
+                  </span>
+                )}
+                {!deckQualityBaseline && (
+                  <span className="text-[11px] text-gray-500">
+                    Baseline needs ≥10 days in the prior 90 — keep reading and the red-flag highlighting will activate.
+                  </span>
+                )}
+              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={dailyMetrics} margin={{ top: 10, right: 20, bottom: 20, left: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="label" stroke="#9ca3af" fontSize={11} />
+                  <YAxis yAxisId="left" stroke="#06b6d4" fontSize={11} domain={[0, (dataMax: number) => Math.max(2, Math.ceil(dataMax * 1.1 * 10) / 10)]} tickFormatter={(v: number) => v.toFixed(2)} label={{ value: 'wRVU / Study', angle: -90, position: 'insideLeft', fill: '#06b6d4', fontSize: 11 }} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#a855f7" fontSize={11} domain={[0, (dataMax: number) => Math.max(10, Math.ceil(dataMax * 1.1))]} label={{ value: 'Studies / hr', angle: 90, position: 'insideRight', fill: '#a855f7', fontSize: 11 }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff' }}
+                    formatter={(value, name) => {
+                      const v = typeof value === 'number' ? value : Number(value ?? 0);
+                      if (name === 'Deck Quality (wRVU/Study)') return [v.toFixed(2), name];
+                      if (name === 'Studies/hr') return [v.toFixed(1), name];
+                      return [String(v), String(name ?? '')];
+                    }}
+                    labelFormatter={(label, payload) => {
+                      const m = payload?.[0]?.payload as DayMetric | undefined;
+                      const text = typeof label === 'string' ? label : String(label ?? '');
+                      if (!m) return text;
+                      return `${text} — ${m.studyCount} studies${m.redFlag ? ' • flagged' : ''}`;
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar yAxisId="left" dataKey="deckQuality" name="Deck Quality (wRVU/Study)" fill="#06b6d4">
+                    {dailyMetrics.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.redFlag ? '#ef4444' : '#06b6d4'} />
+                    ))}
+                  </Bar>
+                  <Bar yAxisId="right" dataKey="studiesPerHour" name="Studies/hr" fill="#a855f7" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           {/* Fastest/Slowest CPTs */}
           {(summary.fastestCpts.length > 0 || summary.slowestCpts.length > 0) && (
