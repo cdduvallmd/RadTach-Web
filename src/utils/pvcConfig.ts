@@ -24,6 +24,7 @@ export function getDefaultRotationOverlay(rotationName: string): RotationOverlay
       bonusRvu: 0,
       bonusHalvesOnHalfDay: false,
       contributesToShiftCount: false,
+      flatRvuOverride: null,
     };
   }
   return {
@@ -31,6 +32,7 @@ export function getDefaultRotationOverlay(rotationName: string): RotationOverlay
     bonusRvu: 0,
     bonusHalvesOnHalfDay: true,
     contributesToShiftCount: true,
+    flatRvuOverride: null,
   };
 }
 
@@ -58,6 +60,7 @@ export function computeShiftCredit(
   config: PvcConfig,
 ): ShiftCredit {
   const overlay = resolveRotationOverlay(rotationName, config);
+  const hasFlat = typeof overlay.flatRvuOverride === 'number';
 
   // Unassigned (or any other non-contributing rotation): never claims, never earns.
   if (!overlay.contributesToShiftCount) {
@@ -65,16 +68,19 @@ export function computeShiftCredit(
       pvcShiftCredit: 0,
       pvcBonusRvu: 0,
       pvcRotationAtStart: rotationName,
+      pvcWrvuOverride: hasFlat ? 0 : null,
     };
   }
 
   // Day's bonus slot already claimed by an earlier qualifying session?
   const alreadyClaimed = todaysPriorSessions.some(s => (s.pvcShiftCredit ?? 0) > 0);
   if (alreadyClaimed) {
+    // Subsequent sessions on a flat-RVU rotation still get zeroed out wRVU.
     return {
       pvcShiftCredit: 0,
       pvcBonusRvu: 0,
       pvcRotationAtStart: rotationName,
+      pvcWrvuOverride: hasFlat ? 0 : null,
     };
   }
 
@@ -85,17 +91,47 @@ export function computeShiftCredit(
     pvcShiftCredit: overlay.shiftCount * shiftMultiplier,
     pvcBonusRvu: overlay.bonusRvu * bonusMultiplier,
     pvcRotationAtStart: rotationName,
+    // Half-day on a flat-RVU rotation: scale the flat amount proportionally.
+    pvcWrvuOverride: hasFlat ? (overlay.flatRvuOverride as number) * shiftMultiplier : null,
   };
 }
 
+// Context passed alongside the CPT entry when evaluating adjustments. Optional
+// fields gate adjustments that scope to a rotation or to personally-performed
+// studies. Callers that don't have the context (e.g., modality-only path) can
+// omit it; in that case rotation-filtered or personally-performed adjustments
+// are skipped.
+export interface AdjustmentMatchContext {
+  rotation?: string | null;
+  personallyPerformed?: boolean;
+}
+
 // Does an adjustment rule match a given CPT entry?
-function adjustmentMatches(adjustment: CptAdjustment, entry: CptEntry | undefined): boolean {
+function adjustmentMatches(
+  adjustment: CptAdjustment,
+  entry: CptEntry | undefined,
+  ctx?: AdjustmentMatchContext,
+): boolean {
   if (adjustment.disabled) return false;
   if (!entry) {
     // Adjustments matching by modality alone can still apply when caller passes
     // a synthetic entry; if entry is missing entirely, skip.
     return false;
   }
+
+  // Rotation filter — adjustment only fires on listed rotations.
+  if (adjustment.applicableToRotations && adjustment.applicableToRotations.length > 0) {
+    if (!ctx?.rotation) return false;
+    if (!adjustment.applicableToRotations.includes(ctx.rotation)) return false;
+  }
+
+  // Personally-performed gate — adjustment only fires when the study event was
+  // flagged. UI to set the flag is pending; configurations using this gate stay
+  // dormant until then.
+  if (adjustment.requiresPersonallyPerformed && !ctx?.personallyPerformed) {
+    return false;
+  }
+
   const v = adjustment.matchValue;
   switch (adjustment.matchType) {
     case 'modality':
@@ -120,15 +156,16 @@ export function applyAdjustmentsToCptRvu(
   rawRvu: number,
   cptEntry: CptEntry | undefined,
   adjustments: CptAdjustment[],
+  ctx?: AdjustmentMatchContext,
 ): { adjusted: number; delta: number } {
   let value = rawRvu;
   for (const a of adjustments) {
-    if (a.operation === 'add' && adjustmentMatches(a, cptEntry)) {
+    if (a.operation === 'add' && adjustmentMatches(a, cptEntry, ctx)) {
       value += a.amount;
     }
   }
   for (const a of adjustments) {
-    if (a.operation === 'multiply' && adjustmentMatches(a, cptEntry)) {
+    if (a.operation === 'multiply' && adjustmentMatches(a, cptEntry, ctx)) {
       value *= a.amount;
     }
   }
@@ -156,10 +193,11 @@ export function applyCptAdjustmentsToBreakdown(
   breakdown: Array<{ cpt: string; description: string; raw: number; adjusted: number }>,
   cptEntries: Record<string, CptEntry>,
   adjustments: CptAdjustment[],
+  ctx?: AdjustmentMatchContext,
 ): AdjustedComboResult {
   const newBreakdown = breakdown.map(b => {
     const entry = cptEntries[b.cpt];
-    const { adjusted, delta } = applyAdjustmentsToCptRvu(b.adjusted, entry, adjustments);
+    const { adjusted, delta } = applyAdjustmentsToCptRvu(b.adjusted, entry, adjustments, ctx);
     return {
       cpt: b.cpt,
       description: b.description,
@@ -185,14 +223,23 @@ export function applyModalityOnlyAdjustment(
   rawRvu: number,
   modality: string | null,
   adjustments: CptAdjustment[],
+  ctx?: AdjustmentMatchContext,
 ): { adjusted: number; delta: number } {
   if (!modality) return { adjusted: rawRvu, delta: 0 };
+  const rotationAllowed = (a: CptAdjustment): boolean => {
+    if (!a.applicableToRotations || a.applicableToRotations.length === 0) return true;
+    if (!ctx?.rotation) return false;
+    return a.applicableToRotations.includes(ctx.rotation);
+  };
+  const personallyOk = (a: CptAdjustment): boolean =>
+    !a.requiresPersonallyPerformed || !!ctx?.personallyPerformed;
   let value = rawRvu;
   for (const a of adjustments) {
     if (a.disabled) continue;
     if (a.matchType !== 'modality') continue;
     if (typeof a.matchValue !== 'string') continue;
     if (a.matchValue.toLowerCase() !== modality.toLowerCase()) continue;
+    if (!rotationAllowed(a) || !personallyOk(a)) continue;
     if (a.operation === 'add') value += a.amount;
   }
   for (const a of adjustments) {
@@ -200,6 +247,7 @@ export function applyModalityOnlyAdjustment(
     if (a.matchType !== 'modality') continue;
     if (typeof a.matchValue !== 'string') continue;
     if (a.matchValue.toLowerCase() !== modality.toLowerCase()) continue;
+    if (!rotationAllowed(a) || !personallyOk(a)) continue;
     if (a.operation === 'multiply') value *= a.amount;
   }
   const adjusted = +value.toFixed(4);

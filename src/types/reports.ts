@@ -49,6 +49,7 @@ export interface StoredSession {
   pvcPendingClassification?: boolean; // Phase 2a: admin blocks ≥30 min await user review
   pvcMeetingHours?: number;           // Phase 2a: sum of classified meeting time
   pvcOutageReported?: boolean;        // Phase 2b: crash-recovery outage prompt answered Yes
+  pvcWrvuOverride?: number | null;    // FLUORO-style flat RVU; replaces session.totalRVU in PVC totals
 }
 
 // ── Date & Role ───────────────────────────────────────────────────────────────

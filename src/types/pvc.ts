@@ -10,6 +10,13 @@ export interface RotationOverlay {
   bonusRvu: number;                // 0 default; e.g., 3.25 for South, 1.75 for Yukon
   bonusHalvesOnHalfDay: boolean;   // default true
   contributesToShiftCount: boolean;// false for Unassigned, true otherwise
+  // Flat wRVU credit that REPLACES the session's accrued wRVU when this is the
+  // qualifying session of the day. Null = no override (normal accrual).
+  // Used for rotations like FLUORO where a rad covering for the PA receives a
+  // fixed RVU credit regardless of which studies they read during the shift.
+  // Non-qualifying sessions on a flat-RVU rotation contribute 0 wRVU (the rule
+  // applies all day, not just to the qualifying session).
+  flatRvuOverride?: number | null;
 }
 
 export type CptAdjustmentMatchType =
@@ -28,6 +35,14 @@ export interface CptAdjustment {
   amount: number;
   appliedToWorkRvuOnly: boolean;       // default true; reserved for future PE/MP support
   disabled?: boolean;                  // soft toggle without delete
+  // Restrict this adjustment to studies started on one of these rotations.
+  // null/undefined/empty = applies on all rotations. Example: arthrogram 2x
+  // multiplier scoped to ["South", "I-35 Arthro"].
+  applicableToRotations?: string[] | null;
+  // When true, the adjustment only applies if the StudyEvent has
+  // personallyPerformed === true. UI for setting that flag is not yet wired;
+  // set this true on configs that should remain dormant until it is.
+  requiresPersonallyPerformed?: boolean;
 }
 
 // Productivity tier row. `multiplier` is the bonus-shifts-per-RVU rate that
@@ -81,6 +96,10 @@ export interface ShiftCredit {
   pvcShiftCredit: number;     // 0, 0.5, 1.0, 2.0, etc.
   pvcBonusRvu: number;        // 0 if no bonus or already claimed
   pvcRotationAtStart: string; // frozen rotation name
+  // null = no wRVU override (normal accrual). 0 = zero out wRVU for this
+  // session (e.g., a non-qualifying FLUORO session). Positive = flat RVU
+  // credit (e.g., 60 on a qualifying FLUORO session).
+  pvcWrvuOverride: number | null;
 }
 
 // Convenience: what a Phase 1 default config looks like

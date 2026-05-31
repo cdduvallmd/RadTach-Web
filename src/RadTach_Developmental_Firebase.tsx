@@ -493,7 +493,12 @@ function RadTachInner() {
     // PVC: apply modality-only adjustments to the no-Sidecar path.
     // Per-CPT adjustments cannot apply here (no CPT context); only matchType:'modality' rules fire.
     if (pvcConfig?.enabled && pvcConfig.cptAdjustments.length > 0) {
-      const { adjusted } = applyModalityOnlyAdjustment(total, selectedModality, pvcConfig.cptAdjustments);
+      const { adjusted } = applyModalityOnlyAdjustment(
+        total,
+        selectedModality,
+        pvcConfig.cptAdjustments,
+        { rotation: selectedRotation || null },
+      );
       return adjusted;
     }
 
@@ -1506,6 +1511,10 @@ function RadTachInner() {
             pvcShiftCredit: credit.pvcShiftCredit,
             pvcBonusRvu: credit.pvcBonusRvu,
             pvcRotationAtStart: credit.pvcRotationAtStart,
+            // null is intentional ("no override"); only include the field when
+            // the rotation actually has a flat RVU rule so we don't write
+            // nulls to Firestore needlessly.
+            ...(credit.pvcWrvuOverride != null ? { pvcWrvuOverride: credit.pvcWrvuOverride } : {}),
           };
         }
       } catch (err) {
@@ -1961,12 +1970,15 @@ function RadTachInner() {
       // The corrected value replaces rvu; the pre-PVC total is preserved as rvuRaw
       // so the StudyEvent can record the audit delta. Display always shows the
       // corrected value only (no CMS reminder per user requirement).
+      // Pass current rotation so rotation-scoped adjustments (e.g., arthrogram
+      // 2× on South / I-35 Arthro) only fire on matching rotations.
       let rvuRaw: number | undefined;
       if (pvcConfig?.enabled && pvcConfig.cptAdjustments.length > 0) {
         const adjustedCombo = applyCptAdjustmentsToBreakdown(
           breakdown,
           cptDatabase.entries,
           pvcConfig.cptAdjustments,
+          { rotation: selectedRotation || null },
         );
         rvuRaw = adjustedCombo.totalRaw;
         rvu = adjustedCombo.total;

@@ -230,6 +230,7 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
                       <th className="text-left py-1.5 pr-3">Rotation</th>
                       <th className="text-center py-1.5 px-2">Shift count</th>
                       <th className="text-center py-1.5 px-2">Bonus RVU</th>
+                      <th className="text-center py-1.5 px-2" title="Flat RVU replaces this session's accrued wRVU on the qualifying session (e.g., FLUORO = 60). Leave blank for normal accrual.">Flat RVU</th>
                       <th className="text-center py-1.5 px-2">Bonus halves on half-day</th>
                       <th className="text-center py-1.5 px-2">Counts toward shift</th>
                     </tr>
@@ -255,6 +256,19 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
                               step="0.25"
                               value={overlay.bonusRvu}
                               onChange={e => updateRotationOverlay(name, { bonusRvu: Number(e.target.value) || 0 })}
+                              className="w-20 px-2 py-0.5 bg-gray-700 text-white rounded border border-gray-600 text-center"
+                            />
+                          </td>
+                          <td className="text-center py-1.5 px-2">
+                            <input
+                              type="number"
+                              step="1"
+                              placeholder="—"
+                              value={overlay.flatRvuOverride ?? ''}
+                              onChange={e => {
+                                const v = e.target.value.trim();
+                                updateRotationOverlay(name, { flatRvuOverride: v === '' ? null : Number(v) });
+                              }}
                               className="w-20 px-2 py-0.5 bg-gray-700 text-white rounded border border-gray-600 text-center"
                             />
                           </td>
@@ -299,7 +313,8 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
             ) : (
               <div className="space-y-2">
                 {config.cptAdjustments.map(adj => (
-                  <div key={adj.id} className="grid grid-cols-[1fr_120px_140px_100px_100px_70px_auto] gap-2 items-center bg-gray-900/50 p-2 rounded">
+                  <div key={adj.id} className="bg-gray-900/50 p-2 rounded space-y-1.5">
+                  <div className="grid grid-cols-[1fr_120px_140px_100px_100px_70px_auto] gap-2 items-center">
                     <input
                       type="text"
                       value={adj.label}
@@ -362,6 +377,32 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
                     >
                       ✕
                     </button>
+                  </div>
+                  {/* Secondary row: rotation filter + personally-performed gate */}
+                  <div className="flex items-center gap-3 text-[11px] text-gray-400 pl-1">
+                    <label className="flex items-center gap-1.5">
+                      Applicable rotations (csv, blank = all):
+                      <input
+                        type="text"
+                        value={Array.isArray(adj.applicableToRotations) ? adj.applicableToRotations.join(', ') : ''}
+                        onChange={e => {
+                          const list = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                          updateAdjustment(adj.id, { applicableToRotations: list.length > 0 ? list : null });
+                        }}
+                        placeholder="e.g., South, I-35 Arthro"
+                        className="px-2 py-0.5 bg-gray-700 text-white rounded border border-gray-600 text-[11px] min-w-[200px]"
+                      />
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={!!adj.requiresPersonallyPerformed}
+                        onChange={e => updateAdjustment(adj.id, { requiresPersonallyPerformed: e.target.checked })}
+                        className="w-3 h-3 rounded border-gray-600 bg-gray-700"
+                      />
+                      Requires "Personally Performed" flag (UI pending)
+                    </label>
+                  </div>
                   </div>
                 ))}
               </div>

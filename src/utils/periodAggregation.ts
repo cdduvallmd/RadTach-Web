@@ -823,7 +823,11 @@ export function aggregatePvc(
 
   for (const s of sessions) {
     totalShifts += s.pvcShiftCredit ?? 0;
-    totalWrvu += s.totalRVU ?? 0;
+    // FLUORO-style flat RVU: when pvcWrvuOverride is set (non-null), it
+    // REPLACES the session's accrued wRVU. Non-qualifying sessions on a
+    // flat-RVU rotation have override=0 (zero out their actual studies).
+    const sessionWrvu = (s.pvcWrvuOverride != null) ? s.pvcWrvuOverride : (s.totalRVU ?? 0);
+    totalWrvu += sessionWrvu;
     totalBonusRvu += s.pvcBonusRvu ?? 0;
     totalMeetingHours += s.pvcMeetingHours ?? 0;
     totalClockSeconds += s.totalSessionTime ?? 0;
@@ -859,7 +863,7 @@ export function aggregatePvc(
     let pMeetingHours = 0;
     for (const s of periodSessions) {
       pShifts += s.pvcShiftCredit ?? 0;
-      pWrvu += s.totalRVU ?? 0;
+      pWrvu += (s.pvcWrvuOverride != null) ? s.pvcWrvuOverride : (s.totalRVU ?? 0);
       pBonus += s.pvcBonusRvu ?? 0;
       pMeetingHours += s.pvcMeetingHours ?? 0;
     }
