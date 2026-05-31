@@ -225,6 +225,7 @@ function RadTachInner() {
   // Hover states for secondary timers (UI test for Issue #5)
   const [isHoveringAdmin, setIsHoveringAdmin] = useState(false);
   const [isHoveringComms, setIsHoveringComms] = useState(false);
+  const [isHoveringBreak, setIsHoveringBreak] = useState(false);
   const [isHoveringRVU, setIsHoveringRVU] = useState(false); // Issue #6: toggle RVU/hr vs Rolling RVU
 
   // Study selection states
@@ -2396,7 +2397,10 @@ function RadTachInner() {
     }
   };
 
-  // Toggle Break Time
+  // Toggle Break Time. Mirrors Admin/Comms behavior: if a study is mid-dictation
+  // when Break starts, the study timer pauses (modality + currentTime preserved)
+  // and resumes on Break end without going through Interstitial. Break can be
+  // taken anywhere — between studies, mid-study, mid-admin — same rule applies.
   const toggleBreakTime = () => {
     if (!isBreakTimeRunning) {
       // Signal shadow before starting break (no drift issue on start)
@@ -2415,6 +2419,11 @@ function RadTachInner() {
       const breakStart = interstitialStartTime ?? { session: sessionTime, system: getCurrentDateTime() };
       setBreakStartTime(breakStart);
       setInterstitialStartTime(null);
+      // Pause study timer if mid-dictation — modality + currentTime preserved
+      // so Break end can resume cleanly. Same pattern as Admin/Comms.
+      if (selectedModality !== null && isRunning) {
+        setIsRunning(false);
+      }
       // Firebase: flush events on break start (user is idle, good time to write)
       if (FIREBASE_ENABLED && firestoreSessionId) {
         flushEventsToFirestore(sessionEvents, firestoreSessionId);
@@ -2450,8 +2459,15 @@ function RadTachInner() {
       }
 
       setIsBreakTimeRunning(false);
-      setIsInterstitialRunning(true);
-      setInterstitialStartTime({ session: correctedSessionTime, system: getCurrentDateTime() }); // Issue #1
+      // If a study was paused by Break, resume it directly — don't pass through
+      // Interstitial. Otherwise start a fresh Interstitial as before.
+      const studyResuming = selectedModality !== null && currentTime > 0;
+      if (studyResuming) {
+        setIsRunning(true);
+      } else {
+        setIsInterstitialRunning(true);
+        setInterstitialStartTime({ session: correctedSessionTime, system: getCurrentDateTime() });
+      }
     }
   };
 
@@ -4541,21 +4557,8 @@ function RadTachInner() {
           >
             Auto
           </button>
-          <button
-            onClick={toggleBreakTime}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-              stealthMode
-                ? isBreakTimeRunning
-                  ? 'bg-gray-700 hover:bg-gray-600 text-white border-2 border-white'
-                  : 'bg-gray-700 hover:bg-gray-600 text-white border-2 border-gray-700'
-                : isBreakTimeRunning
-                ? 'bg-gray-700 hover:bg-gray-600 text-white border-4 border-red-600'
-                : 'bg-gray-700 hover:bg-gray-600 text-white'
-            }`}
-            title={isBreakTimeRunning ? 'Click to end break' : 'Take a break'}
-          >
-            Break
-          </button>
+          {/* Top-row Break button removed — the Break Time readout below now
+              functions as its own toggle, matching Admin/Comms behavior. */}
           <div className="flex items-center space-x-6">
             <div className="text-center">
               <div className="text-sm text-gray-400">Studies Completed</div>
@@ -4795,8 +4798,13 @@ function RadTachInner() {
             </div>
           </div>
 
-          {/* Break Time (with Breaks Taken overlay) */}
-          <div className={`bg-gray-800 rounded-lg py-3 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isBreakTimeRunning ? 'border-red-500' : 'border-gray-600')} relative overflow-hidden`}>
+          {/* Break Time (with Breaks Taken overlay) — clickable toggle, mirrors Admin/Comms */}
+          <div
+            onClick={toggleBreakTime}
+            onMouseEnter={() => setIsHoveringBreak(true)}
+            onMouseLeave={() => setIsHoveringBreak(false)}
+            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isBreakTimeRunning ? 'border-red-500' : 'border-gray-600')} cursor-pointer hover:bg-gray-700 transition-colors relative overflow-hidden`}
+          >
             {/* Large semi-transparent Breaks Taken number overlay */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className={`text-9xl font-bold ${stealthMode ? 'text-gray-600' : 'text-pink-400'} opacity-20`}>
@@ -4808,7 +4816,13 @@ function RadTachInner() {
               <div className="text-left">
                 <div className="text-sm text-gray-400">Break Time</div>
               </div>
-              <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : (isBreakTimeRunning ? 'text-red-400' : 'text-gray-400')}`}>
+              <div
+                className={`text-4xl font-bold overflow-hidden transition-all duration-300 ease-in-out ${stealthMode ? 'text-gray-400' : (isBreakTimeRunning ? 'text-red-400' : 'text-gray-400')}`}
+                style={{
+                  width: (isBreakTimeRunning || isHoveringBreak) ? 'auto' : '0px',
+                  opacity: (isBreakTimeRunning || isHoveringBreak) ? 1 : 0
+                }}
+              >
                 {formatTime(breakTime)}
               </div>
             </div>

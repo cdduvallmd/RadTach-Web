@@ -296,8 +296,16 @@ export function useTimerMode(): UseTimerModeReturn {
       case 'break_toggle': {
         if (currentMode === 'break') {
           closeCurrentMode(sessionTime);
-          enterMode('interstitial', sessionTime);
+          // Mirror Admin/Comms: if the user was mid-study when Break started,
+          // resume study mode directly without an interstitial transition.
+          if (wasInStudy.current) {
+            enterMode('study', sessionTime);
+          } else {
+            enterMode('interstitial', sessionTime);
+          }
+          wasInStudy.current = false;
         } else {
+          wasInStudy.current = currentMode === 'study';
           if (currentMode === 'interstitial') {
             mode.current = 'break';
           } else {
