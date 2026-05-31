@@ -87,6 +87,11 @@ interface StudyEvent {
   // PVC audit fields — present when CPT or modality adjustment applied
   rvuRaw?: number;          // pre-adjustment value (CMS / GPCI-adjusted)
   rvuAdjustment?: number;   // delta applied (positive or negative)
+  // PVC: set true when the rad clicked "I PERSONALLY PERFORMED THIS STUDY"
+  // (rotation-scoped FL procedures like arthrograms, MBS, UGI). Drives the
+  // requiresPersonallyPerformed gate on CPT adjustments. Always false / absent
+  // for studies the rad only dictated.
+  personallyPerformed?: boolean;
 }
 
 interface InterstitialEvent {
@@ -289,6 +294,10 @@ function RadTachInner() {
   // pvcConfig?.enabled before applying any PVC behavior.
   const [pvcConfig, setPvcConfig] = useState<PvcConfig | null>(null);
   const [userTimezone, setUserTimezone] = useState<string | undefined>(undefined);
+  // True while the rad has claimed personal performance on the current study.
+  // Resets on every new study (processSidecarStart, completeStudy, modality
+  // clear). Drives the requiresPersonallyPerformed CPT adjustment gate.
+  const [personallyPerformedActive, setPersonallyPerformedActive] = useState(false);
 
   // Non-RVU complications — still add par time in RVU-derived mode (case complexity not in RVU)
   const NON_RVU_COMPLICATIONS: Complication[] = ['Age >70', 'Cancer Follow', 'Prior Surg Hx', 'Complex Hx'];
@@ -455,8 +464,33 @@ function RadTachInner() {
   
   const calculateRVU = () => {
     // CPT override takes precedence (Sidecar/HL7) — PVC CPT adjustments are
-    // already baked into cptOverride.rvu at processSidecarStart time.
-    if (cptOverride) return cptOverride.rvu;
+    // already baked into cptOverride.rvu at processSidecarStart time. If the
+    // rad has activated "personally performed" for this study, re-run the
+    // full adjustment pipeline from raw with pp=true so any pp-gated rules
+    // (e.g., arthrogram 2×) take effect.
+    if (cptOverride) {
+      if (
+        personallyPerformedActive &&
+        pvcConfig?.enabled &&
+        pvcConfig.cptAdjustments.length > 0 &&
+        cptDatabase
+      ) {
+        const rawBreakdown = cptOverride.breakdown.map(b => ({
+          cpt: b.cpt,
+          description: b.description,
+          raw: b.raw,
+          adjusted: b.raw,
+        }));
+        const result = applyCptAdjustmentsToBreakdown(
+          rawBreakdown,
+          cptDatabase.entries,
+          pvcConfig.cptAdjustments,
+          { rotation: selectedRotation || null, personallyPerformed: true },
+        );
+        return result.total;
+      }
+      return cptOverride.rvu;
+    }
 
     if (!selectedModality) return 0;
 
@@ -497,7 +531,7 @@ function RadTachInner() {
         total,
         selectedModality,
         pvcConfig.cptAdjustments,
-        { rotation: selectedRotation || null },
+        { rotation: selectedRotation || null, personallyPerformed: personallyPerformedActive },
       );
       return adjusted;
     }
@@ -507,6 +541,24 @@ function RadTachInner() {
   
   const currentParTime = calculateParTime();
   const currentStudyRVU = calculateRVU();
+
+  // PVC: show the "Personally Performed" button when (a) PVC is on, (b) the
+  // current rotation has at least one pp-gated adjustment that could fire,
+  // and (c) the study modality is FL (the rotation-scoped fluoroscopy
+  // procedures the rule targets — arthrograms, MBS, UGI, esophagram, SBFT).
+  // Other FL studies on the same rotation (e.g., cholangiogram, retrograde
+  // ureterogram done by others) show the button too — the rad simply doesn't
+  // click it.
+  const showPersonallyPerformedButton = (() => {
+    if (!pvcConfig?.enabled) return false;
+    if (selectedModality !== 'FL') return false;
+    const rot = (selectedRotation || '').trim();
+    return pvcConfig.cptAdjustments.some(a =>
+      !a.disabled &&
+      a.requiresPersonallyPerformed === true &&
+      (!a.applicableToRotations || a.applicableToRotations.length === 0 || (rot && a.applicableToRotations.includes(rot)))
+    );
+  })();
   
   // Determine elapsed time background color
   const getElapsedTimeBackground = () => {
@@ -2025,6 +2077,12 @@ function RadTachInner() {
       completeStudy();
     }
   };
+
+  // Reset the PP flag whenever a new study begins from Sidecar or modality
+  // selection clears. Keeps the toggle deliberate — one click per study.
+  useEffect(() => {
+    setPersonallyPerformedActive(false);
+  }, [cptOverride?.cpts?.join(','), selectedModality]);
   processSidecarStartRef.current = processSidecarStart;
   processSidecarStopRef.current = processSidecarStop;
 
@@ -2161,6 +2219,7 @@ function RadTachInner() {
         ...(cptOverride ? { rvuSource: cptOverride.source, cpts: cptOverride.cpts } : {}),
         ...(rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour } : {}),
         ...pvcAudit,
+        ...(personallyPerformedActive ? { personallyPerformed: true } : {}),
       };
       setSessionEvents(prev => [...prev, studyEvent]);
       recordEventLocally(studyEvent);
@@ -4609,6 +4668,28 @@ function RadTachInner() {
           </div>
         </div>
         
+        {/* PVC: "I Personally Performed This Study" toggle. Visible only on
+            rotations with a pp-active adjustment and only for FL studies. */}
+        {showPersonallyPerformedButton && (
+          <div className="mb-3">
+            <button
+              onClick={() => setPersonallyPerformedActive(v => !v)}
+              className={`w-full py-3 rounded-lg text-sm font-bold tracking-wider transition-colors ${
+                personallyPerformedActive
+                  ? 'bg-emerald-700 hover:bg-emerald-600 text-white ring-2 ring-emerald-400'
+                  : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
+              }`}
+              title={personallyPerformedActive
+                ? 'Active — wRVU multiplier applies for this study. Click to deselect.'
+                : 'Click if you personally performed this procedure (vs. dictating for the PA).'}
+            >
+              {personallyPerformedActive
+                ? '✓  I PERSONALLY PERFORMED THIS STUDY'
+                : 'I PERSONALLY PERFORMED THIS STUDY'}
+            </button>
+          </div>
+        )}
+
         {/* Main Timer Display */}
         <div className="grid grid-cols-3 gap-6 mb-4">
           {/* Above/Below Par */}
