@@ -129,7 +129,18 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
       onClose();
     } catch (err) {
       console.error('PVC save failed:', err);
-      setError('Save failed — check console');
+      const msg = (err as { code?: string; message?: string })?.code ?? '';
+      if (msg.includes('permission-denied') || (err as Error)?.message?.includes('insufficient permissions')) {
+        setError(
+          'Save was denied by Firebase security rules. You need to be signed in as an admin, president, or globalAdmin on this system to edit PVC settings. ' +
+          'Sign in first, then reopen this panel. (Press F12 to view full error in the browser console.)'
+        );
+      } else {
+        setError(
+          'Save failed. Press F12 to open the browser Developer Console — the full error message and stack trace will be there ' +
+          'under "PVC save failed:". If this persists, send a screenshot to RadTach support.'
+        );
+      }
       setSaving(false);
     }
   };
@@ -192,7 +203,7 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
                 </select>
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-gray-400">Default meeting RVU/hr</span>
+                <span className="text-xs text-gray-400" title="Applies to every user on this system who doesn't have a personal override">Default meeting RVU/hr</span>
                 <input
                   type="number"
                   step="0.1"
@@ -200,6 +211,9 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
                   onChange={e => updateConfig({ defaultMeetingRvuRate: Number(e.target.value) || 0 })}
                   className="px-2 py-1 bg-gray-700 text-white rounded border border-gray-600"
                 />
+                <span className="text-[10px] text-gray-500 leading-snug">
+                  Per-radiologist overrides (e.g., President = 11/hr) live at <code className="text-gray-400">users/&#123;uid&#125;/settings/current.pvc.meetingRvuRateOverride</code> — set them manually in Firebase Console for now. Per-rad UI panel is on the roadmap.
+                </span>
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-gray-400">Fiscal year start (MM-DD) — blank = calendar quarters</span>
@@ -378,21 +392,32 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
                       ✕
                     </button>
                   </div>
-                  {/* Secondary row: rotation filter + personally-performed gate */}
-                  <div className="flex items-center gap-3 text-[11px] text-gray-400 pl-1">
-                    <label className="flex items-center gap-1.5">
-                      Applicable rotations (csv, blank = all):
-                      <input
-                        type="text"
-                        value={Array.isArray(adj.applicableToRotations) ? adj.applicableToRotations.join(', ') : ''}
-                        onChange={e => {
-                          const list = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                          updateAdjustment(adj.id, { applicableToRotations: list.length > 0 ? list : null });
-                        }}
-                        placeholder="e.g., South, I-35 Arthro"
-                        className="px-2 py-0.5 bg-gray-700 text-white rounded border border-gray-600 text-[11px] min-w-[200px]"
-                      />
-                    </label>
+                  {/* Secondary row: rotation filter (checkboxes) + personally-performed gate */}
+                  <div className="flex flex-col gap-1.5 text-[11px] text-gray-400 pl-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>Applicable rotations (none checked = applies to all):</span>
+                      {rotations.length === 0 && <span className="text-gray-500 italic">no rotations configured</span>}
+                      {rotations.map(rotName => {
+                        const selected = Array.isArray(adj.applicableToRotations) && adj.applicableToRotations.includes(rotName);
+                        return (
+                          <label key={rotName} className="flex items-center gap-1 bg-gray-800 px-2 py-0.5 rounded border border-gray-700 hover:border-gray-500 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={e => {
+                                const current = Array.isArray(adj.applicableToRotations) ? [...adj.applicableToRotations] : [];
+                                const next = e.target.checked
+                                  ? [...current, rotName]
+                                  : current.filter(r => r !== rotName);
+                                updateAdjustment(adj.id, { applicableToRotations: next.length > 0 ? next : null });
+                              }}
+                              className="w-3 h-3 rounded border-gray-600 bg-gray-700"
+                            />
+                            <span className="text-gray-300">{rotName}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                     <label className="flex items-center gap-1">
                       <input
                         type="checkbox"
@@ -400,7 +425,7 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
                         onChange={e => updateAdjustment(adj.id, { requiresPersonallyPerformed: e.target.checked })}
                         className="w-3 h-3 rounded border-gray-600 bg-gray-700"
                       />
-                      Requires "Personally Performed" flag (UI pending)
+                      Requires "Personally Performed" toggle (rad must click the button at study time)
                     </label>
                   </div>
                   </div>
@@ -416,7 +441,7 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
           {/* ── Productivity Tiers ──────────────────────────────── */}
           <section>
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-gray-300 font-medium">Productivity Tiers (Phase 3)</h4>
+              <h4 className="text-gray-300 font-medium">Productivity Tiers</h4>
               <button
                 onClick={addTier}
                 className="px-2 py-0.5 text-xs bg-blue-700 hover:bg-blue-600 text-white rounded"
@@ -424,6 +449,17 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
                 + Add tier
               </button>
             </div>
+            <details className="mb-2 text-[11px] text-gray-400 bg-gray-900/40 rounded p-2">
+              <summary className="cursor-pointer hover:text-gray-200 select-none">What do these settings mean?</summary>
+              <div className="mt-2 space-y-1.5 pl-3">
+                <div><span className="text-gray-300">Active</span>: turn the bonus-shift math on or off without deleting the tier rows.</div>
+                <div><span className="text-gray-300">Allow negative bonus</span>: months below the lowest tier threshold deduct shifts (the formula goes negative). Off = clamp to zero.</div>
+                <div><span className="text-gray-300">Mode — Marginal</span> (recommended): each tier contributes only its own slice. Above 60, the 50→60 contribution is capped at its max. <em>User group's formula uses this.</em></div>
+                <div><span className="text-gray-300">Mode — Stacked</span>: each tier above its threshold counts <em>everything</em> above the threshold, so the lower-tier rate keeps applying past its slice. Over-credits at the upper end.</div>
+                <div><span className="text-gray-300">Period</span>: how the Adjusted wRVU average is computed for the tier formula. Monthly is typical.</div>
+                <div className="text-gray-500 pt-1">Tier rows: <span className="text-gray-300">Threshold</span> = the wRVU/shift cutoff this tier starts at. <span className="text-gray-300">Multiplier</span> = bonus-shifts-per-RVU within this tier's slice. E.g. 50/0.02 and 60/0.01667 yields the user group's 50–60 full rate, 60+ at 80% rate.</div>
+              </div>
+            </details>
             <div className="flex gap-4 mb-2 flex-wrap">
               <label className="flex items-center gap-1.5 text-xs text-gray-300">
                 <input
