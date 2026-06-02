@@ -137,6 +137,11 @@ export interface SessionSummary {
   // ── Performance Insights (added 2026-05-19) ──
   // Hourly profile: studies + RVU bucketed by clock hour
   hourlyProfile?: Record<string, { studies: number; rvu: number }>;
+  // Best clock hour for wRVU and studies (independent — they often differ).
+  // Useful for testing intuitive scheduling assumptions ("I work better in
+  // the morning"). hour is "00".."23" local time.
+  bestHourByRvu?: { hour: string; rvu: number; studies: number } | null;
+  bestHourByStudies?: { hour: string; rvu: number; studies: number } | null;
   // Deck quality metrics
   avgRvuPerStudy?: number;
   studiesPerHour?: number;
@@ -356,6 +361,21 @@ export function computeSessionSummary(
     }
   }
 
+  // Best clock hour for wRVU and studies (separately — they often peak in
+  // different hours). Tie-break to earliest hour for stability.
+  let bestHourByRvu: { hour: string; rvu: number; studies: number } | null = null;
+  let bestHourByStudies: { hour: string; rvu: number; studies: number } | null = null;
+  for (const [hour, data] of Object.entries(hourlyProfile)) {
+    if (!bestHourByRvu || data.rvu > bestHourByRvu.rvu ||
+        (data.rvu === bestHourByRvu.rvu && hour < bestHourByRvu.hour)) {
+      bestHourByRvu = { hour, rvu: data.rvu, studies: data.studies };
+    }
+    if (!bestHourByStudies || data.studies > bestHourByStudies.studies ||
+        (data.studies === bestHourByStudies.studies && hour < bestHourByStudies.hour)) {
+      bestHourByStudies = { hour, rvu: data.rvu, studies: data.studies };
+    }
+  }
+
   // Deck quality metrics
   const totalRvu = studies.reduce((sum, s) => sum + s.rvu, 0);
   const avgRvuPerStudy = studies.length > 0 ? totalRvu / studies.length : 0;
@@ -415,6 +435,8 @@ export function computeSessionSummary(
     modalityTransitionPenalty,
     ...(rvuDerivedSummary ? { rvuDerivedSummary } : {}),
     hourlyProfile,
+    bestHourByRvu,
+    bestHourByStudies,
     avgRvuPerStudy,
     studiesPerHour,
     fastestCpts,

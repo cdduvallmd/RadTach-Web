@@ -688,6 +688,105 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
     );
   };
 
+  // ── 6G: Hourly Profile (wRVU + studies by clock hour) ──────────────────
+  // Tests the intuitive "I work better in the morning" hypothesis. Bars are
+  // bucketed by local wall-clock hour (browser local time). Best hours by
+  // wRVU and studies are surfaced separately — they often peak in different
+  // hours.
+
+  const renderHourlyProfile = () => {
+    if (!summary?.hourlyProfile) return null;
+    const profile = summary.hourlyProfile;
+    const hours = Object.keys(profile).sort();
+    if (hours.length === 0) return null;
+
+    // Build a contiguous range from min hour → max hour, including any zero
+    // hours in between so the chart isn't deceptively gappy.
+    const minH = Number(hours[0]);
+    const maxH = Number(hours[hours.length - 1]);
+    const fmtHour = (h: number) => {
+      const period = h < 12 ? 'AM' : 'PM';
+      const display = h % 12 === 0 ? 12 : h % 12;
+      return `${display} ${period}`;
+    };
+    const data: Array<{ hour: string; label: string; rvu: number; studies: number }> = [];
+    for (let h = minH; h <= maxH; h++) {
+      const key = String(h).padStart(2, '0');
+      const bucket = profile[key];
+      data.push({
+        hour: key,
+        label: fmtHour(h),
+        rvu: bucket ? +bucket.rvu.toFixed(2) : 0,
+        studies: bucket ? bucket.studies : 0,
+      });
+    }
+
+    const bestRvu = summary.bestHourByRvu ?? null;
+    const bestStudies = summary.bestHourByStudies ?? null;
+    const RVU_COLOR = '#22c55e';
+    const STUDIES_COLOR = '#3b82f6';
+
+    return (
+      <div className="report-section">
+        <h3 className="text-lg font-semibold text-white mb-1">6G. Hourly Profile (wRVU &amp; Studies)</h3>
+        <p className="text-gray-500 text-xs mb-3">By wall-clock hour at your local time. Tests the "I work better in the morning" hypothesis with actual data.</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={data} margin={{ top: 10, right: 20, bottom: 20, left: 10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+            <XAxis dataKey="label" stroke="#9ca3af" fontSize={11} />
+            <YAxis
+              yAxisId="left"
+              stroke={RVU_COLOR}
+              fontSize={11}
+              tickFormatter={(v: number) => v.toFixed(0)}
+              label={{ value: 'wRVU', angle: -90, position: 'insideLeft', fill: RVU_COLOR, fontSize: 11 }}
+            />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              stroke={STUDIES_COLOR}
+              fontSize={11}
+              allowDecimals={false}
+              label={{ value: 'Studies', angle: 90, position: 'insideRight', fill: STUDIES_COLOR, fontSize: 11 }}
+            />
+            <Tooltip
+              contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff' }}
+              formatter={(value, name) => {
+                const v = typeof value === 'number' ? value : Number(value ?? 0);
+                if (name === 'wRVU') return [v.toFixed(2), name];
+                return [String(v), String(name ?? '')];
+              }}
+            />
+            <Bar yAxisId="left" dataKey="rvu" name="wRVU" fill={RVU_COLOR} />
+            <Bar yAxisId="right" dataKey="studies" name="Studies" fill={STUDIES_COLOR} />
+          </BarChart>
+        </ResponsiveContainer>
+        {(bestRvu || bestStudies) && (
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <div className="bg-gray-700/50 rounded-lg p-3">
+              <div className="text-gray-400 text-xs mb-1">Best Hour — wRVU</div>
+              <div className="text-2xl font-bold" style={{ color: RVU_COLOR }}>
+                {bestRvu ? `${fmtHour(Number(bestRvu.hour))}` : '—'}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {bestRvu ? `${bestRvu.rvu.toFixed(2)} wRVU on ${bestRvu.studies} studies` : ''}
+              </div>
+            </div>
+            <div className="bg-gray-700/50 rounded-lg p-3">
+              <div className="text-gray-400 text-xs mb-1">Best Hour — Studies</div>
+              <div className="text-2xl font-bold" style={{ color: STUDIES_COLOR }}>
+                {bestStudies ? `${fmtHour(Number(bestStudies.hour))}` : '—'}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">
+                {bestStudies ? `${bestStudies.studies} studies for ${bestStudies.rvu.toFixed(2)} wRVU` : ''}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ── 7A: Stamina Curve ───────────────────────────────────────────────────
 
   const renderStaminaCurve = () => {
@@ -926,6 +1025,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
         {renderAvgVarianceByModality()}
         {renderTop5Studies()}
         {renderTimeAllocation()}
+        {renderHourlyProfile()}
         {renderStaminaCurve()}
         {renderBreakROI()}
         {renderComplicationCost()}
