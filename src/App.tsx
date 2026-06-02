@@ -592,9 +592,13 @@ function RadTachInner() {
   
   const elapsedBackground = getElapsedTimeBackground();
   
-  // Timer effect
+  // Timer effect. Tick is gated on !showStopSessionDialog so all counters
+  // freeze the moment the Stop Session dialog opens — the rad has stopped
+  // working at that point and shouldn't accrue wait-for-Epic time to any
+  // category. Flags stay true so resetSession's "if running, emit final
+  // event" branches still fire with the correct frozen sessionTime.
   useEffect(() => {
-    if (isRunning) {
+    if (isRunning && !showStopSessionDialog) {
       timerRef.current = setInterval(() => {
         setCurrentTime(prev => prev + 1);
       }, 1000);
@@ -603,19 +607,19 @@ function RadTachInner() {
         clearInterval(timerRef.current);
       }
     }
-    
+
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
-  }, [isRunning]);
+  }, [isRunning, showStopSessionDialog]);
 
   // Pause timer removed — ABC buttons handle interruptions
 
   // Double Tap timer effect (Issue #3) - tracks duration of double tap events
   useEffect(() => {
-    if (isDoubleTapRunning) {
+    if (isDoubleTapRunning && !showStopSessionDialog) {
       doubleTapTimeRef.current = setInterval(() => {
         setDoubleTapTime(prev => prev + 1);
       }, 1000);
@@ -630,11 +634,11 @@ function RadTachInner() {
         clearInterval(doubleTapTimeRef.current);
       }
     };
-  }, [isDoubleTapRunning]);
+  }, [isDoubleTapRunning, showStopSessionDialog]);
 
   // Session time effect
   useEffect(() => {
-    if (isSessionTimeRunning) {
+    if (isSessionTimeRunning && !showStopSessionDialog) {
       sessionTimeRef.current = setInterval(() => {
         setSessionTime(prev => prev + 1);
       }, 1000);
@@ -643,17 +647,17 @@ function RadTachInner() {
         clearInterval(sessionTimeRef.current);
       }
     }
-    
+
     return () => {
       if (sessionTimeRef.current) {
         clearInterval(sessionTimeRef.current);
       }
     };
-  }, [isSessionTimeRunning]);
-  
+  }, [isSessionTimeRunning, showStopSessionDialog]);
+
   // Interstitial time effect
   useEffect(() => {
-    if (isInterstitialRunning) {
+    if (isInterstitialRunning && !showStopSessionDialog) {
       interstitialTimeRef.current = setInterval(() => {
         setInterstitialTime(prev => prev + 1);
       }, 1000);
@@ -662,17 +666,17 @@ function RadTachInner() {
         clearInterval(interstitialTimeRef.current);
       }
     }
-    
+
     return () => {
       if (interstitialTimeRef.current) {
         clearInterval(interstitialTimeRef.current);
       }
     };
-  }, [isInterstitialRunning]);
-  
+  }, [isInterstitialRunning, showStopSessionDialog]);
+
   // Admin time effect
   useEffect(() => {
-    if (isAdminTimeRunning) {
+    if (isAdminTimeRunning && !showStopSessionDialog) {
       adminTimeRef.current = setInterval(() => {
         setAdminTime(prev => prev + 1);
       }, 1000);
@@ -681,17 +685,17 @@ function RadTachInner() {
         clearInterval(adminTimeRef.current);
       }
     }
-    
+
     return () => {
       if (adminTimeRef.current) {
         clearInterval(adminTimeRef.current);
       }
     };
-  }, [isAdminTimeRunning]);
-  
+  }, [isAdminTimeRunning, showStopSessionDialog]);
+
   // Comms time effect
   useEffect(() => {
-    if (isCommsTimeRunning) {
+    if (isCommsTimeRunning && !showStopSessionDialog) {
       commsTimeRef.current = setInterval(() => {
         setCommsTime(prev => prev + 1);
       }, 1000);
@@ -706,11 +710,11 @@ function RadTachInner() {
         clearInterval(commsTimeRef.current);
       }
     };
-  }, [isCommsTimeRunning]);
+  }, [isCommsTimeRunning, showStopSessionDialog]);
 
   // Break time effect
   useEffect(() => {
-    if (isBreakTimeRunning) {
+    if (isBreakTimeRunning && !showStopSessionDialog) {
       breakTimeRef.current = setInterval(() => {
         setBreakTime(prev => prev + 1);
       }, 1000);
@@ -725,11 +729,11 @@ function RadTachInner() {
         clearInterval(breakTimeRef.current);
       }
     };
-  }, [isBreakTimeRunning]);
+  }, [isBreakTimeRunning, showStopSessionDialog]);
 
   // Time Since Last Break effect - runs when session is running but not on break
   useEffect(() => {
-    const shouldRun = isSessionTimeRunning && !isBreakTimeRunning;
+    const shouldRun = isSessionTimeRunning && !isBreakTimeRunning && !showStopSessionDialog;
 
     if (shouldRun) {
       timeSinceLastBreakRef.current = setInterval(() => {
@@ -746,7 +750,7 @@ function RadTachInner() {
         clearInterval(timeSinceLastBreakRef.current);
       }
     };
-  }, [isSessionTimeRunning, isBreakTimeRunning]);
+  }, [isSessionTimeRunning, isBreakTimeRunning, showStopSessionDialog]);
 
   // Load settings from localStorage on mount
   useEffect(() => {
