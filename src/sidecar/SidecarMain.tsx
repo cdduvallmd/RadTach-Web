@@ -15,6 +15,7 @@ import ComboBuilder from './components/ComboBuilder';
 import ActiveStudy from './components/ActiveStudy';
 import CptListScreen from './components/CptListScreen';
 import SavedCombosScreen from './components/SavedCombosScreen';
+import { MODALITY_COLORS } from './utils/modalityColors';
 // comboColor used in SavedCombosScreen, BodyPartScreen, ProtocolScreen, HomeScreen, CptListScreen
 
 type Screen =
@@ -690,7 +691,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
                         className="flex-1 text-left p-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg active:scale-95 transition-all"
                       >
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: '#6366f1', color: 'white' }}>
+                          <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: MODALITY_COLORS[entry.modality] || '#6b7280', color: 'white' }}>
                             {entry.modality}
                           </span>
                           <span className="text-gray-400 text-xs">{fav.cpt}</span>
