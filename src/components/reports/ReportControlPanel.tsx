@@ -245,12 +245,16 @@ export default function ReportControlPanel({
           </button>
         )}
 
-        {/* PVC settings button (admin/president — globalAdmin auto via president promotion) */}
-        {(effectiveRole === 'admin' || effectiveRole === 'president') && onOpenPvcSettings && (
+        {/* PVC settings button. Admin/president edit; radiologists view-only
+            (configuration transparency + access to retroactive meeting-time
+            backfill for their own sessions). */}
+        {onOpenPvcSettings && (
           <button
             onClick={onOpenPvcSettings}
             className={`${effectiveRole === 'president' ? '' : 'ml-auto'} px-2 py-1 text-xs font-medium text-gray-300 hover:text-white border border-gray-600 hover:border-gray-500 rounded transition-colors`}
-            title="Practice Value Customization"
+            title={(effectiveRole === 'admin' || effectiveRole === 'president')
+              ? 'Practice Value Customization (edit)'
+              : 'Practice Value Customization (view) + meeting time backfill'}
           >
             PVC
           </button>

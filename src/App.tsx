@@ -19,6 +19,7 @@ import {
   computeShiftCredit,
   isoDateInTimezone,
 } from './utils/pvcConfig';
+import AdminBlockClassifier, { type AdminBlock } from './components/pvc/AdminBlockClassifier';
 import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, bufferedSaveUserSettings, flushBuffer, hasPendingEndSession, addLocalEvent, getLocalEvents, clearLocalEvents } from './services/offlineBuffer';
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
@@ -150,6 +151,12 @@ interface SessionData {
   verifiedRVU?: number | null;
   displayName?: string;
   notes: SessionNotes;
+  // PVC: meeting hours classified at session end (or backfilled retroactively).
+  // RVU credit = pvcMeetingHours × user's meeting RVU rate.
+  pvcMeetingHours?: number;
+  // True if the rad skipped classification at session end and there are ≥30min
+  // admin blocks awaiting retroactive review.
+  pvcPendingClassification?: boolean;
 }
 
 function RadTachInner() {
@@ -299,6 +306,16 @@ function RadTachInner() {
   // Resets on every new study (processSidecarStart, completeStudy, modality
   // clear). Drives the requiresPersonallyPerformed CPT adjustment gate.
   const [personallyPerformedActive, setPersonallyPerformedActive] = useState(false);
+
+  // PVC: admin-block classification dialog at session end.
+  // Triggered from handleEndSession when there are ≥30 min admin events to
+  // classify. Refs hold the pending pvcMeetingHours / pvcPendingClassification
+  // values so buildSessionData (called inside resetSession) can pick them up
+  // synchronously after the dialog resolves.
+  const [showAdminClassificationDialog, setShowAdminClassificationDialog] = useState(false);
+  const [adminBlocksToClassify, setAdminBlocksToClassify] = useState<AdminBlock[]>([]);
+  const pendingMeetingHoursRef = useRef<number>(0);
+  const pendingClassificationRef = useRef<boolean>(false);
 
   // Non-RVU complications — still add par time in RVU-derived mode (case complexity not in RVU)
   const NON_RVU_COMPLICATIONS: Complication[] = ['Age >70', 'Cancer Follow', 'Prior Surg Hx', 'Complex Hx'];
@@ -1542,6 +1559,9 @@ function RadTachInner() {
     // when the rad opened the study in PACS.
     setIsInterstitialRunning(true);
     setInterstitialStartTime({ session: 0, system: now });
+    // Reset classification refs in case a prior session left them set.
+    pendingMeetingHoursRef.current = 0;
+    pendingClassificationRef.current = false;
 
     // Firebase: create session document via IDB write-ahead buffer
     if (FIREBASE_ENABLED) {
@@ -1674,14 +1694,86 @@ function RadTachInner() {
       verifiedRVU: verifiedRVU.trim() ? parseFloat(verifiedRVU) : null,
       ...(userDisplayName ? { displayName: userDisplayName } : {}),
       notes: { tags: sessionTags, description: sessionDescription.trim() || '(none)' },
+      // PVC classification outputs from end-of-session dialog. Refs are
+      // populated by handleClassifySave / handleClassifySkip and read here
+      // synchronously when resetSession builds the final session payload.
+      ...(pendingMeetingHoursRef.current > 0
+        ? { pvcMeetingHours: pendingMeetingHoursRef.current }
+        : {}),
+      ...(pendingClassificationRef.current
+        ? { pvcPendingClassification: true }
+        : {}),
     };
     return { session: sessionData, events: sessionEvents };
   };
 
-  // End session (Issue #1)
+  // End session — detect 30+ min admin blocks and prompt the rad to classify
+  // before finalizing. If no blocks need classification, finalize immediately.
   const handleEndSession = () => {
-    resetSession();
+    const ADMIN_BLOCK_MIN_SEC = 30 * 60;
+    const blocks: AdminBlock[] = [];
+    for (const e of sessionEvents) {
+      if (e.type === 'ADMIN' && (e as TimerEvent).duration >= ADMIN_BLOCK_MIN_SEC) {
+        const te = e as TimerEvent;
+        blocks.push({
+          index: blocks.length,
+          startTimeSession: te.startTimeSession,
+          startTimeSystem: te.startTimeSystem,
+          durationSec: te.duration,
+          classification: 'unset',
+          meetingMinutes: 0,
+        });
+      }
+    }
+    // Include any in-progress admin block — resetSession will record it as a
+    // normal ADMIN event with full duration, but we want it classifiable now.
+    if (isAdminTimeRunning && adminStartTime !== null) {
+      const inProgressDur = sessionTime - adminStartTime.session;
+      if (inProgressDur >= ADMIN_BLOCK_MIN_SEC) {
+        blocks.push({
+          index: blocks.length,
+          startTimeSession: adminStartTime.session,
+          startTimeSystem: adminStartTime.system,
+          durationSec: inProgressDur,
+          classification: 'unset',
+          meetingMinutes: 0,
+        });
+      }
+    }
+
     setShowStopSessionDialog(false);
+
+    if (blocks.length === 0) {
+      pendingMeetingHoursRef.current = 0;
+      pendingClassificationRef.current = false;
+      resetSession();
+      if (FIREBASE_ENABLED) setShowPostSessionScreen(true);
+      return;
+    }
+
+    setAdminBlocksToClassify(blocks);
+    setShowAdminClassificationDialog(true);
+  };
+
+  // Called from AdminBlockClassifier on Save & End Session.
+  const handleClassifySave = (classified: AdminBlock[]) => {
+    const totalMin = classified
+      .filter(b => b.classification === 'meeting')
+      .reduce((s, b) => s + b.meetingMinutes, 0);
+    pendingMeetingHoursRef.current = +(totalMin / 60).toFixed(2);
+    pendingClassificationRef.current = false;
+    setShowAdminClassificationDialog(false);
+    resetSession();
+    if (FIREBASE_ENABLED) setShowPostSessionScreen(true);
+  };
+
+  // Called from AdminBlockClassifier on Skip — rad chose to classify later
+  // via the retroactive backfill section in PVC settings.
+  const handleClassifySkip = () => {
+    pendingMeetingHoursRef.current = 0;
+    pendingClassificationRef.current = true;
+    setShowAdminClassificationDialog(false);
+    resetSession();
     if (FIREBASE_ENABLED) setShowPostSessionScreen(true);
   };
 
@@ -4505,6 +4597,16 @@ function RadTachInner() {
             </button>
           </div>
         </div>
+      )}
+
+      {showAdminClassificationDialog && (
+        <AdminBlockClassifier
+          blocks={adminBlocksToClassify}
+          title="Classify Admin Blocks Before Ending"
+          primaryActionLabel="Save & End Session"
+          onSave={handleClassifySave}
+          onSkip={handleClassifySkip}
+        />
       )}
 
       <div className="max-w-6xl mx-auto">

@@ -11,8 +11,19 @@ export interface CombinedResult {
 }
 
 /**
- * Combines events from multiple sessions, offsetting times so they form a continuous timeline.
- * Sessions are ordered chronologically. Gaps between sessions are ignored (time is continuous).
+ * Combines events from multiple sessions into a single timeline.
+ *
+ * Events are offset by REAL wall-clock distance from the first session's
+ * start (not cumulative session duration). A radiologist working 10am-7pm
+ * then 9pm-12am shows as two real blocks separated by a real 2-hour gap on
+ * the filmstrip, and the hourly profile chart shows studies in their
+ * correct clock hours. Previously the second session's events were stacked
+ * end-to-end with the first session's, which collapsed the gap and showed
+ * studies in fictional hours.
+ *
+ * totalSessionTime in the synthetic SessionData stays the SUM of actual
+ * session durations (no gap included) — productive-ratio and other
+ * denominator metrics should not be diluted by the gap.
  */
 export function combineSessionEvents(
   sessions: StoredSession[],
@@ -23,10 +34,15 @@ export function combineSessionEvents(
     .sort((a, b) => a.session.startDateTime.localeCompare(b.session.startDateTime));
 
   const combinedEvents: SessionEvent[] = [];
-  let timeOffset = 0;
   let studyNumberOffset = 0;
+  const firstStartMs = new Date(sorted[0].session.startDateTime).getTime();
 
   for (const { session, events } of sorted) {
+    const sessionStartMs = new Date(session.startDateTime).getTime();
+    // Real wall-clock offset between this session's start and the first
+    // session's start, in seconds. For session 0 this is 0.
+    const timeOffset = Math.floor((sessionStartMs - firstStartMs) / 1000);
+
     for (const evt of events) {
       if (evt.type === 'STUDY') {
         const study: StudyEvent = {
@@ -52,7 +68,6 @@ export function combineSessionEvents(
       }
     }
 
-    timeOffset += session.totalSessionTime;
     const sessionStudies = events.filter(e => e.type === 'STUDY');
     studyNumberOffset += sessionStudies.length;
   }

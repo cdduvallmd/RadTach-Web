@@ -15,10 +15,16 @@ import type {
 } from '../../types/pvc';
 import { DEFAULT_PVC_CONFIG } from '../../types/pvc';
 import { getDefaultRotationOverlay } from '../../utils/pvcConfig';
+import RetroactiveClassificationSection from './RetroactiveClassificationSection';
 
 interface PvcSettingsProps {
   system: string | null;
   userId: string;
+  // True when the current user has edit rights (admin / president /
+  // globalAdmin on this system). False = read-only view. Either way the
+  // retroactive meeting-time backfill section is interactive — every rad
+  // can backfill their own meeting hours regardless of edit rights.
+  canEdit: boolean;
   onClose: () => void;
 }
 
@@ -27,7 +33,7 @@ function makeId() {
   return `adj_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 }
 
-export default function PvcSettings({ system, userId, onClose }: PvcSettingsProps) {
+export default function PvcSettings({ system, userId, canEdit, onClose }: PvcSettingsProps) {
   const [config, setConfig] = useState<PvcConfig>(DEFAULT_PVC_CONFIG);
   const [originalConfig, setOriginalConfig] = useState<PvcConfig | null>(null);
   const [rotations, setRotations] = useState<string[]>([]);
@@ -157,7 +163,14 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-white font-medium">Practice Value Customization — {system}</h3>
+        <div className="flex items-baseline gap-3">
+          <h3 className="text-white font-medium">Practice Value Customization — {system}</h3>
+          {!canEdit && (
+            <span className="text-[11px] text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded border border-amber-700">
+              View only — ask an admin or president to edit
+            </span>
+          )}
+        </div>
         <button onClick={onClose} className="text-gray-400 hover:text-white text-sm">✕</button>
       </div>
 
@@ -165,6 +178,15 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
         <p className="text-gray-400 text-sm">Loading...</p>
       ) : (
         <div className="space-y-5 text-sm">
+          {/* Retroactive meeting time backfill — every rad sees this even in
+              view-only mode, because they can backfill their OWN sessions
+              regardless of edit rights. */}
+          <RetroactiveClassificationSection userId={userId} />
+
+          {/* Editable configuration — wrapped in fieldset so the read-only
+              mode disables every input inside in one shot. Cancel/close
+              button below stays clickable because it's outside the fieldset. */}
+          <fieldset disabled={!canEdit} className="space-y-5 m-0 p-0 border-0 disabled:opacity-60">
           {/* ── Global ──────────────────────────────────────────── */}
           <section>
             <h4 className="text-gray-300 font-medium mb-2">Global</h4>
@@ -537,21 +559,25 @@ export default function PvcSettings({ system, userId, onClose }: PvcSettingsProp
             )}
           </section>
 
+          </fieldset>
+
           {error && <p className="text-red-400 text-xs">{error}</p>}
 
           <div className="flex gap-2 pt-2 border-t border-gray-700">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </button>
+            {canEdit && (
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            )}
             <button
               onClick={onClose}
               className="px-4 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
             >
-              Cancel
+              {canEdit ? 'Cancel' : 'Close'}
             </button>
           </div>
         </div>

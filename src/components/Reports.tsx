@@ -301,12 +301,13 @@ export default function Reports({
           </div>
         )}
 
-        {/* PVC Settings (admin/president, shown on demand) */}
-        {showPvcSettings && (effectiveRole === 'admin' || effectiveRole === 'president') && userId && (
+        {/* PVC panel (everyone — admin/president edit, radiologists view + backfill) */}
+        {showPvcSettings && userId && (
           <div className="no-print">
             <PvcSettings
               system={rcpSelection?.system || userSystem || null}
               userId={userId}
+              canEdit={effectiveRole === 'admin' || effectiveRole === 'president'}
               onClose={() => setShowPvcSettings(false)}
             />
           </div>
