@@ -1036,9 +1036,15 @@ function RadTachInner() {
     firestoreService.getRoleRequests().then(setRoleRequests).catch(console.error);
   }, [isAdmin]);
 
-  // Auto-start timer when modality is selected (if AUTO mode is enabled)
+  // Auto-start timer when modality is selected (if AUTO mode is enabled).
+  // No isDraftMode gate: when a rad has drafted Study A and Sidecar then
+  // fires Study B, B is a fresh study and should auto-start independently of
+  // the draft sitting in memory. Resume Draft sets isDraftMode=false BEFORE
+  // the next useEffect pass (batched in React 18), so the resume-auto-start
+  // path is unchanged. Draft Enter clears selectedModality to null, so the
+  // outer `selectedModality && ...` guard already prevents firing there.
   useEffect(() => {
-    if (autoStartEnabled && selectedModality && !isRunning && !isDraftMode) {
+    if (autoStartEnabled && selectedModality && !isRunning) {
       // Auto-start the timer
       toggleTimer();
     }
