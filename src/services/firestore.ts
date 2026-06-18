@@ -545,7 +545,12 @@ export const firestoreService = {
   // ── Feature Flags ────────────────────────────────────────────────────────
 
   // Subscribe to feature flags doc at Config/featureFlags. Returns unsubscribe.
-  // The callback fires immediately with current state (or defaults if no doc) and on every change.
+  // The callback fires immediately on first successful snapshot and on every change.
+  // CRITICAL: On snapshot error (auth blip, rules redeploy timing) we DO NOT
+  // downgrade — the last-known-good value is preserved by NOT firing the
+  // callback. Without this, a transient error would silently flip mid-session
+  // flag-state to false and mis-stamp the next session. See Clyde finding #5
+  // (2026-06-18).
   subscribeFeatureFlags(callback: (flags: { useModeEnumAsPrimary: boolean }) => void): () => void {
     const docRef = doc(db, 'Config', 'featureFlags');
     return onSnapshot(docRef, (snap) => {
@@ -554,9 +559,28 @@ export const firestoreService = {
         useModeEnumAsPrimary: data?.useModeEnumAsPrimary === true,
       });
     }, (err) => {
-      console.warn('Feature flags subscription error (using defaults):', err);
-      callback({ useModeEnumAsPrimary: false });
+      // Log only — do NOT fire callback with downgraded defaults.
+      // Last-known-good value remains in the consumer's state.
+      console.warn('Feature flags subscription error (last-known-good preserved):', err);
     });
+  },
+
+  // One-shot read of feature flags — used at session start to avoid the
+  // first-render race where useFeatureFlags() returns defaults until the
+  // async snapshot resolves. See Clyde finding #1 (2026-06-18).
+  // Defaults to all-off on read failure rather than throwing, because the
+  // caller (startSessionWithOffice) must not be blocked from creating a
+  // session by a feature-flag read.
+  async readFeatureFlagsOnce(): Promise<{ useModeEnumAsPrimary: boolean }> {
+    try {
+      const docRef = doc(db, 'Config', 'featureFlags');
+      const snap = await getDoc(docRef);
+      const data = snap.exists() ? snap.data() : {};
+      return { useModeEnumAsPrimary: data?.useModeEnumAsPrimary === true };
+    } catch (err) {
+      console.warn('Feature flags one-shot read failed (defaulting off):', err);
+      return { useModeEnumAsPrimary: false };
+    }
   },
 
   // ── Sidecar / HL7 Command Doc Functions ─────────────────────────────────

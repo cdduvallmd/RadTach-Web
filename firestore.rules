@@ -28,12 +28,19 @@ service cloud.firestore {
 
       // Sessions: owner writes freely; cross-user flush (offline buffer replay) requires
       // _flushedBy == caller's UID so the audit trail is enforced server-side.
+      // _modeEnumPrimary (mode-enum cutover Phase 1) is set at create time and is
+      // immutable thereafter — prevents a buggy client or stale buffer replay from
+      // flipping the audit-routing field on an existing session (Clyde finding #6).
       match /sessions/{sessionId} {
         allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-        allow create, update: if request.auth != null && (
+        allow create: if request.auth != null && (
           request.auth.uid == userId ||
           request.resource.data._flushedBy == request.auth.uid
         );
+        allow update: if request.auth != null && (
+          request.auth.uid == userId ||
+          request.resource.data._flushedBy == request.auth.uid
+        ) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['_modeEnumPrimary']);
         allow delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
 
         // Events within sessions: same cross-user flush rule

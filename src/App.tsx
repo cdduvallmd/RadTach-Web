@@ -24,7 +24,6 @@ import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, buffere
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
 import { useTimerMode } from './hooks/useTimerMode';
-import { useFeatureFlags } from './hooks/useFeatureFlags';
 import { BUILD_ID } from './buildId';
 
 // ============================================================================
@@ -439,10 +438,13 @@ function RadTachInner() {
   const shadowFlushIdx = useRef<number>(0);
 
   // ── Mode-enum cutover (Phase 1; see mode-enum-cutover-plan.md) ───────
-  // Flag read in real time; captured once per session at session start so
-  // mid-session changes can't cause source-of-truth drift within a session.
-  const featureFlags = useFeatureFlags();
+  // Per-session capture uses a one-shot awaited Firestore read at session
+  // start (firestoreService.readFeatureFlagsOnce) — NOT a live React hook —
+  // to close the first-render race (Clyde finding #1, 2026-06-18).
   const sessionPrimaryRef = useRef<boolean>(false);
+  // Mirror of sessionEvents for the 30s safety-net interval (closures over
+  // React state go stale; refs do not). Updated whenever sessionEvents changes.
+  const sessionEventsRef = useRef<SessionEvent[]>([]);
 
   // Calculate current par time based on selections
   const calculateParTime = () => {
@@ -1198,7 +1200,16 @@ function RadTachInner() {
     addLocalEvent(localSessionKeyRef.current, event as Record<string, any>).catch(() => {});
   };
 
-  // Firebase: flush events every 5 completed studies (human-cadence, no fixed interval)
+  // Keep sessionEventsRef in sync with state so the interval-driven flush
+  // below sees fresh data via the ref (avoids stale closure on sessionEvents).
+  useEffect(() => {
+    sessionEventsRef.current = sessionEvents;
+  }, [sessionEvents]);
+
+  // Firebase: flush events every 5 completed studies (human-cadence trigger).
+  // Kept as the fast path — flushes within seconds of each multiple of 5
+  // completions. The 30s safety-net interval below catches anything this misses
+  // (Clyde finding #3: decouple flush cadence from the legacy counter).
   useEffect(() => {
     if (!FIREBASE_ENABLED || !firestoreSessionId || studiesCompleted === 0) return;
     if (studiesCompleted % 5 !== 0) return;
@@ -1231,6 +1242,46 @@ function RadTachInner() {
       flushShadowEvents();
     }
   }, [studiesCompleted]);
+
+  // Firebase: 30s safety-net interval flush. Triggers regardless of which
+  // engine's counter is ticking, so mode-enum events get flushed even if
+  // studiesCompleted stops moving. Closes Clyde finding #3 (2026-06-18).
+  // Reads from sessionEventsRef rather than the React state to avoid stale
+  // closures across re-renders within an effect lifetime.
+  useEffect(() => {
+    if (!FIREBASE_ENABLED || !firestoreSessionId || !currentUser) return;
+    const uid = currentUser.uid;
+    const sessionId = firestoreSessionId;
+
+    const tick = () => {
+      const legacyEvents = sessionEventsRef.current;
+      if (sessionPrimaryRef.current) {
+        // Mode-enum primary: mode-enum → events, legacy → shadow_events
+        const allShadow = shadow.getEvents();
+        const shadowUnsent = allShadow.slice(shadowFlushIdx.current);
+        if (shadowUnsent.length > 0) {
+          const newIdx = allShadow.length;
+          firestoreService.flushEvents(uid, sessionId, shadowUnsent as Record<string, any>[], shadowFlushIdx.current)
+            .then(() => { shadowFlushIdx.current = newIdx; })
+            .catch(err => console.error('Mode-enum interval flush failed:', err));
+        }
+        const legacyUnsent = legacyEvents.slice(lastFlushedIndex.current);
+        if (legacyUnsent.length > 0) {
+          const targetIdx = legacyEvents.length;
+          firestoreService.flushShadowEvents(uid, sessionId, legacyUnsent as Record<string, any>[], lastFlushedIndex.current)
+            .then(() => { lastFlushedIndex.current = Math.max(lastFlushedIndex.current, targetIdx); })
+            .catch(err => console.error('Legacy interval flush failed:', err));
+        }
+      } else {
+        // Default-primary: legacy → events (via IDB buffer), mode-enum → shadow_events
+        flushEventsToFirestore(legacyEvents, sessionId);
+        flushShadowEvents();
+      }
+    };
+
+    const handle = setInterval(tick, 30000);
+    return () => clearInterval(handle);
+  }, [firestoreSessionId, currentUser]);
 
   // Firebase: flush IDB buffer on mount (handles data left from previous session) and on tab focus (debounced)
   useEffect(() => {
@@ -1593,8 +1644,16 @@ function RadTachInner() {
     shadow.startSession();
     shadowFlushIdx.current = 0;
     // Mode-enum cutover Phase 1: capture flag value once at session start.
-    // Persists for this session's lifetime regardless of mid-session flag changes.
-    sessionPrimaryRef.current = featureFlags.useModeEnumAsPrimary;
+    // Use a one-shot awaited read (not the live hook) to avoid the
+    // first-render race where the live snapshot hasn't resolved yet.
+    // See Clyde finding #1 (2026-06-18). Persists for the session's lifetime
+    // regardless of mid-session flag changes.
+    try {
+      const flagsNow = await firestoreService.readFeatureFlagsOnce();
+      sessionPrimaryRef.current = flagsNow.useModeEnumAsPrimary;
+    } catch {
+      sessionPrimaryRef.current = false;
+    }
     // Start interstitial at session start so the first-study auto-swap has a
     // prior INTERSTITIAL fragment to harvest if the timer wasn't started
     // when the rad opened the study in PACS.
@@ -1948,11 +2007,17 @@ function RadTachInner() {
           } else if (result) {
             health.reportSuccess();
           }
+        })
+        .finally(() => {
+          // Reset cutover ref AFTER all final-flush async work completes so a
+          // late event arriving during the chain can't be routed via the
+          // wrong target. Closes Clyde finding #4 (2026-06-18).
+          sessionPrimaryRef.current = false;
         });
 
       lastFlushedIndex.current = 0;
       shadowFlushIdx.current = 0;
-      sessionPrimaryRef.current = false;
+      // sessionPrimaryRef.current reset moved into the .finally above.
       localSessionKeyRef.current = null;
       setFirestoreSessionId(null);
       // Write session_ended BEFORE sessionActive:false so Sidecar sees ended state before status change
