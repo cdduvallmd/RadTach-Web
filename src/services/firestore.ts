@@ -542,6 +542,23 @@ export const firestoreService = {
     return data.chargemaster as ChargemasterEntry[];
   },
 
+  // ── Feature Flags ────────────────────────────────────────────────────────
+
+  // Subscribe to feature flags doc at Config/featureFlags. Returns unsubscribe.
+  // The callback fires immediately with current state (or defaults if no doc) and on every change.
+  subscribeFeatureFlags(callback: (flags: { useModeEnumAsPrimary: boolean }) => void): () => void {
+    const docRef = doc(db, 'Config', 'featureFlags');
+    return onSnapshot(docRef, (snap) => {
+      const data = snap.exists() ? snap.data() : {};
+      callback({
+        useModeEnumAsPrimary: data?.useModeEnumAsPrimary === true,
+      });
+    }, (err) => {
+      console.warn('Feature flags subscription error (using defaults):', err);
+      callback({ useModeEnumAsPrimary: false });
+    });
+  },
+
   // ── Sidecar / HL7 Command Doc Functions ─────────────────────────────────
 
   // Listen to command doc — returns unsubscribe function

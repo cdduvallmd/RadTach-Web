@@ -24,6 +24,7 @@ import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, buffere
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
 import { useTimerMode } from './hooks/useTimerMode';
+import { useFeatureFlags } from './hooks/useFeatureFlags';
 import { BUILD_ID } from './buildId';
 
 // ============================================================================
@@ -436,6 +437,12 @@ function RadTachInner() {
   // ── Shadow mode-enum timer (parallel system for validation) ──────────
   const shadow = useTimerMode();
   const shadowFlushIdx = useRef<number>(0);
+
+  // ── Mode-enum cutover (Phase 1; see mode-enum-cutover-plan.md) ───────
+  // Flag read in real time; captured once per session at session start so
+  // mid-session changes can't cause source-of-truth drift within a session.
+  const featureFlags = useFeatureFlags();
+  const sessionPrimaryRef = useRef<boolean>(false);
 
   // Calculate current par time based on selections
   const calculateParTime = () => {
@@ -1194,7 +1201,32 @@ function RadTachInner() {
   // Firebase: flush events every 5 completed studies (human-cadence, no fixed interval)
   useEffect(() => {
     if (!FIREBASE_ENABLED || !firestoreSessionId || studiesCompleted === 0) return;
-    if (studiesCompleted % 5 === 0) {
+    if (studiesCompleted % 5 !== 0) return;
+
+    if (sessionPrimaryRef.current && currentUser) {
+      // Mode-enum cutover Phase 1: when the flag is on for this session, the
+      // two streams swap target collections.
+      //   mode-enum events → events (canonical)
+      //   legacy events    → shadow_events (audit comparator)
+      // The legacy stream bypasses the IDB write-ahead buffer in this mode;
+      // crash safety on the legacy comparator is reduced for flag-on sessions
+      // (acceptable Phase 1 trade-off; see mode-enum-cutover-plan.md).
+      const allShadow = shadow.getEvents();
+      const shadowUnsent = allShadow.slice(shadowFlushIdx.current);
+      if (shadowUnsent.length > 0) {
+        firestoreService.flushEvents(currentUser.uid, firestoreSessionId, shadowUnsent as Record<string, any>[], shadowFlushIdx.current)
+          .then(() => { shadowFlushIdx.current = allShadow.length; })
+          .catch(err => console.error('Mode-enum→events flush failed:', err));
+      }
+      const legacyUnsent = sessionEvents.slice(lastFlushedIndex.current);
+      if (legacyUnsent.length > 0) {
+        const targetIndex = sessionEvents.length;
+        firestoreService.flushShadowEvents(currentUser.uid, firestoreSessionId, legacyUnsent as Record<string, any>[], lastFlushedIndex.current)
+          .then(() => { lastFlushedIndex.current = Math.max(lastFlushedIndex.current, targetIndex); })
+          .catch(err => console.error('Legacy→shadow_events flush failed:', err));
+      }
+    } else {
+      // Default: legacy is canonical (current production behavior).
       flushEventsToFirestore(sessionEvents, firestoreSessionId);
       flushShadowEvents();
     }
@@ -1560,6 +1592,9 @@ function RadTachInner() {
     setSessionEvents([]);
     shadow.startSession();
     shadowFlushIdx.current = 0;
+    // Mode-enum cutover Phase 1: capture flag value once at session start.
+    // Persists for this session's lifetime regardless of mid-session flag changes.
+    sessionPrimaryRef.current = featureFlags.useModeEnumAsPrimary;
     // Start interstitial at session start so the first-study auto-swap has a
     // prior INTERSTITIAL fragment to harvest if the timer wasn't started
     // when the rad opened the study in PACS.
@@ -1613,6 +1648,10 @@ function RadTachInner() {
         rotation: rotationName,
         halfDay: halfDay,
         startDateTime: now,
+        // Mode-enum cutover Phase 1: stamp the active flag value on this
+        // session so downstream audits and the cutover orchestration know
+        // which engine drove this session's canonical events.
+        _modeEnumPrimary: sessionPrimaryRef.current,
         ...(userDisplayName ? { displayName: userDisplayName } : {}),
         ...pvcFields,
       }).then(ok => {
@@ -1860,16 +1899,23 @@ function RadTachInner() {
       setLastSessionSummary(computeSessionSummary(finalEvents, sessionTime, sessionStartDateTime || undefined));
     }
 
-    // Shadow: finalize and flush
+    // Shadow / mode-enum stream: finalize accumulator and route based on cutover flag
     const finalShadowEvents = shadow.endSession(sessionTime);
     if (FIREBASE_ENABLED && firestoreSessionId && currentUser) {
       const shadowUnsent = finalShadowEvents.slice(shadowFlushIdx.current);
       if (shadowUnsent.length > 0) {
-        firestoreService.flushShadowEvents(currentUser.uid, firestoreSessionId, shadowUnsent as Record<string, any>[], shadowFlushIdx.current).catch(() => {});
+        // Phase 1 cutover: when sessionPrimary, mode-enum is canonical → write to events.
+        // Otherwise (default), mode-enum is comparator → write to shadow_events.
+        const writeFn = sessionPrimaryRef.current
+          ? firestoreService.flushEvents
+          : firestoreService.flushShadowEvents;
+        writeFn(currentUser.uid, firestoreSessionId, shadowUnsent as Record<string, any>[], shadowFlushIdx.current).catch(() => {});
       }
     }
 
-    // Firebase: final flush via IDB write-ahead buffer, then end session + save settings
+    // Firebase: final legacy-stream flush, then end session + save settings.
+    // Phase 1 cutover: when sessionPrimary, legacy stream is the audit comparator
+    // and goes to shadow_events (bypassing the IDB write-ahead buffer).
     if (FIREBASE_ENABLED && localSessionKeyRef.current) {
       const data = buildSessionData();
       const startIdx = lastFlushedIndex.current;
@@ -1877,10 +1923,16 @@ function RadTachInner() {
       const key = localSessionKeyRef.current;
       const summary = computeSessionSummary(finalEvents, sessionTime, sessionStartDateTime || undefined);
 
-      (unsent.length > 0
-        ? bufferedFlushEvents(currentUser!.uid, key, unsent, startIdx)
-        : Promise.resolve(true)
-      ).then(() => bufferedEndSession(currentUser!.uid, key, { ...data.session, summary }))
+      const legacyFinalFlush: Promise<unknown> = (() => {
+        if (unsent.length === 0) return Promise.resolve(true);
+        if (sessionPrimaryRef.current && currentUser) {
+          return firestoreService.flushShadowEvents(currentUser.uid, key, unsent as Record<string, any>[], startIdx).catch(() => true);
+        }
+        return bufferedFlushEvents(currentUser!.uid, key, unsent, startIdx);
+      })();
+
+      legacyFinalFlush
+        .then(() => bufferedEndSession(currentUser!.uid, key, { ...data.session, summary }))
         .then(() => bufferedSaveUserSettings(currentUser!.uid, {
           parTimes, rvuValues, stealthMode, autoStartEnabled, useHMSFormat,
           gpciZip, gpciValues, rvuDerivedMode, targetRvuPerHour,
@@ -1899,6 +1951,8 @@ function RadTachInner() {
         });
 
       lastFlushedIndex.current = 0;
+      shadowFlushIdx.current = 0;
+      sessionPrimaryRef.current = false;
       localSessionKeyRef.current = null;
       setFirestoreSessionId(null);
       // Write session_ended BEFORE sessionActive:false so Sidecar sees ended state before status change
