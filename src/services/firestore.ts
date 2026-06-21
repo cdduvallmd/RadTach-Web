@@ -3,6 +3,7 @@ import {
   collection,
   collectionGroup,
   doc,
+  addDoc,
 
   getDoc,
   getDocs,
@@ -495,13 +496,20 @@ export const firestoreService = {
   },
 
   async writeStaleMarker(system: string, date: string, reportedBy: string) {
-    const markerId = `${system}_${date}`;
-    const docRef = doc(db, 'staleGAR', markerId);
-    await setDoc(docRef, {
+    // Use addDoc (autogen ID) instead of setDoc with deterministic ID
+    // (Clyde CRITICAL #1, 2026-06-17): deterministic IDs cause late-arriving
+    // flushes for the same {system, date} to silently overwrite via setDoc,
+    // and the Cloud Function trigger does NOT re-fire on overwrite. Autogen
+    // IDs produce one marker per flush event; the Cloud Function de-dupes
+    // by treating {system, date} as the keyspace.
+    const colRef = collection(db, 'staleGAR');
+    await addDoc(colRef, {
       system,
       date,
       reportedBy,
       reportedAt: serverTimestamp(),
+      // claimedBy / claimedAt added by the Cloud Function when processing
+      // begins (claim-then-process pattern, Clyde CRITICAL #2).
     });
   },
 
