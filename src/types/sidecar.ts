@@ -19,4 +19,5 @@ export interface SidecarCommand {
   timestamp: Timestamp;
   source: CommandSource;
   ack?: boolean;             // receiver sets true after processing
+  swap?: boolean;            // start action only — arm swap correction for the next completeStudy (see src/hooks/useSwapSubsystem.ts)
 }

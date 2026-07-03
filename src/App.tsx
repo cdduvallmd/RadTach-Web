@@ -24,6 +24,7 @@ import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, buffere
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
 import { useTimerMode } from './hooks/useTimerMode';
+import { useSwapArmed, handleSidecarCommandSwapFlag, shouldApplySwap, applySwap } from './hooks/useSwapSubsystem';
 import { BUILD_ID } from './buildId';
 
 // ============================================================================
@@ -436,6 +437,8 @@ function RadTachInner() {
   // ── Shadow mode-enum timer (parallel system for validation) ──────────
   const shadow = useTimerMode();
   const shadowFlushIdx = useRef<number>(0);
+  // Swap subsystem (excisable — see src/hooks/useSwapSubsystem.ts):
+  const swapArmed = useSwapArmed();
 
   // ── Mode-enum cutover (Phase 1; see mode-enum-cutover-plan.md) ───────
   // Per-session capture uses a one-shot awaited Firestore read at session
@@ -1068,6 +1071,8 @@ function RadTachInner() {
       if (cmd.source === 'radtach') return; // ignore our own writes
 
       if (cmd.action === 'start') {
+        // Swap subsystem: arm on swap:true so completeStudy applies the correction.
+        handleSidecarCommandSwapFlag(cmd, swapArmed.arm);
         processSidecarStartRef.current(cmd);
       } else if (cmd.action === 'stop') {
         processSidecarStopRef.current();
@@ -2326,45 +2331,21 @@ function RadTachInner() {
     // Shadow signal: study complete
     shadow.signal({ type: 'study_complete' }, sessionTime);
 
-    // ── Auto-swap: forgotten timer start recovery ────────────────────
+    // ── Swap correction (excisable subsystem — see src/hooks/useSwapSubsystem.ts) ──
     let effectiveTime = currentTime;
     let wasSwapped = false;
     let swapStartOverride: { session: number; system: string } | null = null;
-    if (currentTime > 0 && currentTime < 5) {
-      const events = [...sessionEvents];
-      let lastInterIdx = -1;
-      for (let i = events.length - 1; i >= 0; i--) {
-        if (events[i].type === 'INTERSTITIAL') { lastInterIdx = i; break; }
-      }
-      if (lastInterIdx >= 0) {
-        const inter = events[lastInterIdx] as InterstitialEvent;
-        effectiveTime = inter.duration;
-        wasSwapped = true;
-        // Replace interstitial duration with 10s default gap
-        events[lastInterIdx] = {
-          ...inter,
-          duration: 10,
-          endTimeSession: inter.startTimeSession + 10,
-        };
-        setSessionEvents(events);
-        // Adjust cumulative interstitial counter
-        setInterstitialTime(prev => prev - (inter.duration - 10));
-        // Correct study start time to right after the shortened interstitial
-        // so the filmstrip renders the study in the correct time slot
-        swapStartOverride = {
-          session: inter.startTimeSession + 10,
-          system: new Date(
-            new Date(inter.startTimeSystem).getTime() + 10000
-          ).toISOString(),
-        };
-        // Shadow signal: swap detected
-        shadow.signal({
-          type: 'swap_detected',
-          interstitialDuration: inter.duration,
-          correctedStart: inter.startTimeSession + 10,
-          correctedSystem: swapStartOverride.system,
-        }, sessionTime);
-      }
+    if (shouldApplySwap(currentTime, swapArmed.consume)) {
+      const result = applySwap(
+        currentTime,
+        sessionEvents,
+        setSessionEvents,
+        setInterstitialTime,
+        (params) => shadow.signal({ type: 'swap_detected', ...params }, sessionTime),
+      );
+      effectiveTime = result.effectiveTime;
+      wasSwapped = result.wasSwapped;
+      swapStartOverride = result.swapStartOverride;
     }
 
     const variance = effectiveTime - currentParTime;

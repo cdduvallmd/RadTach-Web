@@ -1,0 +1,197 @@
+[
+  {
+    "name": "Andrew Brown",
+    "firstName": "Andrew",
+    "lastName": "Brown",
+    "credentials": "MD",
+    "initials": "AB",
+    "gender": "M",
+    "speed": 8,
+    "specialty": "Neuro",
+    "dayLength": 8,
+    "avgRVUPerHour": 8.098348407166403,
+    "offices": [
+      "Office 8",
+      "Office 4",
+      "Office 6",
+      "Office 3",
+      "Office 9"
+    ],
+    "shift": "early"
+  },
+  {
+    "name": "Claire Davis",
+    "firstName": "Claire",
+    "lastName": "Davis",
+    "credentials": "MD",
+    "initials": "CD",
+    "gender": "F",
+    "speed": 11,
+    "specialty": "Body",
+    "dayLength": 9,
+    "avgRVUPerHour": 6.524034632857921,
+    "offices": [
+      "Office 7",
+      "Office 10",
+      "Office 6",
+      "Office 5",
+      "Office 4"
+    ],
+    "shift": "standard"
+  },
+  {
+    "name": "Ethan Foster",
+    "firstName": "Ethan",
+    "lastName": "Foster",
+    "credentials": "MD",
+    "initials": "EF",
+    "gender": "M",
+    "speed": 10,
+    "specialty": "MSK",
+    "dayLength": 9,
+    "avgRVUPerHour": 6.211228333610323,
+    "offices": [
+      "Office 6",
+      "Office 5",
+      "Office 8",
+      "Office 4",
+      "Office 3"
+    ],
+    "shift": "standard"
+  },
+  {
+    "name": "Grace Harper",
+    "firstName": "Grace",
+    "lastName": "Harper",
+    "credentials": "MD",
+    "initials": "GH",
+    "gender": "F",
+    "speed": 9,
+    "specialty": "Mammo",
+    "dayLength": 9,
+    "avgRVUPerHour": 9.243126339505544,
+    "offices": [
+      "Office 4",
+      "Office 5",
+      "Office 7",
+      "Office 9",
+      "Office 3"
+    ],
+    "shift": "standard"
+  },
+  {
+    "name": "Isaac Jensen",
+    "firstName": "Isaac",
+    "lastName": "Jensen",
+    "credentials": "MD",
+    "initials": "IJ",
+    "gender": "M",
+    "speed": 14,
+    "specialty": "Body",
+    "dayLength": 9,
+    "avgRVUPerHour": 8.970561669180693,
+    "offices": [
+      "Office 9",
+      "Office 4",
+      "Office 10",
+      "Office 8",
+      "Office 7"
+    ],
+    "shift": "standard"
+  },
+  {
+    "name": "Karen Liu",
+    "firstName": "Karen",
+    "lastName": "Liu",
+    "credentials": "MD",
+    "initials": "KL",
+    "gender": "F",
+    "speed": 14,
+    "specialty": "Neuro",
+    "dayLength": 9,
+    "avgRVUPerHour": 6.071274573049764,
+    "offices": [
+      "Office 7",
+      "Office 4",
+      "Office 8",
+      "Office 9"
+    ],
+    "shift": "standard"
+  },
+  {
+    "name": "Marcus Nash",
+    "firstName": "Marcus",
+    "lastName": "Nash",
+    "credentials": "MD",
+    "initials": "MN",
+    "gender": "M",
+    "speed": 8,
+    "specialty": "General",
+    "dayLength": 9,
+    "avgRVUPerHour": 7.432551284723497,
+    "offices": [
+      "Office 7",
+      "Office 9",
+      "Office 8",
+      "Office 6"
+    ],
+    "shift": "standard"
+  },
+  {
+    "name": "Olivia Park",
+    "firstName": "Olivia",
+    "lastName": "Park",
+    "credentials": "MD",
+    "initials": "OP",
+    "gender": "F",
+    "speed": 14,
+    "specialty": "MSK",
+    "dayLength": 8,
+    "avgRVUPerHour": 9.177779055366088,
+    "offices": [
+      "Office 1",
+      "Office 2",
+      "Office 5",
+      "Office 9"
+    ],
+    "shift": "late"
+  },
+  {
+    "name": "Quinn Rivera",
+    "firstName": "Quinn",
+    "lastName": "Rivera",
+    "credentials": "MD",
+    "initials": "QR",
+    "gender": "M",
+    "speed": 9,
+    "specialty": "General",
+    "dayLength": 9,
+    "avgRVUPerHour": 6.866148051681135,
+    "offices": [
+      "Office 6",
+      "Office 1",
+      "Office 2",
+      "Office 9"
+    ],
+    "shift": "standard"
+  },
+  {
+    "name": "Samuel Torres",
+    "firstName": "Samuel",
+    "lastName": "Torres",
+    "credentials": "MD",
+    "initials": "ST",
+    "gender": "M",
+    "speed": 12,
+    "specialty": "Mammo",
+    "dayLength": 9,
+    "avgRVUPerHour": 8.697959675172307,
+    "offices": [
+      "Office 3",
+      "Office 7",
+      "Office 1",
+      "Office 9"
+    ],
+    "shift": "standard"
+  }
+]
