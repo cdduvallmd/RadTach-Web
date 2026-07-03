@@ -74,6 +74,7 @@ export async function writeStartCommand(
   modality: string,
   examDesc: string,
   bilateralFlags: boolean[],
+  swap: boolean = false,
 ): Promise<void> {
   const docRef = doc(db, 'users', uid, 'commands', 'current');
   const anyBilateral = bilateralFlags.some(b => b);
@@ -86,6 +87,14 @@ export async function writeStartCommand(
     bilateralFlags,                  // per-CPT flags (parallel to cpts[])
     source: 'sidecar' as const,
     timestamp: serverTimestamp(),
+    // Idempotency key: RadTach's onSnapshot fires each time the doc updates
+    // (including on WebSocket reconnect). Without a per-write nonce, a resend
+    // would re-arm the swap on the following completeStudy. RadTach's command
+    // handler dedupes over a rolling window.
+    idempotencyKey: crypto.randomUUID(),
+    // Swap subsystem (excisable — see src/hooks/useSwapSubsystem.ts). Only set
+    // when the rad pressed START + SWAP instead of START.
+    ...(swap ? { swap: true } : {}),
   });
 }
 

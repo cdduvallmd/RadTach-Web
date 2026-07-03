@@ -299,7 +299,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     return unsub;
   }, [currentUser]);
 
-  const handleStart = useCallback(async (exams: SelectedExam[], comboAeTitle?: string, userTitle?: string) => {
+  const handleStart = useCallback(async (exams: SelectedExam[], comboAeTitle?: string, userTitle?: string, swap: boolean = false) => {
     if (exams.length === 0 || sending) return;
     const effectiveTitle = comboAeTitle || userTitle;
     const examDesc = effectiveTitle
@@ -357,7 +357,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       const cpts = exams.map(e => e.cpt);
       const modality = exams[0].entry.modality;
       const bilateralFlags = exams.map(e => e.bilateral);
-      await writeStartCommand(currentUser.uid, cpts, modality, examDesc, bilateralFlags);
+      await writeStartCommand(currentUser.uid, cpts, modality, examDesc, bilateralFlags, swap);
       sendToGoose({
         action: 'start_exam',
         bodyParts: [...new Set(exams.map(e => e.entry.bodyPart))],
@@ -783,7 +783,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           entries={cptDb.entries}
           gpci={gpciValues ?? undefined}
           aeTitle={screen.aeTitle}
-          onStart={(bilateral) => handleStart([{ cpt: screen.cpt, entry: screen.entry, bilateral }], screen.aeTitle)}
+          onStart={(bilateral, swap) => handleStart([{ cpt: screen.cpt, entry: screen.entry, bilateral }], screen.aeTitle, undefined, swap)}
           onAdd={(bilateral) => {
             handleAddExam(screen.cpt, screen.entry, bilateral);
           }}
@@ -826,7 +826,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
             }
           }}
           onAddDifferentModality={() => setScreen({ type: 'home' })}
-          onStart={(userTitle) => handleStart(selectedExams, comboAeTitle, userTitle)}
+          onStart={(userTitle, swap) => handleStart(selectedExams, comboAeTitle, userTitle, swap)}
           disabled={sending}
         />
       );

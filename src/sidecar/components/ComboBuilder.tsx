@@ -13,7 +13,7 @@ interface Props {
   onRemove: (index: number) => void;
   onAddSameModality: () => void;
   onAddDifferentModality: () => void;
-  onStart: (userTitle?: string) => void;
+  onStart: (userTitle?: string, swap?: boolean) => void;
   disabled?: boolean;
 }
 
@@ -107,6 +107,17 @@ export default function ComboBuilder({ exams, entries, gpci, aeTitle, comboModal
             className="w-full py-3 bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-600 text-white font-bold text-base rounded-xl transition-colors"
           >
             {disabled ? 'Sending...' : `START (${exams.length} exam${exams.length !== 1 ? 's' : ''})`}
+          </button>
+          {/* START + SWAP — timing-independent swap correction. Distinct
+              amber outline styling so this isn't the muscle-memory default.
+              See RadTach/swap-subsystem-plan.md. */}
+          <button
+            onClick={() => onStart(userTitle.trim() || undefined, true)}
+            disabled={disabled}
+            className="w-full py-3 bg-transparent border-2 border-amber-500 hover:bg-amber-950 active:bg-amber-900 disabled:border-gray-600 disabled:text-gray-500 text-amber-300 font-bold text-base rounded-xl transition-colors"
+            title="Use when the previous study was actually a swap. Corrects the previous study's timing without requiring you to hit STOP within 5 seconds."
+          >
+            ⇄ START + SWAP
           </button>
           <div className="flex gap-2">
             {comboModality && (

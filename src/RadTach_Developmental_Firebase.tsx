@@ -1072,7 +1072,8 @@ function RadTachInner() {
 
       if (cmd.action === 'start') {
         // Swap subsystem: arm on swap:true so completeStudy applies the correction.
-        handleSidecarCommandSwapFlag(cmd, swapArmed.arm);
+        // armIfKeyNew dedupes on cmd.idempotencyKey to survive WebSocket re-delivery.
+        handleSidecarCommandSwapFlag(cmd, swapArmed.armIfKeyNew);
         processSidecarStartRef.current(cmd);
       } else if (cmd.action === 'stop') {
         processSidecarStopRef.current();

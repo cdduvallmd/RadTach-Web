@@ -10,7 +10,7 @@ interface Props {
   entries: Record<string, CptEntry>;
   gpci?: GpciValues;
   aeTitle?: string;
-  onStart: (bilateral: boolean) => void;
+  onStart: (bilateral: boolean, swap?: boolean) => void;
   onAdd: (bilateral: boolean) => void;
   onAddFavorite?: (cpt: string, aeTitle: string) => void;
   isFavorite?: boolean;
@@ -79,6 +79,17 @@ export default function LeafScreen({ cpt, entry, entries, gpci, aeTitle, onStart
               className="w-full py-3 bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:bg-gray-600 text-white font-bold text-base rounded-xl transition-colors"
             >
               {disabled ? 'Sending...' : 'START'}
+            </button>
+            {/* START + SWAP — timing-independent swap correction. Distinct
+                amber outline styling so this isn't the muscle-memory default.
+                See RadTach/swap-subsystem-plan.md. */}
+            <button
+              onClick={() => onStart(bilateral, true)}
+              disabled={disabled}
+              className="w-full py-3 bg-transparent border-2 border-amber-500 hover:bg-amber-950 active:bg-amber-900 disabled:border-gray-600 disabled:text-gray-500 text-amber-300 font-bold text-base rounded-xl transition-colors"
+              title="Use when the previous study was actually a swap (e.g., a wrong exam popped up on PACS and you dictated the right one anyway). Corrects the previous study's timing without requiring you to hit STOP within 5 seconds."
+            >
+              ⇄ START + SWAP
             </button>
             <button
               onClick={() => onAdd(bilateral)}

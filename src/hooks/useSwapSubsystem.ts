@@ -47,13 +47,39 @@ export interface SwapResult {
  * Ref-backed flag for "the next completeStudy should apply a swap correction."
  * Set by handleSidecarCommandSwapFlag when Sidecar sends swap: true.
  * Consumed by shouldApplySwap on the next hit and auto-cleared.
+ *
+ * `armIfKeyNew` dedupes on idempotency key so a WebSocket reconnect
+ * re-firing onSnapshot for the same commands/current doc can't re-arm the
+ * swap on the *following* study. Bounded ring of the last 100 keys is kept
+ * per session — plenty of headroom, no unbounded growth.
  */
 export function useSwapArmed(): {
   arm: () => void;
+  armIfKeyNew: (key: string | undefined) => void;
   consume: () => boolean;
 } {
   const armed = useRef(false);
+  const seenKeys = useRef<Set<string>>(new Set());
+  const seenOrder = useRef<string[]>([]);
+  const MAX_KEYS = 100;
   const arm = useCallback(() => {
+    armed.current = true;
+  }, []);
+  const armIfKeyNew = useCallback((key: string | undefined) => {
+    // No key present = older Sidecar client. Arm defensively; risk of double-arm
+    // is bounded by rad-input cadence (a re-delivered start would still be paired
+    // with a new completeStudy, not a stale one).
+    if (!key) {
+      armed.current = true;
+      return;
+    }
+    if (seenKeys.current.has(key)) return;
+    seenKeys.current.add(key);
+    seenOrder.current.push(key);
+    if (seenOrder.current.length > MAX_KEYS) {
+      const oldest = seenOrder.current.shift();
+      if (oldest) seenKeys.current.delete(oldest);
+    }
     armed.current = true;
   }, []);
   const consume = useCallback(() => {
@@ -61,20 +87,21 @@ export function useSwapArmed(): {
     armed.current = false;
     return wasArmed;
   }, []);
-  return { arm, consume };
+  return { arm, armIfKeyNew, consume };
 }
 
 /**
  * Called from the commands/current subscription. Reads swap: true off the
  * incoming start command and arms the swap for the next completeStudy.
- * No-op for any command that doesn't carry swap: true.
+ * Dedupes on cmd.idempotencyKey so a WebSocket reconnect can't re-arm
+ * the swap on the following study.
  */
 export function handleSidecarCommandSwapFlag(
   cmd: SidecarCommand,
-  arm: () => void,
+  armIfKeyNew: (key: string | undefined) => void,
 ): void {
   if (cmd.action === 'start' && cmd.swap === true) {
-    arm();
+    armIfKeyNew(cmd.idempotencyKey);
   }
 }
 

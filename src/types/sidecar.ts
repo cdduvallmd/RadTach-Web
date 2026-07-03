@@ -20,4 +20,5 @@ export interface SidecarCommand {
   source: CommandSource;
   ack?: boolean;             // receiver sets true after processing
   swap?: boolean;            // start action only — arm swap correction for the next completeStudy (see src/hooks/useSwapSubsystem.ts)
+  idempotencyKey?: string;   // start action: UUID nonce so onSnapshot re-fire on WebSocket reconnect doesn't re-arm swap on the next completeStudy
 }
