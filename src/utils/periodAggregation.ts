@@ -721,6 +721,14 @@ export interface PvcAggregation {
   estimatedDollars: number;   // (totalShifts + totalBonusShifts) × shiftValue
   totalBonusShifts: number;   // sum of bonusShifts across periodBreakdown
   totalCreditShifts: number;  // totalShifts + totalBonusShifts
+  // Verified counterparts: substitute session.verifiedRVU for the in-program
+  // wRVU basis when computing productivity tiers. Non-verified sessions
+  // contribute 0 to the verified pool but still contribute shifts, so the
+  // per-period avg for tier lookup reflects reality (billing gap = lower tier).
+  // hasVerifiedData is true if AT LEAST ONE session in the input has a
+  // verifiedRVU > 0; UI gates display on this.
+  hasVerifiedData: boolean;
+  verifiedEstimatedDollars: number;  // (totalShifts + verifiedTotalBonusShifts) × shiftValue
   periodBreakdown: PvcPeriodBreakdownRow[];  // per-period rows (sorted by key)
   computationPeriod: ProductivityTierPeriod;
   columnsToShow: PvcColumnsToShow;
@@ -807,6 +815,8 @@ export function aggregatePvc(
       estimatedDollars: 0,
       totalBonusShifts: 0,
       totalCreditShifts: 0,
+      hasVerifiedData: false,
+      verifiedEstimatedDollars: 0,
       periodBreakdown: [],
       computationPeriod: config.productivityTierPeriod,
       columnsToShow: baseColumns,
@@ -853,25 +863,38 @@ export function aggregatePvc(
   const groups = groupSessionsByComputationPeriod(sessions, config.productivityTierPeriod);
   const periodBreakdown: PvcPeriodBreakdownRow[] = [];
   let totalBonusShifts = 0;
+  // Verified counterpart: mirrors the bonus-shift calc but substitutes
+  // s.verifiedRVU for the wRVU input. Bonus and meeting overlays are
+  // unchanged — they get paid regardless of billing source.
+  let verifiedTotalBonusShifts = 0;
+  let hasVerifiedData = false;
 
   const sortedKeys = [...groups.keys()].sort();
   for (const key of sortedKeys) {
     const periodSessions = groups.get(key)!;
     let pShifts = 0;
     let pWrvu = 0;
+    let pVerifiedWrvu = 0;
     let pBonus = 0;
     let pMeetingHours = 0;
     for (const s of periodSessions) {
       pShifts += s.pvcShiftCredit ?? 0;
       pWrvu += (s.pvcWrvuOverride != null) ? s.pvcWrvuOverride : (s.totalRVU ?? 0);
+      if (s.verifiedRVU != null && s.verifiedRVU > 0) {
+        pVerifiedWrvu += s.verifiedRVU;
+        hasVerifiedData = true;
+      }
       pBonus += s.pvcBonusRvu ?? 0;
       pMeetingHours += s.pvcMeetingHours ?? 0;
     }
     const pMeetingRvu = pMeetingHours * meetingRate;
     const pTotalAdjusted = pWrvu + pBonus + pMeetingRvu;
     const pAvgAdjusted = pShifts > 0 ? pTotalAdjusted / pShifts : 0;
+    const pVerifiedTotalAdjusted = pVerifiedWrvu + pBonus + pMeetingRvu;
+    const pVerifiedAvgAdjusted = pShifts > 0 ? pVerifiedTotalAdjusted / pShifts : 0;
 
     let pBonusShifts = 0;
+    let pVerifiedBonusShifts = 0;
     if (config.productivityTiersActive && config.productivityTiers.length > 0 && pShifts > 0) {
       const bonusPerShift = computeBonusShiftsPerShift(
         pAvgAdjusted,
@@ -880,10 +903,18 @@ export function aggregatePvc(
         config.allowNegativeBonus,
       );
       pBonusShifts = +(bonusPerShift * pShifts).toFixed(2);
+      const verifiedBonusPerShift = computeBonusShiftsPerShift(
+        pVerifiedAvgAdjusted,
+        config.productivityTiers,
+        config.productivityTierMode,
+        config.allowNegativeBonus,
+      );
+      pVerifiedBonusShifts = +(verifiedBonusPerShift * pShifts).toFixed(2);
       // Only count completed periods toward the running bonus total — in-progress
       // periods are tentative and may change.
       if (isPeriodComplete(key, config.productivityTierPeriod)) {
         totalBonusShifts += pBonusShifts;
+        verifiedTotalBonusShifts += pVerifiedBonusShifts;
       }
     }
 
@@ -899,9 +930,14 @@ export function aggregatePvc(
   }
 
   totalBonusShifts = +totalBonusShifts.toFixed(2);
+  verifiedTotalBonusShifts = +verifiedTotalBonusShifts.toFixed(2);
   const totalCreditShifts = +(totalShifts + totalBonusShifts).toFixed(2);
+  const verifiedTotalCreditShifts = +(totalShifts + verifiedTotalBonusShifts).toFixed(2);
   const estimatedDollars = config.shiftValue != null
     ? +(totalCreditShifts * config.shiftValue).toFixed(2)
+    : 0;
+  const verifiedEstimatedDollars = config.shiftValue != null
+    ? +(verifiedTotalCreditShifts * config.shiftValue).toFixed(2)
     : 0;
 
   const showBonus = anyRotationHasBonus(config) || anySessionHasBonus;
@@ -924,6 +960,8 @@ export function aggregatePvc(
     estimatedDollars,
     totalBonusShifts,
     totalCreditShifts,
+    hasVerifiedData,
+    verifiedEstimatedDollars,
     periodBreakdown,
     computationPeriod: config.productivityTierPeriod,
     columnsToShow: {

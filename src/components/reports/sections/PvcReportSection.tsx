@@ -191,6 +191,22 @@ export default function PvcReportSection({
       label: 'Estimated $',
       value: periodAgg.estimatedDollars.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }),
     });
+    // Verified $ mirrors Estimated $ but uses verifiedRVU as the wRVU input to
+    // the productivity tier bonus calculation. Only meaningful when the
+    // report window contains at least one complete computation period, so
+    // gate on periodType — monthly and quarterly reports are the ones where
+    // bonuses are actually settled. Shorter windows would show partial-period
+    // bonuses that don't reflect what actually gets paid.
+    if (
+      periodAgg.hasVerifiedData &&
+      (periodType === 'monthly' || periodType === 'quarterly')
+    ) {
+      cells.push({
+        label: 'Verified $',
+        value: periodAgg.verifiedEstimatedDollars.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }),
+        valueClass: 'text-green-400',
+      });
+    }
   }
 
   // Breakdown rows from the context agg (full month/quarter touched by report).
