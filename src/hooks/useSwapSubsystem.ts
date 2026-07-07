@@ -107,9 +107,13 @@ export function handleSidecarCommandSwapFlag(
 
 /**
  * The swap gate. Two paths — legacy 5s auto-heuristic OR manual arm from
- * Sidecar. If the 5s check passes, the manual arm is NOT consumed (reserved
- * for a genuine manual swap on the next study). Preserves behavior parity
- * with the pre-refactor path.
+ * Sidecar. Either path firing satisfies the swap for THIS study.
+ *
+ * Critical: always consume the manual arm, even when the 5s path is the
+ * one that triggers. A "double swap" — one swap consumed by auto AND a
+ * second one fired by leftover arm on the following study — is a user
+ * error signature, not intended behavior. Any successful swap clears the
+ * arm regardless of which path fired it.
  *
  * Phase 3 removes the 5s branch; this simplifies to `return consumeManualArm();`.
  */
@@ -117,8 +121,11 @@ export function shouldApplySwap(
   currentTime: number,
   consumeManualArm: () => boolean,
 ): boolean {
-  if (currentTime > 0 && currentTime < 5) return true;
-  return consumeManualArm();
+  // Evaluate BOTH — no short-circuit — so the arm gets consumed even if
+  // the 5s auto-heuristic is the reason we're swapping.
+  const autoFires = currentTime > 0 && currentTime < 5;
+  const manualFires = consumeManualArm();
+  return autoFires || manualFires;
 }
 
 /**
