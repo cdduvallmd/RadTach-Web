@@ -160,8 +160,27 @@ export default function PvcReportSection({
   if (cols.meetingRvu) cells.push({ label: 'Meeting RVU', value: periodAgg.totalMeetingRvu.toFixed(2) });
   if (cols.allInRvuPerShift) {
     cells.push({ label: `All-in RVU ${perShiftSuffix}`, value: periodAgg.allInRvuPerShift.toFixed(2) });
+    // Verified counterpart: for direct comparison against All-in RVU / Shift,
+    // Verified must include Bonus + Meeting (practice overlays that get paid
+    // regardless of billing source). Without those the average understates
+    // the actual compensation-basis rate.
+    if (verifiedTotals.sessionsWithVerified > 0 && periodAgg.totalShifts > 0) {
+      const verifiedAllIn = verifiedTotals.total + periodAgg.totalBonusRvu + periodAgg.totalMeetingRvu;
+      cells.push({
+        label: `Verified All-in ${perShiftSuffix}`,
+        value: (verifiedAllIn / periodAgg.totalShifts).toFixed(2),
+        valueClass: 'text-green-400',
+      });
+    }
   } else {
     cells.push({ label: `wRVU ${perShiftSuffix}`, value: periodAgg.wrvuPerShift.toFixed(2) });
+    if (verifiedTotals.sessionsWithVerified > 0 && periodAgg.totalShifts > 0) {
+      cells.push({
+        label: `Verified ${perShiftSuffix}`,
+        value: (verifiedTotals.total / periodAgg.totalShifts).toFixed(2),
+        valueClass: 'text-green-400',
+      });
+    }
   }
   if (cols.productivityBonus) {
     cells.push({ label: 'Bonus Shifts', value: periodAgg.totalBonusShifts.toFixed(2) });
