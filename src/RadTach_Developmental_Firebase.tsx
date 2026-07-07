@@ -2336,7 +2336,7 @@ function RadTachInner() {
     let effectiveTime = currentTime;
     let wasSwapped = false;
     let swapStartOverride: { session: number; system: string } | null = null;
-    if (shouldApplySwap(currentTime, swapArmed.consume)) {
+    if (shouldApplySwap(swapArmed.consume)) {
       const result = applySwap(
         currentTime,
         sessionEvents,
