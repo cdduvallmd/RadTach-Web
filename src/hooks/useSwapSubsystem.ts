@@ -126,10 +126,20 @@ export function shouldApplySwap(
  * default gap, adjusts the cumulative interstitial counter, and fires the
  * shadow swap_detected signal via the caller's emitter.
  *
- * Returns the effective study duration (the previous interstitial's original
- * duration, which is what the rad was actually dictating for), a wasSwapped
- * flag for downstream logging/filmstrip decisions, and a start-time override
- * for the filmstrip so the study renders in the correct time slot.
+ * Study's swap-corrected elapsedTime = (previous interstitial's original
+ * duration) + (currentTime) − 10.
+ *
+ * Rationale: the swapped study's real wall-clock work time spans from
+ * `interstitial.startTimeSession + 10` (10s buffer after the previous study
+ * ended) to `sessionTime` (the moment this Par Time was pressed). That
+ * equals `interstitial.duration + currentTime − 10` — the pre-Par idle time
+ * *plus* the timer-on duration, minus the fixed 10s buffer. The old code
+ * only captured the pre-Par piece and discarded currentTime, so manual
+ * swaps where the rad started the RadTach timer and then dictated ended up
+ * with elapsedTime = just the (short) SWAP-press gap.
+ *
+ * Max-clamped at 0 to guard against pathological inputs (interstitial +
+ * currentTime shorter than the 10s buffer).
  */
 export function applySwap<E extends EventWithType>(
   currentTime: number,
@@ -137,7 +147,7 @@ export function applySwap<E extends EventWithType>(
   setSessionEvents: (events: E[]) => void,
   setInterstitialTime: (updater: (prev: number) => number) => void,
   emitShadowSwap: (params: {
-    interstitialDuration: number;
+    correctedElapsedTime: number;
     correctedStart: number;
     correctedSystem: string;
   }) => void,
@@ -154,7 +164,7 @@ export function applySwap<E extends EventWithType>(
     return { effectiveTime: currentTime, wasSwapped: false, swapStartOverride: null };
   }
   const inter = events[lastInterIdx] as unknown as SwapCompatibleInterstitialEvent;
-  const effectiveTime = inter.duration;
+  const effectiveTime = Math.max(0, inter.duration + currentTime - 10);
   events[lastInterIdx] = {
     ...inter,
     duration: 10,
@@ -167,7 +177,7 @@ export function applySwap<E extends EventWithType>(
     system: new Date(new Date(inter.startTimeSystem).getTime() + 10000).toISOString(),
   };
   emitShadowSwap({
-    interstitialDuration: inter.duration,
+    correctedElapsedTime: effectiveTime,
     correctedStart: swapStartOverride.session,
     correctedSystem: swapStartOverride.system,
   });

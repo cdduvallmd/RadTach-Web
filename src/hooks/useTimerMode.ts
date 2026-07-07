@@ -49,7 +49,7 @@ export type TimerSignal =
   | { type: 'doubletap_toggle'; modality?: string }
   | { type: 'draft_enter' }
   | { type: 'draft_exit' }
-  | { type: 'swap_detected'; interstitialDuration: number; correctedStart: number; correctedSystem: string };
+  | { type: 'swap_detected'; correctedElapsedTime: number; correctedStart: number; correctedSystem: string };
 
 // Shadow events use the same shape as production events
 export interface ShadowStudyEvent {
@@ -274,8 +274,8 @@ export function useTimerMode(): UseTimerModeReturn {
             ...study,
             startTimeSession: action.correctedStart,
             startTimeSystem: action.correctedSystem,
-            elapsedTime: action.interstitialDuration,
-            variance: action.interstitialDuration - study.parTime,
+            elapsedTime: action.correctedElapsedTime,
+            variance: action.correctedElapsedTime - study.parTime,
             swapped: true,
           };
         }
