@@ -114,6 +114,22 @@ export default function PvcReportSection({
     return aggregatePvc(sessions, pvcConfig, userPvc ?? undefined);
   }, [sessions, pvcConfig, userPvc]);
 
+  // Verified wRVU (from Epic/Medicalis) is stored per-session and shown in
+  // the other report tabs' totals. Surface it here too when any session in
+  // the period has been verified, so the rad can compare in-program totals
+  // against the source-of-truth billed values without leaving the PVC view.
+  const verifiedTotals = useMemo(() => {
+    let total = 0;
+    let sessionsWithVerified = 0;
+    for (const s of sessions) {
+      if (s.verifiedRVU != null && s.verifiedRVU > 0) {
+        total += s.verifiedRVU;
+        sessionsWithVerified += 1;
+      }
+    }
+    return { total, sessionsWithVerified };
+  }, [sessions]);
+
   const contextAgg = useMemo(() => {
     if (!pvcConfig) return null;
     return aggregatePvc(monthContextSessions, pvcConfig, userPvc ?? undefined);
@@ -133,10 +149,13 @@ export default function PvcReportSection({
   const perShiftSuffix = periodAgg.shiftLabel === 'shift' ? '/ Shift' : '/ Day';
 
   // Period totals cells (top row). Adaptive ordering.
-  const cells: Array<{ label: string; value: string }> = [];
+  const cells: Array<{ label: string; value: string; valueClass?: string }> = [];
   if (cols.clockHours) cells.push({ label: 'Clock Hours', value: periodAgg.totalClockHours.toFixed(1) });
   cells.push({ label: shiftHeader, value: periodAgg.totalShifts.toFixed(2) });
   cells.push({ label: 'wRVU', value: periodAgg.totalWrvu.toFixed(2) });
+  if (verifiedTotals.sessionsWithVerified > 0) {
+    cells.push({ label: 'Verified wRVU', value: verifiedTotals.total.toFixed(2), valueClass: 'text-green-400' });
+  }
   if (cols.bonusRvu) cells.push({ label: 'Bonus RVU', value: periodAgg.totalBonusRvu.toFixed(2) });
   if (cols.meetingRvu) cells.push({ label: 'Meeting RVU', value: periodAgg.totalMeetingRvu.toFixed(2) });
   if (cols.allInRvuPerShift) {
@@ -170,7 +189,7 @@ export default function PvcReportSection({
         {cells.map(c => (
           <div key={c.label} className="bg-gray-900/50 rounded p-2">
             <div className="text-[10px] uppercase tracking-wider text-gray-400">{c.label}</div>
-            <div className="text-lg text-white font-medium">{c.value}</div>
+            <div className={`text-lg font-medium ${c.valueClass ?? 'text-white'}`}>{c.value}</div>
           </div>
         ))}
       </div>
