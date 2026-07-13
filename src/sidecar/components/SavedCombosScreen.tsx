@@ -8,12 +8,17 @@ interface Props {
   entries: Record<string, CptEntry>;
   onSelect: (combo: SavedCombo) => void;
   onRename: (index: number, aeTitle: string) => void;
+  onDelete: (index: number) => void;
   onBack: () => void;
 }
 
-export default function SavedCombosScreen({ combos, entries, onSelect, onRename, onBack }: Props) {
+export default function SavedCombosScreen({ combos, entries, onSelect, onRename, onDelete, onBack }: Props) {
   const [renameIdx, setRenameIdx] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  // Two-click delete confirmation lives inside the rename modal. First click
+  // arms confirmDelete; second click on the now-red "Delete permanently"
+  // fires onDelete. Cancel or any modal close resets to false.
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const valid = combos
     .map((c, i) => ({ combo: c, idx: i }))
@@ -75,11 +80,15 @@ export default function SavedCombosScreen({ combos, entries, onSelect, onRename,
                       })
                     )}
                   </button>
-                  {/* Rename button */}
+                  {/* Rename button — also the entry point to Delete */}
                   <button
-                    onClick={() => { setRenameIdx(idx); setRenameValue(combo.aeTitle || ''); }}
+                    onClick={() => {
+                      setRenameIdx(idx);
+                      setRenameValue(combo.aeTitle || '');
+                      setConfirmDelete(false);
+                    }}
                     className="px-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-500 hover:text-white text-sm transition-colors"
-                    title="Rename combo"
+                    title="Rename or delete combo"
                   >
                     &#9998;
                   </button>
@@ -90,7 +99,7 @@ export default function SavedCombosScreen({ combos, entries, onSelect, onRename,
         )}
       </div>
 
-      {/* Rename dialog */}
+      {/* Rename / Delete dialog */}
       {renameIdx !== null && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-xl p-4 w-full max-w-sm space-y-3">
@@ -108,7 +117,7 @@ export default function SavedCombosScreen({ combos, entries, onSelect, onRename,
             />
             <div className="flex gap-2">
               <button
-                onClick={() => setRenameIdx(null)}
+                onClick={() => { setRenameIdx(null); setConfirmDelete(false); }}
                 className="flex-1 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm"
               >
                 Cancel
@@ -117,11 +126,37 @@ export default function SavedCombosScreen({ combos, entries, onSelect, onRename,
                 onClick={() => {
                   onRename(renameIdx, renameValue.trim());
                   setRenameIdx(null);
+                  setConfirmDelete(false);
                 }}
                 className="flex-1 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg text-sm"
               >
                 {renameValue.trim() ? 'Save' : 'Clear Name'}
               </button>
+            </div>
+            {/* Delete affordance: subdued first, red-confirm on second click.
+                Kept behind the rename modal because deletion is rare — usually
+                to correct a mistagged combo (e.g., Combined series doesn't
+                match the human-readable title). */}
+            <div className="pt-2 border-t border-gray-700">
+              {!confirmDelete ? (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="w-full py-2 text-gray-500 hover:text-red-400 text-xs uppercase tracking-wider transition-colors"
+                >
+                  Delete this combo
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    onDelete(renameIdx);
+                    setRenameIdx(null);
+                    setConfirmDelete(false);
+                  }}
+                  className="w-full py-2 bg-red-900/40 hover:bg-red-700 text-red-300 hover:text-white font-semibold text-xs uppercase tracking-wider rounded transition-colors"
+                >
+                  Are you sure? Tap to delete permanently
+                </button>
+              )}
             </div>
           </div>
         </div>

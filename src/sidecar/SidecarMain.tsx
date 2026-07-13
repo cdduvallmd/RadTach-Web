@@ -424,6 +424,18 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     });
   }, [currentUser]);
 
+  const handleDeleteCombo = useCallback((index: number) => {
+    addSyncLog(`Delete combo at index ${index}`);
+    setSavedCombos(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      saveSavedCombos(next);
+      if (currentUser) firestoreService.saveSidecarCombos(currentUser.uid, next)
+        .then(() => addSyncLog('Combo delete → Firestore OK'))
+        .catch(err => addSyncLog(`Combo delete → Firestore FAIL: ${err.message}`));
+      return next;
+    });
+  }, [currentUser]);
+
   const handleAddFavorite = useCallback((cpt: string, aeTitle: string) => {
     addSyncLog(`Add fav: ${cpt} "${aeTitle}"`);
     setFavorites(prev => {
@@ -723,6 +735,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           entries={cptDb.entries}
           onSelect={handleComboRecall}
           onRename={handleRenameCombo}
+          onDelete={handleDeleteCombo}
           onBack={() => setScreen({ type: 'home' })}
         />
       );
