@@ -11,6 +11,7 @@ import {
   updateDoc,
   deleteDoc,
   writeBatch,
+  runTransaction,
   serverTimestamp,
   query,
   orderBy,
@@ -89,6 +90,36 @@ export const firestoreService = {
       ? Timestamp.fromDate(new Date(finalData.stopDateTime))
       : serverTimestamp();
     await updateDoc(docRef, { ...finalData, endTime });
+  },
+
+  /**
+   * Recover an orphaned session transactionally. Reads the session doc
+   * inside the transaction; if `endTime` is already set, aborts (someone
+   * else — another tab, another device — recovered it first). Otherwise
+   * writes the reconstructed final data + endTime. Guarantees at-most-once
+   * recovery across simultaneous multi-tab/multi-device races.
+   *
+   * Returns:
+   *   { recovered: true }  — this call performed the recovery
+   *   { recovered: false } — session was already recovered; no-op
+   */
+  async recoverOrphanTransactional(
+    userId: string,
+    sessionId: string,
+    finalData: Record<string, any>,
+  ): Promise<{ recovered: boolean }> {
+    const docRef = doc(db, 'users', userId, 'sessions', sessionId);
+    const endTime = finalData.stopDateTime
+      ? Timestamp.fromDate(new Date(finalData.stopDateTime))
+      : serverTimestamp();
+    return await runTransaction(db, async (tx) => {
+      const snap = await tx.get(docRef);
+      if (!snap.exists()) return { recovered: false };
+      const existing = snap.data();
+      if (existing.endTime) return { recovered: false };
+      tx.update(docRef, { ...finalData, endTime });
+      return { recovered: true };
+    });
   },
 
   // Batch write: sends multiple events in a single network request (deterministic IDs for idempotency)

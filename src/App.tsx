@@ -22,6 +22,7 @@ import {
 import AdminBlockClassifier, { type AdminBlock } from './components/pvc/AdminBlockClassifier';
 import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, bufferedSaveUserSettings, flushBuffer, hasPendingEndSession, addLocalEvent, getLocalEvents, clearLocalEvents } from './services/offlineBuffer';
 import { reconstructSessionData } from './utils/sessionRecovery';
+import { RecoveryToast } from './components/RecoveryToast';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
 import { useTimerMode } from './hooks/useTimerMode';
 import { useSwapArmed, handleSidecarCommandSwapFlag, shouldApplySwap, applySwap } from './hooks/useSwapSubsystem';
@@ -358,17 +359,11 @@ function RadTachInner() {
   const [lastSessionData, setLastSessionData] = useState<SessionData | null>(null);
   const [lastSessionSummary, setLastSessionSummary] = useState<SessionSummary | null>(null);
 
-  // Orphaned session recovery state
-  const [orphanedSessions, setOrphanedSessions] = useState<{ id: string; [key: string]: any }[] | null>(null);
+  // Orphaned session recovery state — auto-recover on login; toast displays results.
   const [recoveryChecked, setRecoveryChecked] = useState(false);
-  const [recoveryInProgress, setRecoveryInProgress] = useState(false);
-  const [recoverySessionIndex, setRecoverySessionIndex] = useState(0);
-  const [recoveryPreview, setRecoveryPreview] = useState<{
-    events: Record<string, any>[];
-    reconstructed: ReturnType<typeof reconstructSessionData>;
-    loading: boolean;
-    error: string | null;
-  } | null>(null);
+  const [recoveredSessions, setRecoveredSessions] = useState<Array<{ sessionId: string; date: string; studies: number; duration: string; orphan: { id: string; [key: string]: any } }>>([]);
+  const [failedRecoveries, setFailedRecoveries] = useState<Array<{ sessionId: string; date: string; reason: string; orphan: { id: string; [key: string]: any } }>>([]);
+  const [recoveryToastDismissed, setRecoveryToastDismissed] = useState(false);
 
   // System/Office selection (session start dialog)
   const [showSessionStartDialog, setShowSessionStartDialog] = useState(false);
@@ -1311,25 +1306,26 @@ function RadTachInner() {
     return () => window.removeEventListener('focus', attemptFlush);
   }, [currentUser]);
 
-  // Orphaned session recovery: detect sessions missing endTime after crash/power loss
+  // Orphaned session recovery: detect sessions missing endTime after crash/power
+  // loss, then auto-recover them transactionally. Toast summarises results.
+  //
+  // Transactional guarantee: recoverOrphanTransactional reads endTime inside a
+  // Firestore transaction and aborts if it's already set. So two tabs racing on
+  // the same orphan produce exactly one write; the second sees endTime and
+  // returns { recovered: false } silently. No double-counting possible.
+  //
+  // Failure states surface persistently in the toast — a failed auto-recovery
+  // MUST NOT silently drop out of the user's attention, otherwise the session
+  // stays orphaned until next login. Retry action per failed session.
   useEffect(() => {
     if (!FIREBASE_ENABLED || !currentUser || recoveryChecked) return;
 
-    const checkOrphans = async () => {
+    const runAutoRecovery = async () => {
       try {
-        // Flush IDB first — pending endSession writes may close orphans
-        try {
-          await flushBuffer(currentUser.uid);
-        } catch {
-          // IDB flush failed — continue with orphan check anyway
-        }
+        try { await flushBuffer(currentUser.uid); } catch { /* continue anyway */ }
 
         const orphans = await firestoreService.getOrphanedSessions(currentUser.uid);
-        if (orphans.length === 0) {
-          setOrphanedSessions([]);
-          setRecoveryChecked(true);
-          return;
-        }
+        if (orphans.length === 0) { setRecoveryChecked(true); return; }
 
         // Filter out false positives: sessions with pending endSession in IDB
         const realOrphans: typeof orphans = [];
@@ -1337,114 +1333,93 @@ function RadTachInner() {
           const pending = await hasPendingEndSession(s.id);
           if (!pending) realOrphans.push(s);
         }
+        if (realOrphans.length === 0) { setRecoveryChecked(true); return; }
 
-        if (realOrphans.length === 0) {
-          setOrphanedSessions([]);
-          setRecoveryChecked(true);
-          return;
+        // Process each orphan: reconstruct → transactional recover → record result
+        const succeeded: typeof recoveredSessions = [];
+        const failed: typeof failedRecoveries = [];
+        for (const orphan of realOrphans) {
+          const result = await recoverOneOrphan(orphan);
+          if (result.kind === 'success') succeeded.push(result.entry);
+          else failed.push(result.entry);
         }
 
-        setOrphanedSessions(realOrphans);
-
-        // Load first orphan's events and build preview
-        const first = realOrphans[0];
-        try {
-          const firestoreEvents = await firestoreService.getSessionEvents(currentUser.uid, first.id);
-          const localEvents = await getLocalEvents(first.id).catch(() => [] as Record<string, any>[]);
-          const events = localEvents.length >= firestoreEvents.length ? localEvents : firestoreEvents;
-          const reconstructed = reconstructSessionData(first, events);
-          setRecoveryPreview({ events, reconstructed, loading: false, error: null });
-        } catch {
-          setRecoveryPreview({ events: [], reconstructed: reconstructSessionData(first, []), loading: false, error: 'Could not load events' });
-        }
-
-        setRecoverySessionIndex(0);
-      } catch {
-        // Network error or other failure — skip recovery silently, let user through
-        setOrphanedSessions([]);
-      }
+        setRecoveredSessions(succeeded);
+        setFailedRecoveries(failed);
+      } catch { /* network error or other — skip recovery silently */ }
       setRecoveryChecked(true);
     };
 
-    checkOrphans();
+    runAutoRecovery();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, recoveryChecked]);
 
-  // Recovery handlers
-  const loadOrphanPreview = async (orphan: { id: string; [key: string]: any }) => {
-    if (!currentUser) return;
-    setRecoveryPreview(prev => prev ? { ...prev, loading: true, error: null } : { events: [], reconstructed: reconstructSessionData(orphan, []), loading: true, error: null });
+  // Compact duration formatter for the toast: "8h 32m" style.
+  const formatDurationSec = (seconds: number): string => {
+    const s = Math.max(0, Math.round(seconds));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
+  };
+
+  // Recover a single orphan: build reconstruction, transactionally close it,
+  // clear local cache, write stale-GAR marker if applicable. Returns a
+  // discriminated union so the caller can route to succeeded/failed lists.
+  const recoverOneOrphan = async (
+    orphan: { id: string; [key: string]: any },
+  ): Promise<
+    | { kind: 'success'; entry: { sessionId: string; date: string; studies: number; duration: string; orphan: { id: string; [key: string]: any } } }
+    | { kind: 'failure'; entry: { sessionId: string; date: string; reason: string; orphan: { id: string; [key: string]: any } } }
+  > => {
+    if (!currentUser) return { kind: 'failure', entry: { sessionId: orphan.id, date: 'Unknown', reason: 'Not signed in', orphan } };
+    const dateLabel = orphan.startDateTime
+      ? new Date(orphan.startDateTime).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      : 'Unknown date';
     try {
       const firestoreEvents = await firestoreService.getSessionEvents(currentUser.uid, orphan.id);
       const localEvents = await getLocalEvents(orphan.id).catch(() => [] as Record<string, any>[]);
       const events = localEvents.length >= firestoreEvents.length ? localEvents : firestoreEvents;
       const reconstructed = reconstructSessionData(orphan, events);
-      setRecoveryPreview({ events, reconstructed, loading: false, error: null });
-    } catch {
-      setRecoveryPreview({ events: [], reconstructed: reconstructSessionData(orphan, []), loading: false, error: 'Could not load events' });
-    }
-  };
-
-  const advanceRecovery = async () => {
-    if (!orphanedSessions) return;
-    const nextIndex = recoverySessionIndex + 1;
-    if (nextIndex >= orphanedSessions.length) {
-      // All orphans handled
-      setOrphanedSessions([]);
-      setRecoveryPreview(null);
-      setRecoverySessionIndex(0);
-      return;
-    }
-    setRecoverySessionIndex(nextIndex);
-    await loadOrphanPreview(orphanedSessions[nextIndex]);
-  };
-
-  const handleRecoverSession = async () => {
-    if (!currentUser || !orphanedSessions || !recoveryPreview) return;
-    const orphan = orphanedSessions[recoverySessionIndex];
-    setRecoveryInProgress(true);
-    try {
-      const { reconstructed } = recoveryPreview;
-      await firestoreService.endSession(currentUser.uid, orphan.id, reconstructed);
-
-      // Write stale GAR marker if session is from a prior day
-      if (orphan.startDateTime && orphan.system) {
+      const txResult = await firestoreService.recoverOrphanTransactional(currentUser.uid, orphan.id, reconstructed);
+      // Success either way — either we wrote endTime, or someone else did first
+      // (another tab/device). Both paths are safe; clear local cache regardless.
+      if (orphan.startDateTime && orphan.system && txResult.recovered) {
         const sessionDate = String(orphan.startDateTime).slice(0, 10);
         const todayDate = new Date().toISOString().slice(0, 10);
         if (sessionDate < todayDate) {
-          await firestoreService.writeStaleMarker(orphan.system, sessionDate, currentUser.uid);
+          try { await firestoreService.writeStaleMarker(orphan.system, sessionDate, currentUser.uid); } catch { /* non-fatal */ }
         }
       }
-    } catch {
-      // If recovery write fails, skip this orphan and move on
+      clearLocalEvents(orphan.id).catch(() => {});
+      return { kind: 'success', entry: { sessionId: orphan.id, date: dateLabel, studies: (reconstructed as any).studiesCompleted ?? 0, duration: formatDurationSec((reconstructed as any).totalSessionTime ?? 0), orphan } };
+    } catch (err) {
+      return { kind: 'failure', entry: { sessionId: orphan.id, date: dateLabel, reason: err instanceof Error ? err.message : String(err), orphan } };
     }
-    clearLocalEvents(orphan.id).catch(() => {});
-    setRecoveryInProgress(false);
-    await advanceRecovery();
   };
 
-  const handleDiscardSession = async () => {
-    if (!currentUser || !orphanedSessions) return;
-    const orphan = orphanedSessions[recoverySessionIndex];
-    setRecoveryInProgress(true);
+  // Toast actions — user-initiated post-recovery.
+  const handleDiscardRecovered = async (sessionId: string) => {
+    if (!currentUser) return;
+    const entry = recoveredSessions.find((s) => s.sessionId === sessionId);
+    if (!entry) return;
     try {
-      // Close with zeroed data
-      const discardData = reconstructSessionData(orphan, []);
-      discardData.notes = { tags: ['No Comment'], description: '(discarded — incomplete session)' };
-      await firestoreService.endSession(currentUser.uid, orphan.id, discardData);
+      const discardData = reconstructSessionData(entry.orphan, []);
+      (discardData as any).notes = { tags: ['No Comment'], description: '(discarded — incomplete session)' };
+      // Overwrite the just-recovered doc with zeroed data (endTime already set from recovery).
+      await firestoreService.endSession(currentUser.uid, entry.orphan.id, discardData);
+    } catch { /* non-fatal; the recovery already succeeded and closed the orphan */ }
+    setRecoveredSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
+  };
 
-      if (orphan.startDateTime && orphan.system) {
-        const sessionDate = String(orphan.startDateTime).slice(0, 10);
-        const todayDate = new Date().toISOString().slice(0, 10);
-        if (sessionDate < todayDate) {
-          await firestoreService.writeStaleMarker(orphan.system, sessionDate, currentUser.uid);
-        }
-      }
-    } catch {
-      // If discard write fails, skip and move on
-    }
-    clearLocalEvents(orphan.id).catch(() => {});
-    setRecoveryInProgress(false);
-    await advanceRecovery();
+  const handleRetryFailed = async (sessionId: string) => {
+    const entry = failedRecoveries.find((s) => s.sessionId === sessionId);
+    if (!entry) return;
+    setFailedRecoveries((prev) => prev.filter((s) => s.sessionId !== sessionId));
+    const result = await recoverOneOrphan(entry.orphan);
+    if (result.kind === 'success') setRecoveredSessions((prev) => [...prev, result.entry]);
+    else setFailedRecoveries((prev) => [...prev, result.entry]);
   };
 
   // Auth form handler
@@ -3209,117 +3184,9 @@ function RadTachInner() {
     );
   }
 
-  // Orphaned session recovery dialog
-  if (FIREBASE_ENABLED && currentUser && recoveryChecked && orphanedSessions && orphanedSessions.length > 0) {
-    const orphan = orphanedSessions[recoverySessionIndex];
-    const preview = recoveryPreview;
-    const sessionDate = orphan?.startDateTime
-      ? new Date(orphan.startDateTime).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
-      : 'Unknown date';
-    const eventsFound = preview?.events.length ?? 0;
-    const hasZeroEvents = eventsFound === 0 && preview && !preview.loading;
-
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-        <div className="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md">
-          {orphanedSessions.length > 1 && (
-            <p className="text-gray-400 text-xs text-center mb-3">
-              {recoverySessionIndex + 1} of {orphanedSessions.length} incomplete sessions
-            </p>
-          )}
-          <h1 className="text-2xl font-bold text-white text-center mb-2">Session Recovery</h1>
-          <p className="text-gray-400 text-sm text-center mb-6">
-            An incomplete session was found. It may have been interrupted by a browser crash or power loss.
-          </p>
-
-          <div className="bg-gray-700 rounded-lg p-4 mb-4 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-400">Date</span>
-              <span className="text-white">{sessionDate}</span>
-            </div>
-            {orphan?.system && (
-              <div className="flex justify-between">
-                <span className="text-gray-400">System</span>
-                <span className="text-white">{orphan.system}</span>
-              </div>
-            )}
-            {orphan?.workstationId && (
-              <div className="flex justify-between">
-                <span className="text-gray-400">Office</span>
-                <span className="text-white">{orphan.workstationId}</span>
-              </div>
-            )}
-            {orphan?.rotation && (
-              <div className="flex justify-between">
-                <span className="text-gray-400">Rotation</span>
-                <span className="text-white">{orphan.rotation}</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-gray-400">Session ID</span>
-              <span className="text-gray-300 text-xs font-mono">{orphan?.id}</span>
-            </div>
-          </div>
-
-          {preview?.loading ? (
-            <div className="text-gray-400 text-sm text-center py-4">Loading session data...</div>
-          ) : preview?.error ? (
-            <div className="bg-red-900/40 text-red-300 px-4 py-3 rounded-lg text-sm mb-4">
-              {preview.error}
-            </div>
-          ) : preview ? (
-            <>
-              {hasZeroEvents && (
-                <div className="bg-yellow-900/60 text-yellow-200 px-4 py-3 rounded-lg text-sm mb-4">
-                  No events were saved before the session ended. Recovery will close this session with zero data.
-                </div>
-              )}
-              <div className="bg-gray-700 rounded-lg p-4 mb-6 space-y-2 text-sm">
-                <p className="text-gray-300 font-medium mb-2">Recoverable Data</p>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Studies</span>
-                  <span className="text-white">{preview.reconstructed.studiesCompleted}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Total RVU</span>
-                  <span className="text-white">{preview.reconstructed.totalRVU.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Session Time</span>
-                  <span className="text-white">{formatTime(preview.reconstructed.totalSessionTime)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Events Found</span>
-                  <span className="text-white">{eventsFound}</span>
-                </div>
-              </div>
-            </>
-          ) : null}
-
-          <div className="flex gap-3">
-            <button
-              onClick={handleRecoverSession}
-              disabled={recoveryInProgress || preview?.loading}
-              className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-800 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-            >
-              {recoveryInProgress ? 'Recovering...' : 'Recover Session'}
-            </button>
-            <button
-              onClick={handleDiscardSession}
-              disabled={recoveryInProgress || preview?.loading}
-              className="flex-1 py-3 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-            >
-              {recoveryInProgress ? 'Working...' : 'Discard'}
-            </button>
-          </div>
-
-          <p className="text-gray-600 text-xs text-center mt-4">
-            Recovered sessions may be missing up to 4 studies from the last batch before the crash.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // Orphaned session recovery is now automatic (see runAutoRecovery in the
+  // useEffect above). Results surface via <RecoveryToast /> rendered at the
+  // bottom of the main app tree.
 
   // Post-session screen (Firebase only)
   if (FIREBASE_ENABLED && showPostSessionScreen) {
@@ -5251,6 +5118,20 @@ function RadTachInner() {
           animation: flash-red 0.5s ease-in-out infinite;
         }
       `}</style>
+
+      {FIREBASE_ENABLED && !recoveryToastDismissed && (
+        <RecoveryToast
+          recovered={recoveredSessions}
+          failed={failedRecoveries}
+          onDismiss={() => {
+            setRecoveryToastDismissed(true);
+            setRecoveredSessions([]);
+            setFailedRecoveries([]);
+          }}
+          onDiscard={handleDiscardRecovered}
+          onRetry={handleRetryFailed}
+        />
+      )}
     </div>
   );
 }
