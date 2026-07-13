@@ -182,8 +182,17 @@ export default function PvcReportSection({
       });
     }
   }
-  if (cols.productivityBonus) {
-    cells.push({ label: 'Bonus Shifts', value: periodAgg.totalBonusShifts.toFixed(2) });
+  // Bonus shifts — three cells when either source is active. Zeros/negatives
+  // display as-is (user preference: a zero rotation-bonus reads as "no call
+  // shifts this month" — informative, not empty).
+  if (cols.bonusShiftsTotal) {
+    if (cols.bonusShiftsFromRvu) {
+      cells.push({ label: 'Bonus Shifts (RVU)', value: periodAgg.totalBonusShiftsFromRvu.toFixed(2) });
+    }
+    if (cols.bonusShiftsFromRotation) {
+      cells.push({ label: 'Bonus Shifts (Rotation)', value: periodAgg.totalBonusShiftsFromRotation.toFixed(2) });
+    }
+    cells.push({ label: 'Total Bonus Shifts', value: periodAgg.totalBonusShifts.toFixed(2) });
     cells.push({ label: 'Total Credit', value: periodAgg.totalCreditShifts.toFixed(2) });
   }
   if (cols.estimatedDollars) {
@@ -242,7 +251,9 @@ export default function PvcReportSection({
                 <th className="text-right py-1.5 px-2">Shifts</th>
                 <th className="text-right py-1.5 px-2">Adjusted wRVU</th>
                 <th className="text-right py-1.5 px-2">Avg / Shift</th>
-                {cols.productivityBonus && <th className="text-right py-1.5 px-2">Bonus Shifts</th>}
+                {cols.bonusShiftsFromRvu && <th className="text-right py-1.5 px-2">Bonus (RVU)</th>}
+                {cols.bonusShiftsFromRotation && <th className="text-right py-1.5 px-2">Bonus (Rot)</th>}
+                {cols.bonusShiftsTotal && <th className="text-right py-1.5 px-2">Bonus Total</th>}
                 <th className="text-center py-1.5 pl-2">Status</th>
               </tr>
             </thead>
@@ -253,7 +264,13 @@ export default function PvcReportSection({
                   <td className="text-right text-white py-1.5 px-2">{row.shifts.toFixed(2)}</td>
                   <td className="text-right text-white py-1.5 px-2">{row.totalAdjustedRvu.toFixed(2)}</td>
                   <td className="text-right text-white py-1.5 px-2">{row.avgAdjustedRvuPerShift.toFixed(2)}</td>
-                  {cols.productivityBonus && (
+                  {cols.bonusShiftsFromRvu && (
+                    <td className="text-right text-white py-1.5 px-2">{row.bonusShiftsFromRvu.toFixed(2)}</td>
+                  )}
+                  {cols.bonusShiftsFromRotation && (
+                    <td className="text-right text-white py-1.5 px-2">{row.bonusShiftsFromRotation.toFixed(2)}</td>
+                  )}
+                  {cols.bonusShiftsTotal && (
                     <td className="text-right text-white py-1.5 px-2">{row.bonusShifts.toFixed(2)}</td>
                   )}
                   <td className="text-center py-1.5 pl-2">
@@ -270,7 +287,7 @@ export default function PvcReportSection({
 
       <p className="text-[10px] text-gray-500 mt-2">
         Compensation estimate only. CPT adjustments applied silently at the wRVU read path; raw CMS values preserved for audit.
-        {cols.productivityBonus && ' Productivity bonus uses Adjusted wRVU (wRVU + bonus RVU + meeting RVU) averaged by the configured period.'}
+        {cols.bonusShiftsFromRvu && ' Productivity bonus uses Adjusted wRVU (wRVU + bonus RVU + meeting RVU) averaged by the configured period.'}
       </p>
 
     </div>

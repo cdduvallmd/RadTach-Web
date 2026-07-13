@@ -9,7 +9,7 @@ import {
 } from 'date-fns';
 import type { StoredSession, DateRange, PeriodSummary } from '../types/reports';
 import type { PvcConfig, UserPvcSettings, ProductivityTierPeriod } from '../types/pvc';
-import { anyRotationHasBonus, computeBonusShiftsPerShift, monthKey, quarterKey, dayKey } from './pvcConfig';
+import { anyRotationHasBonus, anyRotationHasBonusShiftCredit, computeBonusShiftsPerShift, monthKey, quarterKey, dayKey } from './pvcConfig';
 
 // ── Date Range Helpers ────────────────────────────────────────────────────────
 
@@ -692,7 +692,13 @@ export interface PvcColumnsToShow {
   allInRvuPerShift: boolean;  // true if bonus or meeting columns active
   estimatedDollars: boolean;  // true if shiftValue !== null
   clockHours: boolean;        // always true when PVC enabled (session totalSessionTime)
-  productivityBonus: boolean; // true if productivityTiersActive AND tiers configured
+  // Bonus-shift columns — three cells: RVU / Rotation / Total. Shown together
+  // whenever either mechanism is configured. Zeros and negatives display
+  // rather than hiding, so a zero rotation-bonus column reads as "no call
+  // shifts this month" instead of an ambiguous absence.
+  bonusShiftsFromRvu: boolean;      // true if productivityTiersActive AND tiers configured
+  bonusShiftsFromRotation: boolean; // true if any rotation has bonusShiftCredit > 0
+  bonusShiftsTotal: boolean;        // true if either of the above is true
 }
 
 // One row in the period-breakdown table. The unit of "period" is determined by
@@ -704,7 +710,9 @@ export interface PvcPeriodBreakdownRow {
   shifts: number;
   totalAdjustedRvu: number; // wRVU + bonus RVU + meeting RVU for this period
   avgAdjustedRvuPerShift: number;
-  bonusShifts: number;      // productivity bonus shifts earned in this period
+  bonusShiftsFromRvu: number;      // from productivity tier engine (can be negative)
+  bonusShiftsFromRotation: number; // sum of session.pvcBonusShiftCredit
+  bonusShifts: number;             // bonusShiftsFromRvu + bonusShiftsFromRotation
 }
 
 export interface PvcAggregation {
@@ -719,8 +727,10 @@ export interface PvcAggregation {
   allInRvuPerShift: number;   // allInWrvu / totalShifts (0 if no shifts)
   wrvuPerShift: number;       // totalWrvu / totalShifts (0 if no shifts)
   estimatedDollars: number;   // (totalShifts + totalBonusShifts) × shiftValue
-  totalBonusShifts: number;   // sum of bonusShifts across periodBreakdown
-  totalCreditShifts: number;  // totalShifts + totalBonusShifts
+  totalBonusShiftsFromRvu: number;      // productivity tier bonus (only counts completed periods)
+  totalBonusShiftsFromRotation: number; // rotation flat credit (all sessions)
+  totalBonusShifts: number;             // sum of the two above
+  totalCreditShifts: number;            // totalShifts + totalBonusShifts
   // Verified counterparts: substitute session.verifiedRVU for the in-program
   // wRVU basis when computing productivity tiers. Non-verified sessions
   // contribute 0 to the verified pool but still contribute shifts, so the
@@ -797,7 +807,9 @@ export function aggregatePvc(
     allInRvuPerShift: false,
     estimatedDollars: false,
     clockHours: config.enabled,
-    productivityBonus: false,
+    bonusShiftsFromRvu: false,
+    bonusShiftsFromRotation: false,
+    bonusShiftsTotal: false,
   };
 
   if (!config.enabled) {
@@ -813,6 +825,8 @@ export function aggregatePvc(
       allInRvuPerShift: 0,
       wrvuPerShift: 0,
       estimatedDollars: 0,
+      totalBonusShiftsFromRvu: 0,
+      totalBonusShiftsFromRotation: 0,
       totalBonusShifts: 0,
       totalCreditShifts: 0,
       hasVerifiedData: false,
@@ -862,11 +876,14 @@ export function aggregatePvc(
   // period's avg.
   const groups = groupSessionsByComputationPeriod(sessions, config.productivityTierPeriod);
   const periodBreakdown: PvcPeriodBreakdownRow[] = [];
-  let totalBonusShifts = 0;
-  // Verified counterpart: mirrors the bonus-shift calc but substitutes
-  // s.verifiedRVU for the wRVU input. Bonus and meeting overlays are
-  // unchanged — they get paid regardless of billing source.
-  let verifiedTotalBonusShifts = 0;
+  // Bonus shifts have two independent sources — track separately so the report
+  // can display them side-by-side, then sum for totals and $ estimate.
+  let totalBonusShiftsFromRvu = 0;        // productivity tier engine (completed periods only)
+  let totalBonusShiftsFromRotation = 0;   // rotation flat credit (all sessions)
+  // Verified counterpart mirrors the tier calc with verifiedRVU substituted.
+  // Rotation bonus shifts are the same regardless — they're paid on rotation,
+  // not on billing.
+  let verifiedTotalBonusShiftsFromRvu = 0;
   let hasVerifiedData = false;
 
   const sortedKeys = [...groups.keys()].sort();
@@ -877,6 +894,7 @@ export function aggregatePvc(
     let pVerifiedWrvu = 0;
     let pBonus = 0;
     let pMeetingHours = 0;
+    let pRotationBonusShifts = 0;
     for (const s of periodSessions) {
       pShifts += s.pvcShiftCredit ?? 0;
       pWrvu += (s.pvcWrvuOverride != null) ? s.pvcWrvuOverride : (s.totalRVU ?? 0);
@@ -886,6 +904,7 @@ export function aggregatePvc(
       }
       pBonus += s.pvcBonusRvu ?? 0;
       pMeetingHours += s.pvcMeetingHours ?? 0;
+      pRotationBonusShifts += s.pvcBonusShiftCredit ?? 0;
     }
     const pMeetingRvu = pMeetingHours * meetingRate;
     const pTotalAdjusted = pWrvu + pBonus + pMeetingRvu;
@@ -893,8 +912,8 @@ export function aggregatePvc(
     const pVerifiedTotalAdjusted = pVerifiedWrvu + pBonus + pMeetingRvu;
     const pVerifiedAvgAdjusted = pShifts > 0 ? pVerifiedTotalAdjusted / pShifts : 0;
 
-    let pBonusShifts = 0;
-    let pVerifiedBonusShifts = 0;
+    let pBonusShiftsFromRvu = 0;
+    let pVerifiedBonusShiftsFromRvu = 0;
     if (config.productivityTiersActive && config.productivityTiers.length > 0 && pShifts > 0) {
       const bonusPerShift = computeBonusShiftsPerShift(
         pAvgAdjusted,
@@ -902,22 +921,28 @@ export function aggregatePvc(
         config.productivityTierMode,
         config.allowNegativeBonus,
       );
-      pBonusShifts = +(bonusPerShift * pShifts).toFixed(2);
+      pBonusShiftsFromRvu = +(bonusPerShift * pShifts).toFixed(2);
       const verifiedBonusPerShift = computeBonusShiftsPerShift(
         pVerifiedAvgAdjusted,
         config.productivityTiers,
         config.productivityTierMode,
         config.allowNegativeBonus,
       );
-      pVerifiedBonusShifts = +(verifiedBonusPerShift * pShifts).toFixed(2);
-      // Only count completed periods toward the running bonus total — in-progress
-      // periods are tentative and may change.
+      pVerifiedBonusShiftsFromRvu = +(verifiedBonusPerShift * pShifts).toFixed(2);
+      // Only count completed periods toward the running tier bonus total —
+      // in-progress periods are tentative and may change.
       if (isPeriodComplete(key, config.productivityTierPeriod)) {
-        totalBonusShifts += pBonusShifts;
-        verifiedTotalBonusShifts += pVerifiedBonusShifts;
+        totalBonusShiftsFromRvu += pBonusShiftsFromRvu;
+        verifiedTotalBonusShiftsFromRvu += pVerifiedBonusShiftsFromRvu;
       }
     }
 
+    // Rotation bonus shifts accrue per session as they happen — no tier gate,
+    // no completed-period rule. Count every period.
+    const pRotationBonusRounded = +pRotationBonusShifts.toFixed(2);
+    totalBonusShiftsFromRotation += pRotationBonusRounded;
+
+    const pBonusShiftsTotal = +(pBonusShiftsFromRvu + pRotationBonusRounded).toFixed(2);
     periodBreakdown.push({
       key,
       label: labelForPeriodKey(key, config.productivityTierPeriod),
@@ -925,12 +950,17 @@ export function aggregatePvc(
       shifts: +pShifts.toFixed(2),
       totalAdjustedRvu: +pTotalAdjusted.toFixed(2),
       avgAdjustedRvuPerShift: +pAvgAdjusted.toFixed(2),
-      bonusShifts: pBonusShifts,
+      bonusShiftsFromRvu: pBonusShiftsFromRvu,
+      bonusShiftsFromRotation: pRotationBonusRounded,
+      bonusShifts: pBonusShiftsTotal,
     });
   }
 
-  totalBonusShifts = +totalBonusShifts.toFixed(2);
-  verifiedTotalBonusShifts = +verifiedTotalBonusShifts.toFixed(2);
+  totalBonusShiftsFromRvu = +totalBonusShiftsFromRvu.toFixed(2);
+  totalBonusShiftsFromRotation = +totalBonusShiftsFromRotation.toFixed(2);
+  const totalBonusShifts = +(totalBonusShiftsFromRvu + totalBonusShiftsFromRotation).toFixed(2);
+  verifiedTotalBonusShiftsFromRvu = +verifiedTotalBonusShiftsFromRvu.toFixed(2);
+  const verifiedTotalBonusShifts = +(verifiedTotalBonusShiftsFromRvu + totalBonusShiftsFromRotation).toFixed(2);
   const totalCreditShifts = +(totalShifts + totalBonusShifts).toFixed(2);
   const verifiedTotalCreditShifts = +(totalShifts + verifiedTotalBonusShifts).toFixed(2);
   const estimatedDollars = config.shiftValue != null
@@ -944,7 +974,9 @@ export function aggregatePvc(
   const showMeeting = anySessionHasMeeting;
   const showAllIn = showBonus || showMeeting;
   const showDollars = config.shiftValue != null;
-  const showProductivity = config.productivityTiersActive && config.productivityTiers.length > 0;
+  const showBonusFromRvu = config.productivityTiersActive && config.productivityTiers.length > 0;
+  const showBonusFromRotation = anyRotationHasBonusShiftCredit(config);
+  const showBonusTotal = showBonusFromRvu || showBonusFromRotation;
 
   return {
     enabled: true,
@@ -958,6 +990,8 @@ export function aggregatePvc(
     allInRvuPerShift,
     wrvuPerShift,
     estimatedDollars,
+    totalBonusShiftsFromRvu,
+    totalBonusShiftsFromRotation,
     totalBonusShifts,
     totalCreditShifts,
     hasVerifiedData,
@@ -972,7 +1006,9 @@ export function aggregatePvc(
       allInRvuPerShift: showAllIn,
       estimatedDollars: showDollars,
       clockHours: true,
-      productivityBonus: showProductivity,
+      bonusShiftsFromRvu: showBonusFromRvu,
+      bonusShiftsFromRotation: showBonusFromRotation,
+      bonusShiftsTotal: showBonusTotal,
     },
   };
 }

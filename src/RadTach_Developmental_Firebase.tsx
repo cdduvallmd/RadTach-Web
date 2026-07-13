@@ -1667,6 +1667,7 @@ function RadTachInner() {
           const credit = computeShiftCredit(rotationName, halfDay, priorSessions, freshPvc);
           pvcFields = {
             pvcShiftCredit: credit.pvcShiftCredit,
+            pvcBonusShiftCredit: credit.pvcBonusShiftCredit,
             pvcBonusRvu: credit.pvcBonusRvu,
             pvcRotationAtStart: credit.pvcRotationAtStart,
             // null is intentional ("no override"); only include the field when

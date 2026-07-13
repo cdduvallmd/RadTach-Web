@@ -265,6 +265,7 @@ export default function PvcSettings({ system, userId, canEdit, onClose }: PvcSet
                     <tr className="border-b border-gray-700 text-gray-400">
                       <th className="text-left py-1.5 pr-3">Rotation</th>
                       <th className="text-center py-1.5 px-2">Shift count</th>
+                      <th className="text-center py-1.5 px-2" title="Bonus shifts awarded by rotation, in addition to Shift count. Adds to payout without inflating the RVU/shift denominator. Example: WEEKEND CALL 1/2 = shift count 1.0, bonus shifts 1.0. Halves on half-day.">Bonus shifts</th>
                       <th className="text-center py-1.5 px-2">Bonus RVU</th>
                       <th className="text-center py-1.5 px-2" title="Flat RVU replaces this session's accrued wRVU on the qualifying session (e.g., FLUORO = 60). Leave blank for normal accrual.">Flat RVU</th>
                       <th className="text-center py-1.5 px-2">Bonus halves on half-day</th>
@@ -283,6 +284,15 @@ export default function PvcSettings({ system, userId, canEdit, onClose }: PvcSet
                               step="0.5"
                               value={overlay.shiftCount}
                               onChange={e => updateRotationOverlay(name, { shiftCount: Number(e.target.value) || 0 })}
+                              className="w-20 px-2 py-0.5 bg-gray-700 text-white rounded border border-gray-600 text-center"
+                            />
+                          </td>
+                          <td className="text-center py-1.5 px-2">
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={overlay.bonusShiftCredit ?? 0}
+                              onChange={e => updateRotationOverlay(name, { bonusShiftCredit: Number(e.target.value) || 0 })}
                               className="w-20 px-2 py-0.5 bg-gray-700 text-white rounded border border-gray-600 text-center"
                             />
                           </td>

@@ -21,6 +21,7 @@ export function getDefaultRotationOverlay(rotationName: string): RotationOverlay
   if (rotationName === UNASSIGNED) {
     return {
       shiftCount: 0,
+      bonusShiftCredit: 0,
       bonusRvu: 0,
       bonusHalvesOnHalfDay: false,
       contributesToShiftCount: false,
@@ -29,6 +30,7 @@ export function getDefaultRotationOverlay(rotationName: string): RotationOverlay
   }
   return {
     shiftCount: 1.0,
+    bonusShiftCredit: 0,
     bonusRvu: 0,
     bonusHalvesOnHalfDay: true,
     contributesToShiftCount: true,
@@ -66,6 +68,7 @@ export function computeShiftCredit(
   if (!overlay.contributesToShiftCount) {
     return {
       pvcShiftCredit: 0,
+      pvcBonusShiftCredit: 0,
       pvcBonusRvu: 0,
       pvcRotationAtStart: rotationName,
       pvcWrvuOverride: hasFlat ? 0 : null,
@@ -78,6 +81,7 @@ export function computeShiftCredit(
     // Subsequent sessions on a flat-RVU rotation still get zeroed out wRVU.
     return {
       pvcShiftCredit: 0,
+      pvcBonusShiftCredit: 0,
       pvcBonusRvu: 0,
       pvcRotationAtStart: rotationName,
       pvcWrvuOverride: hasFlat ? 0 : null,
@@ -89,6 +93,9 @@ export function computeShiftCredit(
 
   return {
     pvcShiftCredit: overlay.shiftCount * shiftMultiplier,
+    // Bonus shift credit scales with shiftMultiplier (same as shiftCount),
+    // not with bonusHalvesOnHalfDay — that flag governs the RVU bonus only.
+    pvcBonusShiftCredit: (overlay.bonusShiftCredit ?? 0) * shiftMultiplier,
     pvcBonusRvu: overlay.bonusRvu * bonusMultiplier,
     pvcRotationAtStart: rotationName,
     // Half-day on a flat-RVU rotation: scale the flat amount proportionally.
@@ -258,6 +265,12 @@ export function applyModalityOnlyAdjustment(
 // Used by adaptive report columns.
 export function anyRotationHasBonus(config: PvcConfig): boolean {
   return Object.values(config.rotationConfig).some(o => o.bonusRvu > 0);
+}
+
+// Returns true if any rotation overlay configures a non-zero bonus shift credit.
+// Used by adaptive report columns.
+export function anyRotationHasBonusShiftCredit(config: PvcConfig): boolean {
+  return Object.values(config.rotationConfig).some(o => (o.bonusShiftCredit ?? 0) > 0);
 }
 
 // Productivity bonus shifts per shift, computed from a period's Adjusted wRVU

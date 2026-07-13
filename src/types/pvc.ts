@@ -6,7 +6,13 @@
 // meeting RVU, and optional productivity tiers. Feature-flagged per system.
 
 export interface RotationOverlay {
-  shiftCount: number;              // 1.0 default; 2.0 for WEEKEND CALL 1/2; 0 for Unassigned
+  shiftCount: number;              // 1.0 default; 1.0 for WEEKEND CALL 1/2 (was 2.0 — see bonusShiftCredit); 0 for Unassigned
+  // Bonus shift credit awarded by rotation. Adds to payout and appears in
+  // "Bonus Shifts from Rotation" without inflating the RVU/shift denominator.
+  // Model for WEEKEND CALL 1/2: shiftCount=1.0, bonusShiftCredit=1.0. This
+  // preserves the RVU/shift average used by the productivity-tier engine
+  // while still paying 2 shifts of credit. Halves on half-day like shiftCount.
+  bonusShiftCredit: number;        // 0 default
   bonusRvu: number;                // 0 default; e.g., 3.25 for South, 1.75 for Yukon
   bonusHalvesOnHalfDay: boolean;   // default true
   contributesToShiftCount: boolean;// false for Unassigned, true otherwise
@@ -94,6 +100,7 @@ export interface UserPvcSettings {
 // Output of computeShiftCredit at session start
 export interface ShiftCredit {
   pvcShiftCredit: number;     // 0, 0.5, 1.0, 2.0, etc.
+  pvcBonusShiftCredit: number;// 0 if no rotation bonus or already claimed today
   pvcBonusRvu: number;        // 0 if no bonus or already claimed
   pvcRotationAtStart: string; // frozen rotation name
   // null = no wRVU override (normal accrual). 0 = zero out wRVU for this

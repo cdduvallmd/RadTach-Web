@@ -44,6 +44,7 @@ export interface StoredSession {
   // Frozen at session start. Absent for sessions created before PVC was enabled
   // for the system, or while pvc.enabled === false.
   pvcShiftCredit?: number;            // 0, 0.5, 1.0, 2.0
+  pvcBonusShiftCredit?: number;       // flat shift bonus by rotation (e.g., 1.0 for WEEKEND CALL 1/2)
   pvcBonusRvu?: number;               // computed at start, frozen
   pvcRotationAtStart?: string;        // immutable record of qualifying rotation
   pvcPendingClassification?: boolean; // Phase 2a: admin blocks ≥30 min await user review
