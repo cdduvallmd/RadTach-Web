@@ -1344,6 +1344,18 @@ function RadTachInner() {
           else failed.push(result.entry);
         }
 
+        // Sidecar consequence: an orphan means the last session crashed
+        // without writing sessionActive=false, so Sidecar is still showing the
+        // CPT tree. If we successfully recovered at least one orphan, flip the
+        // flag so Sidecar returns to "Waiting for RadTach session..." — both
+        // as a safety fence (no stray study_start writes into a stale command
+        // doc) and as a UX cue (visible reset tells the rad to start a new
+        // session before tapping anything). Only touch it on success; a
+        // failed recovery keeps the flag intact so retry can still land.
+        if (succeeded.length > 0) {
+          try { await firestoreService.writeSessionStatus(currentUser.uid, false); } catch { /* non-fatal */ }
+        }
+
         setRecoveredSessions(succeeded);
         setFailedRecoveries(failed);
       } catch { /* network error or other — skip recovery silently */ }
