@@ -997,6 +997,22 @@ function RadTachInner() {
     return () => { cancelled = true; };
   }, [currentUser]);
 
+  // Live subscription to users/{uid}/settings/current so favorites/combos refs
+  // stay fresh when Sidecar edits them independently. Without this, deleting
+  // a combo on Sidecar was resurrected on the next session-start sync-push
+  // because RadTach's cached copy (populated once at login) was stale. The
+  // subscription updates the refs only — no React state / re-render churn —
+  // and its data flows out via writeSyncSettings on the next session start.
+  useEffect(() => {
+    if (!FIREBASE_ENABLED || !currentUser) return;
+    const unsub = firestoreService.listenToUserSettings(currentUser.uid, (settings) => {
+      if (!settings) return;
+      if (Array.isArray(settings.favorites)) firestoreFavoritesRef.current = settings.favorites;
+      if (Array.isArray(settings.sidecarCombos)) firestoreCombosRef.current = settings.sidecarCombos;
+    });
+    return unsub;
+  }, [currentUser]);
+
   // Load CPT database (one-time, for Sidecar/HL7 RVU lookups)
   useEffect(() => {
     if (!FIREBASE_ENABLED || !currentUser) return;
@@ -1073,14 +1089,15 @@ function RadTachInner() {
       } else if (cmd.action === 'stop') {
         processSidecarStopRef.current();
       } else if (cmd.action === 'sync_settings_response') {
-        // Sidecar sent back merged favorites/combos — write to Firestore
+        // Sidecar sent back merged favorites/combos — write to Firestore.
+        // Accept empty arrays (delete-down-to-zero); only Array.isArray gate.
         const newFavs = cmd.favorites;
         const newCombos = cmd.sidecarCombos;
-        if (Array.isArray(newFavs) && newFavs.length > 0) {
+        if (Array.isArray(newFavs)) {
           firestoreFavoritesRef.current = newFavs;
           firestoreService.saveFavorites(currentUser.uid, newFavs).catch(console.error);
         }
-        if (Array.isArray(newCombos) && newCombos.length > 0) {
+        if (Array.isArray(newCombos)) {
           firestoreCombosRef.current = newCombos;
           firestoreService.saveSidecarCombos(currentUser.uid, newCombos).catch(console.error);
         }

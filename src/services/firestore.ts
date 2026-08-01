@@ -162,7 +162,7 @@ export const firestoreService = {
     await _retryUpdate(docRef, { favorites });
   },
 
-  async saveSidecarCombos(userId: string, combos: Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string }>) {
+  async saveSidecarCombos(userId: string, combos: Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>) {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
     await _retryUpdate(docRef, { sidecarCombos: combos });
   },
@@ -171,6 +171,26 @@ export const firestoreService = {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
     const docSnap = await getDoc(docRef);
     return docSnap.exists() ? docSnap.data() : null;
+  },
+
+  // Live subscription to users/{uid}/settings/current. Fires immediately with
+  // current state, then on every remote write. Callers use this to keep local
+  // caches in sync when the same doc is edited from another surface (e.g.,
+  // Sidecar editing sidecarCombos while RadTach is running). Prior versions
+  // used a one-shot getUserSettings at login, which left the RadTach cache
+  // stale and caused deleted combos to be resurrected on next session-start
+  // sync-push back to Sidecar.
+  listenToUserSettings(
+    userId: string,
+    callback: (settings: Record<string, any> | null) => void,
+    onError?: (err: Error) => void,
+  ): () => void {
+    const docRef = doc(db, 'users', userId, 'settings', 'current');
+    return onSnapshot(
+      docRef,
+      (snap) => callback(snap.exists() ? snap.data() : null),
+      (err) => { console.error('User settings listener error:', err); onError?.(err); },
+    );
   },
 
   async saveUserSettings(userId: string, settings: Record<string, any>) {
