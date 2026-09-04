@@ -306,9 +306,11 @@ export function computeBonusShiftsPerShift(
       const slice = sliceUpper - tier.thresholdDailyWrvu;
       if (slice >= 0) {
         bonus += slice * tier.multiplier;
-      } else if (allowNegativeBonus) {
-        // Only the lowest tier produces negative slice; higher tiers' slice is
-        // already 0 or positive due to the cap above.
+      } else if (allowNegativeBonus && i === 0) {
+        // Only the lowest tier can produce a penalty. For higher tiers, a
+        // negative slice means "avg didn't reach this tier" — it should
+        // contribute 0, not a penalty, because the Tier 1 positive slice
+        // already reflects the user's position. Matches the stacked branch.
         bonus += slice * tier.multiplier;
       }
     } else {
