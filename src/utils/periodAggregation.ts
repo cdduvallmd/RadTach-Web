@@ -11,6 +11,17 @@ import type { StoredSession, DateRange, PeriodSummary } from '../types/reports';
 import type { PvcConfig, UserPvcSettings, ProductivityTierPeriod } from '../types/pvc';
 import { anyRotationHasBonus, anyRotationHasBonusShiftCredit, computeBonusShiftsPerShift, monthKey, quarterKey, dayKey } from './pvcConfig';
 
+// Flat-rate sessions (e.g. Fluoro with pvcWrvuOverride set at session start)
+// contribute a fixed wRVU credit that isn't earned per unit time. They belong
+// in absolute totals (wRVU sums, shifts, session time) but pollute rate,
+// variance, and productivity-ratio metrics — a 60-wRVU Fluoro session over
+// 8 hours reads as 7.5 RVU/hr and skews any per-hour average toward the
+// flat rate. Any metric that divides RVU or studies by time (or that ranks
+// by RVU/hr) should exclude these.
+function isFlatRateSession(s: StoredSession): boolean {
+  return s.pvcWrvuOverride != null;
+}
+
 // ── Date Range Helpers ────────────────────────────────────────────────────────
 
 export function getDayRange(date: Date): DateRange {
@@ -81,6 +92,10 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
     return isWithinInterval(d, { start: dateRange.start, end: dateRange.end });
   });
 
+  // Flat-rate sessions are excluded from every per-hour, per-study,
+  // variance, and productivity-ratio metric. See isFlatRateSession above.
+  const filteredForRates = filtered.filter(s => !isFlatRateSession(s));
+
   const totalSessions = filtered.length;
   const fullDaySessions = filtered.filter(s => !s.halfDay).length;
   const halfDaySessions = filtered.filter(s => s.halfDay).length;
@@ -96,7 +111,6 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
   const sessionsWithVerifiedRVU = filtered.filter(s => s.verifiedRVU != null && s.verifiedRVU > 0).length;
 
   // Time totals
-  const totalSessionTime = filtered.reduce((sum, s) => sum + s.totalSessionTime, 0);
   const totalStudyTime = filtered.reduce((sum, s) => {
     return sum + (s.summary?.timeAllocation.study ?? (s.totalSessionTime - s.interstitialTime - s.adminTime - s.commsTime - s.breakTime - s.doubleTapTime));
   }, 0);
@@ -106,15 +120,18 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
   const totalBreakTime = filtered.reduce((sum, s) => sum + s.breakTime, 0);
   const totalDoubleTapTime = filtered.reduce((sum, s) => sum + s.doubleTapTime, 0);
 
-  // RVU/hr: total RVU / total session hours (excluding break time)
-  const productiveHours = (totalSessionTime - totalBreakTime) / 3600;
-  const avgRVUPerHour = productiveHours > 0 ? totalRVU / productiveHours : 0;
+  // RVU/hr: uses non-flat-rate sessions only. Flat-rate wRVU isn't earned per
+  // unit time, so including flat-rate sessions in either the numerator or
+  // denominator distorts the ratio.
+  const ratesRvuSum = filteredForRates.reduce((sum, s) => sum + s.totalRVU, 0);
+  const ratesHours = filteredForRates.reduce((sum, s) => sum + (s.totalSessionTime - s.breakTime), 0) / 3600;
+  const avgRVUPerHour = ratesHours > 0 ? ratesRvuSum / ratesHours : 0;
 
-  // Per-session metrics for averaging
+  // Per-session metrics for averaging (flat-rate sessions excluded)
   const sessionVariances: number[] = [];
   const sessionProductiveRatios: number[] = [];
 
-  for (const s of filtered) {
+  for (const s of filteredForRates) {
     // Average variance from summary if available
     if (s.summary?.avgVarianceByModality) {
       const variances = Object.values(s.summary.avgVarianceByModality);
@@ -140,7 +157,7 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
   // Productive ratio weighted by session duration: (Σ ratio×duration) / Σ duration
   const avgProductiveRatio = (() => {
     let weightedSum = 0, totalDuration = 0;
-    for (const s of sessions) {
+    for (const s of filteredForRates) {
       const ratio = s.summary?.productiveTimeRatio ??
         (s.totalSessionTime > 0 ? (s.totalSessionTime - s.interstitialTime - s.adminTime - s.commsTime - s.breakTime) / s.totalSessionTime : 0);
       weightedSum += ratio * s.totalSessionTime;
@@ -218,12 +235,22 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
   const studiesByRotation: Record<string, number> = {};
   const hoursMinusBreakByRotation: Record<string, number> = {};
 
+  // Absolute totals include flat-rate sessions (informative — you did work Fluoro)
   for (const s of filtered) {
     const rot = s.rotation || 'Unknown';
     sessionsByRotation[rot] = (sessionsByRotation[rot] || 0) + 1;
     rvuByRotation[rot] = (rvuByRotation[rot] || 0) + s.totalRVU;
     studiesByRotation[rot] = (studiesByRotation[rot] || 0) + s.studiesCompleted;
+  }
+
+  // Rate/variance denominators exclude flat-rate sessions.
+  const rvuByRotationForRates: Record<string, number> = {};
+  const studiesByRotationForRates: Record<string, number> = {};
+  for (const s of filteredForRates) {
+    const rot = s.rotation || 'Unknown';
     hoursMinusBreakByRotation[rot] = (hoursMinusBreakByRotation[rot] || 0) + (s.totalSessionTime - s.breakTime) / 3600;
+    rvuByRotationForRates[rot] = (rvuByRotationForRates[rot] || 0) + s.totalRVU;
+    studiesByRotationForRates[rot] = (studiesByRotationForRates[rot] || 0) + s.studiesCompleted;
 
     if (s.summary?.avgVarianceByModality) {
       const variances = Object.values(s.summary.avgVarianceByModality);
@@ -236,7 +263,9 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
 
   for (const rot of Object.keys(sessionsByRotation)) {
     const hours = hoursMinusBreakByRotation[rot] || 0;
-    rvuPerHourByRotation[rot] = hours > 0 ? (rvuByRotation[rot] || 0) / hours : 0;
+    // Rotations composed entirely of flat-rate sessions get no rate entry;
+    // showing "0 RVU/hr" or a flat-rate-inflated number would misinform.
+    rvuPerHourByRotation[rot] = hours > 0 ? (rvuByRotationForRates[rot] || 0) / hours : 0;
   }
 
   const avgVarianceByRotation: Record<string, number> = {};
@@ -244,13 +273,14 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
     avgVarianceByRotation[rot] = variances.reduce((a, b) => a + b, 0) / variances.length;
   }
 
-  // Rotation deck quality decomposition
+  // Rotation deck quality decomposition — uses non-flat-rate accumulators so
+  // Fluoro's 60 flat wRVU doesn't inflate per-study or per-hour ratios.
   const avgRvuPerStudyByRotation: Record<string, number> = {};
   const studiesPerHourByRotation: Record<string, number> = {};
   for (const rot of Object.keys(sessionsByRotation)) {
-    const studies = studiesByRotation[rot] || 0;
+    const studies = studiesByRotationForRates[rot] || 0;
     const hours = hoursMinusBreakByRotation[rot] || 0;
-    avgRvuPerStudyByRotation[rot] = studies > 0 ? (rvuByRotation[rot] || 0) / studies : 0;
+    avgRvuPerStudyByRotation[rot] = studies > 0 ? (rvuByRotationForRates[rot] || 0) / studies : 0;
     studiesPerHourByRotation[rot] = hours > 0 ? studies / hours : 0;
   }
 
@@ -265,7 +295,9 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
     sessionsByDayOfWeek[dayName] = (sessionsByDayOfWeek[dayName] || 0) + 1;
     if (!rvuPerHourByDayOfWeek[dayName]) rvuPerHourByDayOfWeek[dayName] = [];
     const hours = (s.totalSessionTime - s.breakTime) / 3600;
-    if (hours > 0) {
+    // Rate accumulation excludes flat-rate — a Fluoro day at 60/8=7.5 RVU/hr
+    // isn't a productivity signal for that weekday.
+    if (hours > 0 && !isFlatRateSession(s)) {
       rvuPerHourByDayOfWeek[dayName].push(s.totalRVU / hours);
     }
   }
@@ -338,9 +370,9 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
     };
   }
 
-  // Best session
+  // Best session — flat-rate sessions can't win an RVU/hr contest by design.
   let bestSession: PeriodSummary['bestSession'] = null;
-  for (const s of filtered) {
+  for (const s of filteredForRates) {
     const hours = (s.totalSessionTime - s.breakTime) / 3600;
     if (hours <= 0 || s.studiesCompleted === 0) continue;
     const rvuHr = s.totalRVU / hours;
@@ -355,8 +387,9 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
     }
   }
 
-  // Session data points for trend charts
-  const sessionDataPoints = filtered.map(s => {
+  // Session data points for trend charts — flat-rate sessions omitted so they
+  // don't produce off-scale outliers on RVU/hr and variance axes.
+  const sessionDataPoints = filteredForRates.map(s => {
     const hours = (s.totalSessionTime - s.breakTime) / 3600;
     const rvuHr = hours > 0 ? s.totalRVU / hours : 0;
     const variance = s.summary?.avgVarianceByModality
@@ -406,10 +439,20 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
     };
   }
 
-  // Deck quality metrics
-  const avgRvuPerStudy = totalStudies > 0 ? totalRVU / totalStudies : 0;
-  const periodProductiveHours = (totalStudyTime + totalInterstitialTime + totalAdminTime + totalCommsTime + totalDoubleTapTime) / 3600;
-  const avgStudiesPerHour = periodProductiveHours > 0 ? totalStudies / periodProductiveHours : 0;
+  // Deck quality metrics — computed from non-flat-rate sessions only. Fluoro's
+  // 60 wRVU over 0 studies would produce Infinity RVU/study, and its shift
+  // time would dilute studies/hour without contributing studies.
+  const ratesStudies = filteredForRates.reduce((sum, s) => sum + s.studiesCompleted, 0);
+  const ratesStudyTime = filteredForRates.reduce((sum, s) => {
+    return sum + (s.summary?.timeAllocation.study ?? (s.totalSessionTime - s.interstitialTime - s.adminTime - s.commsTime - s.breakTime - s.doubleTapTime));
+  }, 0);
+  const ratesInterstitial = filteredForRates.reduce((sum, s) => sum + s.interstitialTime, 0);
+  const ratesAdmin = filteredForRates.reduce((sum, s) => sum + s.adminTime, 0);
+  const ratesComms = filteredForRates.reduce((sum, s) => sum + s.commsTime, 0);
+  const ratesDoubleTap = filteredForRates.reduce((sum, s) => sum + s.doubleTapTime, 0);
+  const avgRvuPerStudy = ratesStudies > 0 ? ratesRvuSum / ratesStudies : 0;
+  const periodProductiveHours = (ratesStudyTime + ratesInterstitial + ratesAdmin + ratesComms + ratesDoubleTap) / 3600;
+  const avgStudiesPerHour = periodProductiveHours > 0 ? ratesStudies / periodProductiveHours : 0;
 
   // Fastest/slowest CPTs aggregated
   const cptAgg: Record<string, { modality: string; totalVariance: number; count: number }> = {};
@@ -634,9 +677,11 @@ export interface PersonalBests {
 }
 
 export function findPersonalBests(sessions: StoredSession[]): PersonalBests {
-  // Best session by RVU/hr
+  // Best session by RVU/hr — flat-rate sessions excluded (their per-hour
+  // rate is a mechanical division, not a productivity record).
   let bestSession: PersonalBests['bestSession'] = null;
   for (const s of sessions) {
+    if (isFlatRateSession(s)) continue;
     const hours = (s.totalSessionTime - s.breakTime) / 3600;
     if (hours <= 0 || s.studiesCompleted === 0) continue;
     const rvuHr = s.totalRVU / hours;
