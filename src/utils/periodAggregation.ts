@@ -85,7 +85,13 @@ export function aggregateSessions(sessions: StoredSession[], dateRange: DateRang
   const fullDaySessions = filtered.filter(s => !s.halfDay).length;
   const halfDaySessions = filtered.filter(s => s.halfDay).length;
   const totalStudies = filtered.reduce((sum, s) => sum + s.studiesCompleted, 0);
-  const totalRVU = filtered.reduce((sum, s) => sum + s.totalRVU, 0);
+  // FLUORO-style flat RVU: when pvcWrvuOverride is set (non-null), it
+  // REPLACES the session's accrued wRVU. Mirrors the pattern used in
+  // aggregatePvc() below.
+  const totalRVU = filtered.reduce((sum, s) => {
+    const sessionWrvu = (s.pvcWrvuOverride != null) ? s.pvcWrvuOverride : s.totalRVU;
+    return sum + sessionWrvu;
+  }, 0);
   const totalVerifiedRVU = filtered.reduce((sum, s) => sum + (s.verifiedRVU ?? 0), 0);
   const sessionsWithVerifiedRVU = filtered.filter(s => s.verifiedRVU != null && s.verifiedRVU > 0).length;
 
