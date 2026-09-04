@@ -789,7 +789,10 @@ export interface PvcAggregation {
   // hasVerifiedData is true if AT LEAST ONE session in the input has a
   // verifiedRVU > 0; UI gates display on this.
   hasVerifiedData: boolean;
-  verifiedEstimatedDollars: number;  // (totalShifts + verifiedTotalBonusShifts) × shiftValue
+  verifiedTotalBonusShiftsFromRvu: number; // productivity tier bonus using verifiedRVU as basis
+  verifiedTotalBonusShifts: number;        // verifiedTotalBonusShiftsFromRvu + totalBonusShiftsFromRotation
+  verifiedTotalCreditShifts: number;       // totalShifts + verifiedTotalBonusShifts
+  verifiedEstimatedDollars: number;        // (totalShifts + verifiedTotalBonusShifts) × shiftValue
   periodBreakdown: PvcPeriodBreakdownRow[];  // per-period rows (sorted by key)
   computationPeriod: ProductivityTierPeriod;
   columnsToShow: PvcColumnsToShow;
@@ -881,6 +884,9 @@ export function aggregatePvc(
       totalBonusShifts: 0,
       totalCreditShifts: 0,
       hasVerifiedData: false,
+      verifiedTotalBonusShiftsFromRvu: 0,
+      verifiedTotalBonusShifts: 0,
+      verifiedTotalCreditShifts: 0,
       verifiedEstimatedDollars: 0,
       periodBreakdown: [],
       computationPeriod: config.productivityTierPeriod,
@@ -1046,6 +1052,9 @@ export function aggregatePvc(
     totalBonusShifts,
     totalCreditShifts,
     hasVerifiedData,
+    verifiedTotalBonusShiftsFromRvu,
+    verifiedTotalBonusShifts,
+    verifiedTotalCreditShifts,
     verifiedEstimatedDollars,
     periodBreakdown,
     computationPeriod: config.productivityTierPeriod,

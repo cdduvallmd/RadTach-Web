@@ -148,74 +148,100 @@ export default function PvcReportSection({
   const shiftHeader = periodAgg.shiftLabel === 'shift' ? 'Shifts' : 'Working Days';
   const perShiftSuffix = periodAgg.shiftLabel === 'shift' ? '/ Shift' : '/ Day';
 
-  // Period totals cells (top row). Adaptive ordering.
-  const cells: Array<{ label: string; value: string; valueClass?: string }> = [];
-  if (cols.clockHours) cells.push({ label: 'Clock Hours', value: periodAgg.totalClockHours.toFixed(1) });
-  cells.push({ label: shiftHeader, value: periodAgg.totalShifts.toFixed(2) });
-  cells.push({ label: 'wRVU', value: periodAgg.totalWrvu.toFixed(2) });
-  if (verifiedTotals.sessionsWithVerified > 0) {
-    cells.push({ label: 'Verified wRVU', value: verifiedTotals.total.toFixed(2), valueClass: 'text-green-400' });
+  // Three-row summary layout. Row 1 = period facts (invariant between
+  // RadTach and Epic-verified counting). Row 2 = RadTach-side accumulation
+  // and derived comp. Row 3 = Epic-verified counterpart, only shown when at
+  // least one session in the period has a verifiedRVU > 0. Row 3's
+  // Epic-derived cells render in green; Bonus/Meeting RVU stay default since
+  // they don't differ between the two counting bases.
+  type Cell = { label: string; value: string; valueClass?: string };
+  const currency = (n: number) =>
+    n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const green = 'text-green-400';
+
+  // Row 1 — period facts
+  const row1: Cell[] = [];
+  if (cols.clockHours) row1.push({ label: 'Clock Hours', value: periodAgg.totalClockHours.toFixed(1) });
+  row1.push({ label: `Worked ${shiftHeader}`, value: periodAgg.totalShifts.toFixed(2) });
+  if (cols.bonusRvu) row1.push({ label: 'Bonus RVU', value: periodAgg.totalBonusRvu.toFixed(2) });
+  if (cols.meetingRvu) row1.push({ label: 'Meeting RVU', value: periodAgg.totalMeetingRvu.toFixed(2) });
+  if (cols.bonusShiftsFromRotation) {
+    row1.push({ label: 'Bonus Shifts', value: periodAgg.totalBonusShiftsFromRotation.toFixed(2) });
   }
-  if (cols.bonusRvu) cells.push({ label: 'Bonus RVU', value: periodAgg.totalBonusRvu.toFixed(2) });
-  if (cols.meetingRvu) cells.push({ label: 'Meeting RVU', value: periodAgg.totalMeetingRvu.toFixed(2) });
+  if (cols.estimatedDollars && pvcConfig.shiftValue != null) {
+    row1.push({ label: 'Shift Value', value: currency(pvcConfig.shiftValue) });
+  }
+
+  // Row 2 — RadTach-side
+  const row2: Cell[] = [];
+  row2.push({ label: 'Worked wRVU', value: periodAgg.totalWrvu.toFixed(2) });
+  if (cols.bonusRvu) row2.push({ label: 'Bonus RVU', value: periodAgg.totalBonusRvu.toFixed(2) });
+  if (cols.meetingRvu) row2.push({ label: 'Meeting RVU', value: periodAgg.totalMeetingRvu.toFixed(2) });
   if (cols.allInRvuPerShift) {
-    cells.push({ label: `All-in RVU ${perShiftSuffix}`, value: periodAgg.allInRvuPerShift.toFixed(2) });
-    // Verified counterpart: for direct comparison against All-in RVU / Shift,
-    // Verified must include Bonus + Meeting (practice overlays that get paid
-    // regardless of billing source). Without those the average understates
-    // the actual compensation-basis rate.
-    if (verifiedTotals.sessionsWithVerified > 0 && periodAgg.totalShifts > 0) {
-      const verifiedAllIn = verifiedTotals.total + periodAgg.totalBonusRvu + periodAgg.totalMeetingRvu;
-      cells.push({
-        label: `Verified All-in ${perShiftSuffix}`,
-        value: (verifiedAllIn / periodAgg.totalShifts).toFixed(2),
-        valueClass: 'text-green-400',
-      });
-    }
+    row2.push({ label: 'Total RVU', value: periodAgg.allInWrvu.toFixed(2) });
+    row2.push({ label: `All-in ${perShiftSuffix}`, value: periodAgg.allInRvuPerShift.toFixed(2) });
   } else {
-    cells.push({ label: `wRVU ${perShiftSuffix}`, value: periodAgg.wrvuPerShift.toFixed(2) });
-    if (verifiedTotals.sessionsWithVerified > 0 && periodAgg.totalShifts > 0) {
-      cells.push({
-        label: `Verified ${perShiftSuffix}`,
-        value: (verifiedTotals.total / periodAgg.totalShifts).toFixed(2),
-        valueClass: 'text-green-400',
-      });
-    }
+    row2.push({ label: `wRVU ${perShiftSuffix}`, value: periodAgg.wrvuPerShift.toFixed(2) });
   }
-  // Bonus shifts — three cells when either source is active. Zeros/negatives
-  // display as-is (user preference: a zero rotation-bonus reads as "no call
-  // shifts this month" — informative, not empty).
-  if (cols.bonusShiftsTotal) {
-    if (cols.bonusShiftsFromRvu) {
-      cells.push({ label: 'Bonus Shifts (RVU)', value: periodAgg.totalBonusShiftsFromRvu.toFixed(2) });
-    }
-    if (cols.bonusShiftsFromRotation) {
-      cells.push({ label: 'Bonus Shifts (Rotation)', value: periodAgg.totalBonusShiftsFromRotation.toFixed(2) });
-    }
-    cells.push({ label: 'Total Bonus Shifts', value: periodAgg.totalBonusShifts.toFixed(2) });
-    cells.push({ label: 'Total Credit', value: periodAgg.totalCreditShifts.toFixed(2) });
+  if (cols.bonusShiftsFromRvu) {
+    row2.push({ label: 'Productivity Bonus', value: periodAgg.totalBonusShiftsFromRvu.toFixed(2) });
   }
+  row2.push({ label: 'Compensation Shifts', value: periodAgg.totalCreditShifts.toFixed(2) });
   if (cols.estimatedDollars) {
-    cells.push({
-      label: 'Estimated $',
-      value: periodAgg.estimatedDollars.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }),
-    });
-    // Verified $ mirrors Estimated $ but uses verifiedRVU as the wRVU input to
-    // the productivity tier bonus calculation. Only meaningful when the
-    // report window contains at least one complete computation period, so
-    // gate on periodType — monthly and quarterly reports are the ones where
-    // bonuses are actually settled. Shorter windows would show partial-period
-    // bonuses that don't reflect what actually gets paid.
-    if (
-      periodAgg.hasVerifiedData &&
-      (periodType === 'monthly' || periodType === 'quarterly')
-    ) {
-      cells.push({
-        label: 'Verified $',
-        value: periodAgg.verifiedEstimatedDollars.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }),
-        valueClass: 'text-green-400',
+    row2.push({ label: 'Compensation Value', value: currency(periodAgg.estimatedDollars) });
+  }
+
+  // Row 3 — Epic/Medicalis verified
+  const row3: Cell[] = [];
+  if (periodAgg.hasVerifiedData) {
+    const verifiedAllIn = verifiedTotals.total + periodAgg.totalBonusRvu + periodAgg.totalMeetingRvu;
+    row3.push({ label: 'Worked wRVU', value: verifiedTotals.total.toFixed(2), valueClass: green });
+    // Bonus/Meeting are the same regardless of RVU source — repeated for
+    // math transparency (Total RVU = Worked + Bonus + Meeting on this row),
+    // but not tinted green since they're not Epic-derived.
+    if (cols.bonusRvu) row3.push({ label: 'Bonus RVU', value: periodAgg.totalBonusRvu.toFixed(2) });
+    if (cols.meetingRvu) row3.push({ label: 'Meeting RVU', value: periodAgg.totalMeetingRvu.toFixed(2) });
+    if (cols.allInRvuPerShift) {
+      row3.push({ label: 'Total RVU', value: verifiedAllIn.toFixed(2), valueClass: green });
+      row3.push({
+        label: `All-in ${perShiftSuffix}`,
+        value: (periodAgg.totalShifts > 0 ? verifiedAllIn / periodAgg.totalShifts : 0).toFixed(2),
+        valueClass: green,
+      });
+    } else {
+      row3.push({
+        label: `wRVU ${perShiftSuffix}`,
+        value: (periodAgg.totalShifts > 0 ? verifiedTotals.total / periodAgg.totalShifts : 0).toFixed(2),
+        valueClass: green,
       });
     }
+    if (cols.bonusShiftsFromRvu) {
+      row3.push({
+        label: 'Productivity Bonus',
+        value: periodAgg.verifiedTotalBonusShiftsFromRvu.toFixed(2),
+        valueClass: green,
+      });
+    }
+    row3.push({
+      label: 'Compensation Shifts',
+      value: periodAgg.verifiedTotalCreditShifts.toFixed(2),
+      valueClass: green,
+    });
+    if (cols.estimatedDollars) {
+      row3.push({
+        label: 'Compensation Value',
+        value: currency(periodAgg.verifiedEstimatedDollars),
+        valueClass: green,
+      });
+    }
+  }
+
+  const summaryRows: Array<{ tag: string; tagClass: string; cells: Cell[] }> = [
+    { tag: 'Period', tagClass: 'text-gray-500', cells: row1 },
+    { tag: 'RadTach', tagClass: 'text-gray-400', cells: row2 },
+  ];
+  if (row3.length > 0) {
+    summaryRows.push({ tag: 'Epic', tagClass: green, cells: row3 });
   }
 
   // Breakdown rows from the context agg (full month/quarter touched by report).
@@ -229,11 +255,23 @@ export default function PvcReportSection({
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
       <h3 className="text-white font-medium mb-3">{heading}</h3>
-      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}>
-        {cells.map(c => (
-          <div key={c.label} className="bg-gray-900/50 rounded p-2">
-            <div className="text-[10px] uppercase tracking-wider text-gray-400">{c.label}</div>
-            <div className={`text-lg font-medium ${c.valueClass ?? 'text-white'}`}>{c.value}</div>
+      <div className="space-y-2">
+        {summaryRows.map(row => (
+          <div key={row.tag} className="flex items-stretch gap-3">
+            <div className={`self-center w-16 shrink-0 text-[10px] uppercase tracking-wider font-medium ${row.tagClass}`}>
+              {row.tag}
+            </div>
+            <div
+              className="flex-1 grid gap-3"
+              style={{ gridTemplateColumns: `repeat(${row.cells.length}, minmax(0, 1fr))` }}
+            >
+              {row.cells.map(c => (
+                <div key={c.label} className="bg-gray-900/50 rounded p-2">
+                  <div className="text-[10px] uppercase tracking-wider text-gray-400">{c.label}</div>
+                  <div className={`text-lg font-medium ${c.valueClass ?? 'text-white'}`}>{c.value}</div>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
