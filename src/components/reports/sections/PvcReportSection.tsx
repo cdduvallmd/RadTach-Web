@@ -114,22 +114,6 @@ export default function PvcReportSection({
     return aggregatePvc(sessions, pvcConfig, userPvc ?? undefined);
   }, [sessions, pvcConfig, userPvc]);
 
-  // Verified wRVU (from Epic/Medicalis) is stored per-session and shown in
-  // the other report tabs' totals. Surface it here too when any session in
-  // the period has been verified, so the rad can compare in-program totals
-  // against the source-of-truth billed values without leaving the PVC view.
-  const verifiedTotals = useMemo(() => {
-    let total = 0;
-    let sessionsWithVerified = 0;
-    for (const s of sessions) {
-      if (s.verifiedRVU != null && s.verifiedRVU > 0) {
-        total += s.verifiedRVU;
-        sessionsWithVerified += 1;
-      }
-    }
-    return { total, sessionsWithVerified };
-  }, [sessions]);
-
   const contextAgg = useMemo(() => {
     if (!pvcConfig) return null;
     return aggregatePvc(monthContextSessions, pvcConfig, userPvc ?? undefined);
@@ -172,14 +156,33 @@ export default function PvcReportSection({
     row1.push({ label: 'Shift Value', value: currency(pvcConfig.shiftValue) });
   }
 
+  // Flat Rate wRVU is shown on both Rows 2 and 3 whenever any session in the
+  // period had a flat-rate override. Kept separate from Worked wRVU so the
+  // efficiency numerator (actual reads) doesn't include the flat credit,
+  // per the group rule that Fluoro pays a flat 60 regardless of what you read.
+  const showFlatRate = periodAgg.totalFlatRateWrvu > 0;
+
   // Row 2 — RadTach-side
   const row2: Cell[] = [];
-  row2.push({ label: 'Worked wRVU', value: periodAgg.totalWrvu.toFixed(2) });
+  row2.push({ label: 'Worked wRVU', value: periodAgg.totalActualReadWrvu.toFixed(2) });
+  if (showFlatRate) row2.push({ label: 'Flat Rate wRVU', value: periodAgg.totalFlatRateWrvu.toFixed(2) });
   if (cols.bonusRvu) row2.push({ label: 'Bonus RVU', value: periodAgg.totalBonusRvu.toFixed(2) });
   if (cols.meetingRvu) row2.push({ label: 'Meeting RVU', value: periodAgg.totalMeetingRvu.toFixed(2) });
-  if (cols.allInRvuPerShift) {
-    row2.push({ label: 'Total RVU', value: periodAgg.allInWrvu.toFixed(2) });
-    row2.push({ label: `All-in ${perShiftSuffix}`, value: periodAgg.allInRvuPerShift.toFixed(2) });
+  // Total RVU = Worked + Flat + Bonus + Meeting per user spec. In the typical
+  // case (no actual reads recorded during flat-rate shifts) this equals the
+  // compensation-basis allInWrvu; if reads WERE recorded during Fluoro, they
+  // still show in Worked here but don't count toward compensation.
+  const displayedTotalRvu =
+    periodAgg.totalActualReadWrvu +
+    periodAgg.totalFlatRateWrvu +
+    periodAgg.totalBonusRvu +
+    periodAgg.totalMeetingRvu;
+  if (cols.allInRvuPerShift || showFlatRate) {
+    row2.push({ label: 'Total RVU', value: displayedTotalRvu.toFixed(2) });
+    row2.push({
+      label: `All-in ${perShiftSuffix}`,
+      value: (periodAgg.totalShifts > 0 ? displayedTotalRvu / periodAgg.totalShifts : 0).toFixed(2),
+    });
   } else {
     row2.push({ label: `wRVU ${perShiftSuffix}`, value: periodAgg.wrvuPerShift.toFixed(2) });
   }
@@ -194,24 +197,32 @@ export default function PvcReportSection({
   // Row 3 — Epic/Medicalis verified
   const row3: Cell[] = [];
   if (periodAgg.hasVerifiedData) {
-    const verifiedAllIn = verifiedTotals.total + periodAgg.totalBonusRvu + periodAgg.totalMeetingRvu;
-    row3.push({ label: 'Worked wRVU', value: verifiedTotals.total.toFixed(2), valueClass: green });
-    // Bonus/Meeting are the same regardless of RVU source — repeated for
-    // math transparency (Total RVU = Worked + Bonus + Meeting on this row),
-    // but not tinted green since they're not Epic-derived.
+    row3.push({ label: 'Worked wRVU', value: periodAgg.totalVerifiedWrvu.toFixed(2), valueClass: green });
+    if (showFlatRate) {
+      // Same flat-rate value as Row 2 — it's a shift-level credit that
+      // applies identically whether counting from RadTach or Epic. Green
+      // because on the Epic side it's the primary comp source for that shift.
+      row3.push({ label: 'Flat Rate wRVU', value: periodAgg.totalFlatRateWrvu.toFixed(2), valueClass: green });
+    }
+    // Bonus/Meeting don't differ between the two counting bases.
     if (cols.bonusRvu) row3.push({ label: 'Bonus RVU', value: periodAgg.totalBonusRvu.toFixed(2) });
     if (cols.meetingRvu) row3.push({ label: 'Meeting RVU', value: periodAgg.totalMeetingRvu.toFixed(2) });
-    if (cols.allInRvuPerShift) {
-      row3.push({ label: 'Total RVU', value: verifiedAllIn.toFixed(2), valueClass: green });
+    const verifiedDisplayedTotal =
+      periodAgg.totalVerifiedWrvu +
+      periodAgg.totalFlatRateWrvu +
+      periodAgg.totalBonusRvu +
+      periodAgg.totalMeetingRvu;
+    if (cols.allInRvuPerShift || showFlatRate) {
+      row3.push({ label: 'Total RVU', value: verifiedDisplayedTotal.toFixed(2), valueClass: green });
       row3.push({
         label: `All-in ${perShiftSuffix}`,
-        value: (periodAgg.totalShifts > 0 ? verifiedAllIn / periodAgg.totalShifts : 0).toFixed(2),
+        value: (periodAgg.totalShifts > 0 ? verifiedDisplayedTotal / periodAgg.totalShifts : 0).toFixed(2),
         valueClass: green,
       });
     } else {
       row3.push({
         label: `wRVU ${perShiftSuffix}`,
-        value: (periodAgg.totalShifts > 0 ? verifiedTotals.total / periodAgg.totalShifts : 0).toFixed(2),
+        value: (periodAgg.totalShifts > 0 ? periodAgg.totalVerifiedWrvu / periodAgg.totalShifts : 0).toFixed(2),
         valueClass: green,
       });
     }

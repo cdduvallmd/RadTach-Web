@@ -770,7 +770,10 @@ export interface PvcAggregation {
   enabled: boolean;
   shiftLabel: 'shift' | 'workingDay';
   totalShifts: number;
-  totalWrvu: number;          // sum of session.totalRVU (already PVC-corrected via chokepoint)
+  totalWrvu: number;          // sum of (pvcWrvuOverride if set else totalRVU) — compensation-basis wRVU (RadTach)
+  totalActualReadWrvu: number;// sum of raw totalRVU (not substituted) — what you actually read this period
+  totalFlatRateWrvu: number;  // sum of pvcWrvuOverride — flat-rate credit that replaces actual reads on those shifts
+  totalVerifiedWrvu: number;  // sum of raw verifiedRVU — Epic-reported reads only, no flat-rate substitution
   totalBonusRvu: number;      // sum of session.pvcBonusRvu
   totalMeetingRvu: number;    // sum of session.pvcMeetingHours × user's effective rate (Phase 2a)
   totalClockHours: number;    // sum of session.totalSessionTime / 3600
@@ -872,6 +875,9 @@ export function aggregatePvc(
       shiftLabel: config.shiftLabel,
       totalShifts: 0,
       totalWrvu: 0,
+      totalActualReadWrvu: 0,
+      totalFlatRateWrvu: 0,
+      totalVerifiedWrvu: 0,
       totalBonusRvu: 0,
       totalMeetingRvu: 0,
       totalClockHours: 0,
@@ -896,6 +902,9 @@ export function aggregatePvc(
 
   let totalShifts = 0;
   let totalWrvu = 0;
+  let totalActualReadWrvu = 0;
+  let totalFlatRateWrvu = 0;
+  let totalVerifiedWrvu = 0;
   let totalBonusRvu = 0;
   let totalMeetingHours = 0;
   let totalClockSeconds = 0;
@@ -905,10 +914,13 @@ export function aggregatePvc(
   for (const s of sessions) {
     totalShifts += s.pvcShiftCredit ?? 0;
     // FLUORO-style flat RVU: when pvcWrvuOverride is set (non-null), it
-    // REPLACES the session's accrued wRVU. Non-qualifying sessions on a
-    // flat-RVU rotation have override=0 (zero out their actual studies).
+    // REPLACES the session's accrued wRVU for compensation purposes. Actual
+    // reads (totalRVU) are tracked separately for efficiency/tracking.
     const sessionWrvu = (s.pvcWrvuOverride != null) ? s.pvcWrvuOverride : (s.totalRVU ?? 0);
     totalWrvu += sessionWrvu;
+    totalActualReadWrvu += s.totalRVU ?? 0;
+    if (s.pvcWrvuOverride != null) totalFlatRateWrvu += s.pvcWrvuOverride;
+    if (s.verifiedRVU != null && s.verifiedRVU > 0) totalVerifiedWrvu += s.verifiedRVU;
     totalBonusRvu += s.pvcBonusRvu ?? 0;
     totalMeetingHours += s.pvcMeetingHours ?? 0;
     totalClockSeconds += s.totalSessionTime ?? 0;
@@ -955,7 +967,13 @@ export function aggregatePvc(
     for (const s of periodSessions) {
       pShifts += s.pvcShiftCredit ?? 0;
       pWrvu += (s.pvcWrvuOverride != null) ? s.pvcWrvuOverride : (s.totalRVU ?? 0);
-      if (s.verifiedRVU != null && s.verifiedRVU > 0) {
+      // Epic-side compensation basis mirrors the RadTach substitution: flat
+      // rate REPLACES raw verifiedRVU when set (Epic effectively pays via the
+      // shift rate). Without this the tier calc understates for Fluoro days.
+      if (s.pvcWrvuOverride != null) {
+        pVerifiedWrvu += s.pvcWrvuOverride;
+        hasVerifiedData = true;
+      } else if (s.verifiedRVU != null && s.verifiedRVU > 0) {
         pVerifiedWrvu += s.verifiedRVU;
         hasVerifiedData = true;
       }
@@ -1040,6 +1058,9 @@ export function aggregatePvc(
     shiftLabel: config.shiftLabel,
     totalShifts: +totalShifts.toFixed(2),
     totalWrvu: +totalWrvu.toFixed(2),
+    totalActualReadWrvu: +totalActualReadWrvu.toFixed(2),
+    totalFlatRateWrvu: +totalFlatRateWrvu.toFixed(2),
+    totalVerifiedWrvu: +totalVerifiedWrvu.toFixed(2),
     totalBonusRvu: +totalBonusRvu.toFixed(2),
     totalMeetingRvu,
     totalClockHours,
