@@ -1004,12 +1004,12 @@ export function aggregatePvc(
         config.allowNegativeBonus,
       );
       pVerifiedBonusShiftsFromRvu = +(verifiedBonusPerShift * pShifts).toFixed(2);
-      // Only count completed periods toward the running tier bonus total —
-      // in-progress periods are tentative and may change.
-      if (isPeriodComplete(key, config.productivityTierPeriod)) {
-        totalBonusShiftsFromRvu += pBonusShiftsFromRvu;
-        verifiedTotalBonusShiftsFromRvu += pVerifiedBonusShiftsFromRvu;
-      }
+      // In-progress periods contribute their running productivity bonus to
+      // the summary totals — user wants a rolling estimate that ticks up as
+      // sessions accumulate through the month. Not gated on isPeriodComplete
+      // anymore; the number will move day-to-day, which is expected.
+      totalBonusShiftsFromRvu += pBonusShiftsFromRvu;
+      verifiedTotalBonusShiftsFromRvu += pVerifiedBonusShiftsFromRvu;
     }
 
     // Rotation bonus shifts accrue per session as they happen — no tier gate,
