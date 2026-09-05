@@ -302,8 +302,9 @@ export default function PvcSettings({ system, userId, canEdit, onClose }: PvcSet
                             <input
                               type="number"
                               step="0.25"
+                              min={0}
                               value={overlay.bonusRvu}
-                              onChange={e => updateRotationOverlay(name, { bonusRvu: Number(e.target.value) || 0 })}
+                              onChange={e => updateRotationOverlay(name, { bonusRvu: Math.max(0, Number(e.target.value) || 0) })}
                               className="w-20 px-2 py-0.5 bg-gray-700 text-white rounded border border-gray-600 text-center"
                             />
                           </td>
@@ -311,11 +312,12 @@ export default function PvcSettings({ system, userId, canEdit, onClose }: PvcSet
                             <input
                               type="number"
                               step="1"
+                              min={0}
                               placeholder="—"
                               value={overlay.flatRvuOverride ?? ''}
                               onChange={e => {
                                 const v = e.target.value.trim();
-                                updateRotationOverlay(name, { flatRvuOverride: v === '' ? null : Number(v) });
+                                updateRotationOverlay(name, { flatRvuOverride: v === '' ? null : Math.max(0, Number(v)) });
                               }}
                               className="w-20 px-2 py-0.5 bg-gray-700 text-white rounded border border-gray-600 text-center"
                             />
