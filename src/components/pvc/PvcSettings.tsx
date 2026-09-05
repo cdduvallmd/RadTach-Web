@@ -282,8 +282,9 @@ export default function PvcSettings({ system, userId, canEdit, onClose }: PvcSet
                             <input
                               type="number"
                               step="0.5"
+                              min={0}
                               value={overlay.shiftCount}
-                              onChange={e => updateRotationOverlay(name, { shiftCount: Number(e.target.value) || 0 })}
+                              onChange={e => updateRotationOverlay(name, { shiftCount: Math.max(0, Number(e.target.value) || 0) })}
                               className="w-20 px-2 py-0.5 bg-gray-700 text-white rounded border border-gray-600 text-center"
                             />
                           </td>
@@ -291,8 +292,9 @@ export default function PvcSettings({ system, userId, canEdit, onClose }: PvcSet
                             <input
                               type="number"
                               step="0.5"
+                              min={0}
                               value={overlay.bonusShiftCredit ?? 0}
-                              onChange={e => updateRotationOverlay(name, { bonusShiftCredit: Number(e.target.value) || 0 })}
+                              onChange={e => updateRotationOverlay(name, { bonusShiftCredit: Math.max(0, Number(e.target.value) || 0) })}
                               className="w-20 px-2 py-0.5 bg-gray-700 text-white rounded border border-gray-600 text-center"
                             />
                           </td>
