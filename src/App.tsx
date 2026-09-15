@@ -2549,12 +2549,15 @@ function RadTachInner() {
       }
 
       setIsAdminTimeRunning(false);
-      setIsInterstitialRunning(true);
-      setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1
-
-      // Resume study timer if one was in progress
-      if (selectedModality !== null && currentTime > 0) {
+      // If a study was paused by Admin, resume it directly — don't pass through
+      // Interstitial. Mirrors Break's fix; matches the design intent documented
+      // in toggleBreakTime's comment.
+      const studyResuming = selectedModality !== null && currentTime > 0;
+      if (studyResuming) {
         setIsRunning(true);
+      } else {
+        setIsInterstitialRunning(true);
+        setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
       }
     }
   };
@@ -2595,12 +2598,15 @@ function RadTachInner() {
       }
 
       setIsCommsTimeRunning(false);
-      setIsInterstitialRunning(true);
-      setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1
-
-      // Resume study timer if one was in progress
-      if (selectedModality !== null && currentTime > 0) {
+      // If a study was paused by Comms, resume it directly — don't pass through
+      // Interstitial. Mirrors Break's fix; matches the design intent documented
+      // in toggleBreakTime's comment.
+      const studyResuming = selectedModality !== null && currentTime > 0;
+      if (studyResuming) {
         setIsRunning(true);
+      } else {
+        setIsInterstitialRunning(true);
+        setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
       }
     }
   };
