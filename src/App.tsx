@@ -4,6 +4,7 @@ import { firestoreService } from './services/firestore';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { migrateLocalStorageToFirestore } from './utils/migration';
 import { computeSessionSummary } from './utils/sessionSummary';
+import { checkForNewerBuild } from './utils/versionCheck';
 import type { SessionSummary } from './utils/sessionSummary';
 import Reports from './components/Reports';
 import { triggerGARAggregation } from './utils/garTrigger';
@@ -367,6 +368,9 @@ function RadTachInner() {
 
   // System/Office selection (session start dialog)
   const [showSessionStartDialog, setShowSessionStartDialog] = useState(false);
+  // Version check on Start Session: deployed build ID when newer than this tab's
+  const [newerBuildId, setNewerBuildId] = useState<string | null>(null);
+  const [isCheckingVersion, setIsCheckingVersion] = useState(false);
   const [systemInput, setSystemInput] = useState(() => localStorage.getItem('radtach_lastSystem') || '');
   const [officeList, setOfficeList] = useState<string[]>([]);
   const [officeZips, setOfficeZips] = useState<Record<string, string>>({});
@@ -1573,7 +1577,22 @@ function RadTachInner() {
   };
 
   // Start a new session (Issue #1)
-  const handleStartSession = () => {
+  // Start Session click: first check whether a newer build is deployed, and if
+  // so offer to reload before the session starts (no timers yet, nothing to
+  // lose). A failed or slow check never blocks — the session starts as usual.
+  const handleStartSession = async () => {
+    if (isCheckingVersion) return;
+    setIsCheckingVersion(true);
+    const newer = await checkForNewerBuild();
+    setIsCheckingVersion(false);
+    if (newer) {
+      setNewerBuildId(newer);
+      return;
+    }
+    openSessionStart();
+  };
+
+  const openSessionStart = () => {
     if (FIREBASE_ENABLED) {
       // Show system/office dialog before starting
       setSystemError('');
@@ -4428,6 +4447,30 @@ function RadTachInner() {
       )}
 
       {/* Session Start Dialog: System/Office selection */}
+      {newerBuildId && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h2 className="text-2xl font-bold text-white mb-2">New Version Available</h2>
+            <p className="text-gray-300 mb-1">A new version of RadTach is available. Load it before starting your session?</p>
+            <p className="text-gray-500 text-xs mb-6">Running {BUILD_ID} · Available {newerBuildId}</p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => window.location.reload()}
+                className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Load new version
+              </button>
+              <button
+                onClick={() => { setNewerBuildId(null); openSessionStart(); }}
+                className="flex-1 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Start with current version
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSessionStartDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
