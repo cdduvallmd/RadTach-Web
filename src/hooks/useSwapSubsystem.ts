@@ -14,7 +14,7 @@
  * Phase 4 excision recipe:
  *   1. Delete this file
  *   2. Delete useSwapArmed / handleSidecarCommandSwapFlag / shouldApplySwap /
- *      applySwap imports and call sites in RadTach_Developmental_Firebase.tsx
+ *      applySwap imports and call sites in App.tsx
  *   3. Delete `swap?: boolean` from SidecarCommand
  *   4. Delete the START + SWAP button on Sidecar
  */
