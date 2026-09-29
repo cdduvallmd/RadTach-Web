@@ -1212,6 +1212,28 @@ function RadTachInner() {
       .catch(err => console.error('Shadow flush failed:', err));
   };
 
+  // Mode-enum primary: route each stream to its collection — mode-enum →
+  // events (canonical), legacy → shadow_events (comparator). Mirrors the
+  // primary branch of the 5-study and 30s flushes below.
+  const flushPrimaryStreams = (legacyEvents: SessionEvent[], sessionId: string) => {
+    if (!currentUser) return;
+    const allShadow = shadow.getEvents();
+    const shadowUnsent = allShadow.slice(shadowFlushIdx.current);
+    if (shadowUnsent.length > 0) {
+      const newIdx = allShadow.length;
+      firestoreService.flushEvents(currentUser.uid, sessionId, shadowUnsent as Record<string, any>[], shadowFlushIdx.current)
+        .then(() => { shadowFlushIdx.current = newIdx; })
+        .catch(err => console.error('Mode-enum→events flush failed:', err));
+    }
+    const legacyUnsent = legacyEvents.slice(lastFlushedIndex.current);
+    if (legacyUnsent.length > 0) {
+      const targetIdx = legacyEvents.length;
+      firestoreService.flushShadowEvents(currentUser.uid, sessionId, legacyUnsent as Record<string, any>[], lastFlushedIndex.current)
+        .then(() => { lastFlushedIndex.current = Math.max(lastFlushedIndex.current, targetIdx); })
+        .catch(err => console.error('Legacy→shadow_events flush failed:', err));
+    }
+  };
+
   // IDB: write every event locally for crash-proof recovery
   const recordEventLocally = (event: SessionEvent) => {
     if (!FIREBASE_ENABLED || !localSessionKeyRef.current) return;
@@ -2638,9 +2660,16 @@ function RadTachInner() {
       if (selectedModality !== null && isRunning) {
         setIsRunning(false);
       }
-      // Firebase: flush events on break start (user is idle, good time to write)
+      // Firebase: flush events on break start (user is idle, good time to write).
+      // Must route by engine: before 2026-09-29 this always sent legacy events
+      // to the canonical `events` collection, overwriting mode-enum docs in
+      // flag-on sessions (Clyde 2026-09-29 #1).
       if (FIREBASE_ENABLED && firestoreSessionId) {
-        flushEventsToFirestore(sessionEvents, firestoreSessionId);
+        if (sessionPrimaryRef.current) {
+          flushPrimaryStreams(sessionEvents, firestoreSessionId);
+        } else {
+          flushEventsToFirestore(sessionEvents, firestoreSessionId);
+        }
       }
     } else {
       // Stopping Break - drift correction + record event (Issue #1)
