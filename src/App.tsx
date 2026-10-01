@@ -21,11 +21,12 @@ import {
   isoDateInTimezone,
 } from './utils/pvcConfig';
 import AdminBlockClassifier, { type AdminBlock } from './components/pvc/AdminBlockClassifier';
-import { bufferedCreateSession, bufferedFlushEvents, bufferedEndSession, bufferedSaveUserSettings, flushBuffer, hasPendingEndSession, addLocalEvent, getLocalEvents, clearLocalEvents } from './services/offlineBuffer';
+import { bufferedCreateSession, bufferedEndSession, bufferedSaveUserSettings, flushBuffer, hasPendingEndSession, getLocalEvents, getLocalEventLog, mergeByIndex, clearLocalEvents } from './services/offlineBuffer';
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { RecoveryToast } from './components/RecoveryToast';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
 import { useTimerMode } from './hooks/useTimerMode';
+import { useEventSync } from './hooks/useEventSync';
 import { useSessionClock } from './hooks/useSessionClock';
 import { useSwapArmed, handleSidecarCommandSwapFlag, shouldApplySwap, applySwap } from './hooks/useSwapSubsystem';
 import { BUILD_ID } from './buildId';
@@ -347,7 +348,6 @@ function RadTachInner() {
   const FIREBASE_ENABLED = true; // Toggle to true when Firebase project is configured
   const { currentUser, logout } = useAuth();
   const [firestoreSessionId, setFirestoreSessionId] = useState<string | null>(null);
-  const lastFlushedIndex = useRef(0); // Tracks how many events have been synced to Firestore
   const localSessionKeyRef = useRef<string | null>(null);
   const health = useFirestoreHealth();
   const lastFlushAttemptRef = useRef<number>(0);
@@ -436,19 +436,12 @@ function RadTachInner() {
   const firestoreCombosRef = useRef<Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>>([]);
 
   // ── Shadow mode-enum timer (parallel system for validation) ──────────
-  const shadow = useTimerMode();
-  const shadowFlushIdx = useRef<number>(0);
+  // Mode-enum engine and its event sync (crash log + upload queue).
+  const eventSync = useEventSync();
+  const shadow = useTimerMode(eventSync.record);
   // Swap subsystem (excisable — see src/hooks/useSwapSubsystem.ts):
   const swapArmed = useSwapArmed();
 
-  // ── Mode-enum cutover (Phase 1; see mode-enum-cutover-plan.md) ───────
-  // Per-session capture uses a one-shot awaited Firestore read at session
-  // start (firestoreService.readFeatureFlagsOnce) — NOT a live React hook —
-  // to close the first-render race (Clyde finding #1, 2026-06-18).
-  const sessionPrimaryRef = useRef<boolean>(false);
-  // Mirror of sessionEvents for the 30s safety-net interval (closures over
-  // React state go stale; refs do not). Updated whenever sessionEvents changes.
-  const sessionEventsRef = useRef<SessionEvent[]>([]);
 
   // Calculate current par time based on selections
   const calculateParTime = () => {
@@ -1167,71 +1160,17 @@ function RadTachInner() {
     return `${dateStr}-${sessionNum}-${userId}-${rand}`;
   };
 
-  // Firebase: flush unsent events to Firestore via IDB write-ahead buffer
-  const flushEventsToFirestore = (events: SessionEvent[], sessionId: string) => {
-    const startIdx = lastFlushedIndex.current;
-    const unsent = events.slice(startIdx);
-    if (unsent.length === 0) return;
-    const key = sessionId || localSessionKeyRef.current || 'unknown';
-    const targetIndex = events.length;
-    bufferedFlushEvents(currentUser!.uid, key, unsent, startIdx)
-      .then(ok => {
-        if (ok) {
-          lastFlushedIndex.current = Math.max(lastFlushedIndex.current, targetIndex);
-          health.reportSuccess();
-        } else {
-          health.reportFailure(false);
-        }
-        return flushBuffer(currentUser!.uid);
-      }).then(result => {
-        if (result && result.remaining === 0 && result.flushed > 0) health.reportSuccess();
-      });
+  // Upload mode-enum's queued events; report the result to the health indicator
+  // the same way the mount/tab-focus flush does.
+  const uploadEvents = () => {
+    eventSync.flush().then(result => {
+      if (result) {
+        health.setPendingCount(result.remaining);
+        if (result.remaining === 0 && result.flushed > 0) health.reportSuccess();
+        else if (result.remaining > 0) health.reportFailure(result.canRead);
+      }
+    });
   };
-
-  // Shadow flush: write mode-enum events to shadow_events subcollection
-  const flushShadowEvents = () => {
-    if (!FIREBASE_ENABLED || !firestoreSessionId || !currentUser) return;
-    const allShadow = shadow.getEvents();
-    const unsent = allShadow.slice(shadowFlushIdx.current);
-    if (unsent.length === 0) return;
-    firestoreService.flushShadowEvents(currentUser.uid, firestoreSessionId, unsent as Record<string, any>[], shadowFlushIdx.current)
-      .then(() => { shadowFlushIdx.current = allShadow.length; })
-      .catch(err => console.error('Shadow flush failed:', err));
-  };
-
-  // Mode-enum primary: route each stream to its collection — mode-enum →
-  // events (canonical), legacy → shadow_events (comparator). Mirrors the
-  // primary branch of the 5-study and 30s flushes below.
-  const flushPrimaryStreams = (legacyEvents: SessionEvent[], sessionId: string) => {
-    if (!currentUser) return;
-    const allShadow = shadow.getEvents();
-    const shadowUnsent = allShadow.slice(shadowFlushIdx.current);
-    if (shadowUnsent.length > 0) {
-      const newIdx = allShadow.length;
-      firestoreService.flushEvents(currentUser.uid, sessionId, shadowUnsent as Record<string, any>[], shadowFlushIdx.current)
-        .then(() => { shadowFlushIdx.current = newIdx; })
-        .catch(err => console.error('Mode-enum→events flush failed:', err));
-    }
-    const legacyUnsent = legacyEvents.slice(lastFlushedIndex.current);
-    if (legacyUnsent.length > 0) {
-      const targetIdx = legacyEvents.length;
-      firestoreService.flushShadowEvents(currentUser.uid, sessionId, legacyUnsent as Record<string, any>[], lastFlushedIndex.current)
-        .then(() => { lastFlushedIndex.current = Math.max(lastFlushedIndex.current, targetIdx); })
-        .catch(err => console.error('Legacy→shadow_events flush failed:', err));
-    }
-  };
-
-  // IDB: write every event locally for crash-proof recovery
-  const recordEventLocally = (event: SessionEvent) => {
-    if (!FIREBASE_ENABLED || !localSessionKeyRef.current) return;
-    addLocalEvent(localSessionKeyRef.current, event as Record<string, any>).catch(() => {});
-  };
-
-  // Keep sessionEventsRef in sync with state so the interval-driven flush
-  // below sees fresh data via the ref (avoids stale closure on sessionEvents).
-  useEffect(() => {
-    sessionEventsRef.current = sessionEvents;
-  }, [sessionEvents]);
 
   // Firebase: flush events every 5 completed studies (human-cadence trigger).
   // Kept as the fast path — flushes within seconds of each multiple of 5
@@ -1241,70 +1180,13 @@ function RadTachInner() {
     if (!FIREBASE_ENABLED || !firestoreSessionId || studiesCompleted === 0) return;
     if (studiesCompleted % 5 !== 0) return;
 
-    if (sessionPrimaryRef.current && currentUser) {
-      // Mode-enum cutover Phase 1: when the flag is on for this session, the
-      // two streams swap target collections.
-      //   mode-enum events → events (canonical)
-      //   legacy events    → shadow_events (audit comparator)
-      // The legacy stream bypasses the IDB write-ahead buffer in this mode;
-      // crash safety on the legacy comparator is reduced for flag-on sessions
-      // (acceptable Phase 1 trade-off; see mode-enum-cutover-plan.md).
-      const allShadow = shadow.getEvents();
-      const shadowUnsent = allShadow.slice(shadowFlushIdx.current);
-      if (shadowUnsent.length > 0) {
-        firestoreService.flushEvents(currentUser.uid, firestoreSessionId, shadowUnsent as Record<string, any>[], shadowFlushIdx.current)
-          .then(() => { shadowFlushIdx.current = allShadow.length; })
-          .catch(err => console.error('Mode-enum→events flush failed:', err));
-      }
-      const legacyUnsent = sessionEvents.slice(lastFlushedIndex.current);
-      if (legacyUnsent.length > 0) {
-        const targetIndex = sessionEvents.length;
-        firestoreService.flushShadowEvents(currentUser.uid, firestoreSessionId, legacyUnsent as Record<string, any>[], lastFlushedIndex.current)
-          .then(() => { lastFlushedIndex.current = Math.max(lastFlushedIndex.current, targetIndex); })
-          .catch(err => console.error('Legacy→shadow_events flush failed:', err));
-      }
-    } else {
-      // Default: legacy is canonical (current production behavior).
-      flushEventsToFirestore(sessionEvents, firestoreSessionId);
-      flushShadowEvents();
-    }
+    uploadEvents();
   }, [studiesCompleted]);
 
-  // Firebase: 30s safety-net interval flush. Triggers regardless of which
-  // engine's counter is ticking, so mode-enum events get flushed even if
-  // studiesCompleted stops moving. Closes Clyde finding #3 (2026-06-18).
-  // Reads from sessionEventsRef rather than the React state to avoid stale
-  // closures across re-renders within an effect lifetime.
+  // Firebase: 30s safety-net interval flush, independent of any counter.
   useEffect(() => {
     if (!FIREBASE_ENABLED || !firestoreSessionId || !currentUser) return;
-    const uid = currentUser.uid;
-    const sessionId = firestoreSessionId;
-
-    const tick = () => {
-      const legacyEvents = sessionEventsRef.current;
-      if (sessionPrimaryRef.current) {
-        // Mode-enum primary: mode-enum → events, legacy → shadow_events
-        const allShadow = shadow.getEvents();
-        const shadowUnsent = allShadow.slice(shadowFlushIdx.current);
-        if (shadowUnsent.length > 0) {
-          const newIdx = allShadow.length;
-          firestoreService.flushEvents(uid, sessionId, shadowUnsent as Record<string, any>[], shadowFlushIdx.current)
-            .then(() => { shadowFlushIdx.current = newIdx; })
-            .catch(err => console.error('Mode-enum interval flush failed:', err));
-        }
-        const legacyUnsent = legacyEvents.slice(lastFlushedIndex.current);
-        if (legacyUnsent.length > 0) {
-          const targetIdx = legacyEvents.length;
-          firestoreService.flushShadowEvents(uid, sessionId, legacyUnsent as Record<string, any>[], lastFlushedIndex.current)
-            .then(() => { lastFlushedIndex.current = Math.max(lastFlushedIndex.current, targetIdx); })
-            .catch(err => console.error('Legacy interval flush failed:', err));
-        }
-      } else {
-        // Default-primary: legacy → events (via IDB buffer), mode-enum → shadow_events
-        flushEventsToFirestore(legacyEvents, sessionId);
-        flushShadowEvents();
-      }
-    };
+    const tick = () => uploadEvents();
 
     const handle = setInterval(tick, 30000);
     return () => clearInterval(handle);
@@ -1416,9 +1298,15 @@ function RadTachInner() {
       ? new Date(orphan.startDateTime).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
       : 'Unknown date';
     try {
-      const firestoreEvents = await firestoreService.getSessionEvents(currentUser.uid, orphan.id);
-      const localEvents = await getLocalEvents(orphan.id).catch(() => [] as Record<string, any>[]);
-      const events = localEvents.length >= firestoreEvents.length ? localEvents : firestoreEvents;
+      const firestoreEvents = await firestoreService.getSessionEventsIndexed(currentUser.uid, orphan.id);
+      const localLog = await getLocalEventLog(orphan.id).catch(() => []);
+      // Crash log entries carry their index: Firestore first, then the local
+      // log in write order, newest version of each event winning. Sessions
+      // from before step 3b have no indexed entries: keep the old rule.
+      const events = localLog.length > 0
+        ? mergeByIndex([...firestoreEvents, ...localLog]).map(e => e.event)
+        : await getLocalEvents(orphan.id).catch(() => [] as Record<string, any>[])
+            .then(local => (local.length >= firestoreEvents.length ? local : firestoreEvents.map(e => e.event)));
       const reconstructed = reconstructSessionData(orphan, events);
       const txResult = await firestoreService.recoverOrphanTransactional(currentUser.uid, orphan.id, reconstructed);
       // Success either way — either we wrote endTime, or someone else did first
@@ -1675,18 +1563,6 @@ function RadTachInner() {
     setTodaySessionCount(prev => prev + 1);
     setSessionEvents([]);
     shadow.startSession();
-    shadowFlushIdx.current = 0;
-    // Mode-enum cutover Phase 1: capture flag value once at session start.
-    // Use a one-shot awaited read (not the live hook) to avoid the
-    // first-render race where the live snapshot hasn't resolved yet.
-    // See Clyde finding #1 (2026-06-18). Persists for the session's lifetime
-    // regardless of mid-session flag changes.
-    try {
-      const flagsNow = await firestoreService.readFeatureFlagsOnce();
-      sessionPrimaryRef.current = flagsNow.useModeEnumAsPrimary;
-    } catch {
-      sessionPrimaryRef.current = false;
-    }
     // Start interstitial at session start so the first-study auto-swap has a
     // prior INTERSTITIAL fragment to harvest if the timer wasn't started
     // when the rad opened the study in PACS.
@@ -1701,6 +1577,7 @@ function RadTachInner() {
       const localKey = await generateSessionIdAsync();
       localSessionKeyRef.current = localKey;
       setFirestoreSessionId(localKey);
+      eventSync.begin({ userId: currentUser!.uid, sessionKey: localKey });
 
       // PVC: compute shift credit + bonus for this session start.
       // Reload pvcConfig at session start so admin config changes take effect
@@ -1741,10 +1618,8 @@ function RadTachInner() {
         rotation: rotationName,
         halfDay: halfDay,
         startDateTime: now,
-        // Mode-enum cutover Phase 1: stamp the active flag value on this
-        // session so downstream audits and the cutover orchestration know
-        // which engine drove this session's canonical events.
-        _modeEnumPrimary: sessionPrimaryRef.current,
+        // Mode-enum is the canonical engine for every session (2026-10-01).
+        _modeEnumPrimary: true,
         ...(userDisplayName ? { displayName: userDisplayName } : {}),
         ...pvcFields,
       }).then(ok => {
@@ -1932,7 +1807,6 @@ function RadTachInner() {
         duration: sessionTime - adminStartTime.session,
       } as TimerEvent;
       finalEvents.push(evt);
-      recordEventLocally(evt);
     }
     if (isCommsTimeRunning && commsStartTime !== null) {
       const evt = {
@@ -1944,7 +1818,6 @@ function RadTachInner() {
         duration: sessionTime - commsStartTime.session,
       } as TimerEvent;
       finalEvents.push(evt);
-      recordEventLocally(evt);
     }
     if (isBreakTimeRunning && breakStartTime !== null) {
       const evt = {
@@ -1956,7 +1829,6 @@ function RadTachInner() {
         duration: sessionTime - breakStartTime.session,
       } as TimerEvent;
       finalEvents.push(evt);
-      recordEventLocally(evt);
     }
     if (isDoubleTapRunning && doubleTapStartTime !== null) {
       const evt = {
@@ -1969,7 +1841,6 @@ function RadTachInner() {
         associatedModality: lastStudyModality,
       } as TimerEvent;
       finalEvents.push(evt);
-      recordEventLocally(evt);
     }
     if (isInterstitialRunning && interstitialStartTime !== null) {
       const evt = {
@@ -1981,7 +1852,6 @@ function RadTachInner() {
         duration: sessionTime - interstitialStartTime.session,
       } as InterstitialEvent;
       finalEvents.push(evt);
-      recordEventLocally(evt);
     }
 
     // Phase 8: Preserve session data for Reports before resetting
@@ -1992,46 +1862,28 @@ function RadTachInner() {
       setLastSessionSummary(computeSessionSummary(finalEvents, sessionTime, sessionStartDateTime || undefined));
     }
 
-    // Shadow / mode-enum stream: finalize accumulator and route based on cutover flag
-    const finalShadowEvents = shadow.endSession(sessionTime);
-    if (FIREBASE_ENABLED && firestoreSessionId && currentUser) {
-      const shadowUnsent = finalShadowEvents.slice(shadowFlushIdx.current);
-      if (shadowUnsent.length > 0) {
-        // Phase 1 cutover: when sessionPrimary, mode-enum is canonical → write to events.
-        // Otherwise (default), mode-enum is comparator → write to shadow_events.
-        const writeFn = sessionPrimaryRef.current
-          ? firestoreService.flushEvents
-          : firestoreService.flushShadowEvents;
-        writeFn(currentUser.uid, firestoreSessionId, shadowUnsent as Record<string, any>[], shadowFlushIdx.current).catch(() => {});
-      }
-    }
+    // Mode-enum: finalize. endSession reports its closing event to eventSync,
+    // which logs and queues it like every other event.
+    shadow.endSession(sessionTime);
 
-    // Firebase: final legacy-stream flush, then end session + save settings.
-    // Phase 1 cutover: when sessionPrimary, legacy stream is the audit comparator
-    // and goes to shadow_events (bypassing the IDB write-ahead buffer).
+    // Firebase: once every event is queued, queue the session end and settings
+    // (both are queued before any network wait, so logging off offline loses
+    // nothing), then upload. Replay sends create → events → end in order.
     if (FIREBASE_ENABLED && localSessionKeyRef.current) {
       const data = buildSessionData();
-      const startIdx = lastFlushedIndex.current;
-      const unsent = finalEvents.slice(startIdx);
       const key = localSessionKeyRef.current;
       const summary = computeSessionSummary(finalEvents, sessionTime, sessionStartDateTime || undefined);
 
-      const legacyFinalFlush: Promise<unknown> = (() => {
-        if (unsent.length === 0) return Promise.resolve(true);
-        if (sessionPrimaryRef.current && currentUser) {
-          return firestoreService.flushShadowEvents(currentUser.uid, key, unsent as Record<string, any>[], startIdx).catch(() => true);
-        }
-        return bufferedFlushEvents(currentUser!.uid, key, unsent, startIdx);
-      })();
-
-      legacyFinalFlush
-        .then(() => bufferedEndSession(currentUser!.uid, key, { ...data.session, summary }))
-        .then(() => bufferedSaveUserSettings(currentUser!.uid, {
-          parTimes, rvuValues, stealthMode, autoStartEnabled, useHMSFormat,
-          gpciZip, gpciValues, rvuDerivedMode, targetRvuPerHour,
-          favorites: firestoreFavoritesRef.current,
-          sidecarCombos: firestoreCombosRef.current,
-        }))
+      eventSync.end()
+        .then(() => Promise.all([
+          bufferedEndSession(currentUser!.uid, key, { ...data.session, summary }),
+          bufferedSaveUserSettings(currentUser!.uid, {
+            parTimes, rvuValues, stealthMode, autoStartEnabled, useHMSFormat,
+            gpciZip, gpciValues, rvuDerivedMode, targetRvuPerHour,
+            favorites: firestoreFavoritesRef.current,
+            sidecarCombos: firestoreCombosRef.current,
+          }),
+        ]))
         .then(() => clearLocalEvents(key).catch(() => {}))
         .then(() => flushBuffer(currentUser!.uid))
         .then(result => {
@@ -2042,16 +1894,8 @@ function RadTachInner() {
             health.reportSuccess();
           }
         })
-        .finally(() => {
-          // Reset cutover ref AFTER all final-flush async work completes so a
-          // late event arriving during the chain can't be routed via the
-          // wrong target. Closes Clyde finding #4 (2026-06-18).
-          sessionPrimaryRef.current = false;
-        });
+        .catch(err => console.error('Session-end write failed:', err));
 
-      lastFlushedIndex.current = 0;
-      shadowFlushIdx.current = 0;
-      // sessionPrimaryRef.current reset moved into the .finally above.
       localSessionKeyRef.current = null;
       setFirestoreSessionId(null);
       // Write session_ended BEFORE sessionActive:false so Sidecar sees ended state before status change
@@ -2148,7 +1992,6 @@ function RadTachInner() {
           duration: sessionTime - interstitialStartTime.session,
         };
         setSessionEvents(prev => [...prev, interstitialEvent]);
-        recordEventLocally(interstitialEvent);
 
         setInterstitialStartTime(null);
       }
@@ -2164,7 +2007,6 @@ function RadTachInner() {
           duration: sessionTime - adminStartTime.session,
         };
         setSessionEvents(prev => [...prev, evt]);
-        recordEventLocally(evt);
         setAdminStartTime(null);
 
       }
@@ -2180,7 +2022,6 @@ function RadTachInner() {
           duration: sessionTime - commsStartTime.session,
         };
         setSessionEvents(prev => [...prev, evt]);
-        recordEventLocally(evt);
         setCommsStartTime(null);
 
       }
@@ -2196,7 +2037,6 @@ function RadTachInner() {
           duration: sessionTime - breakStartTime.session,
         };
         setSessionEvents(prev => [...prev, evt]);
-        recordEventLocally(evt);
         setBreakStartTime(null);
       }
 
@@ -2212,7 +2052,6 @@ function RadTachInner() {
           associatedModality: lastStudyModality,
         };
         setSessionEvents(prev => [...prev, evt]);
-        recordEventLocally(evt);
         setDoubleTapStartTime(null);
       }
 
@@ -2454,7 +2293,6 @@ function RadTachInner() {
         ...(personallyPerformedActive ? { personallyPerformed: true } : {}),
       };
       setSessionEvents(prev => [...prev, studyEvent]);
-      recordEventLocally(studyEvent);
       setWasDrafted(false);
     }
 
@@ -2566,7 +2404,6 @@ function RadTachInner() {
           duration: sessionTime - adminStartTime.session,
         };
         setSessionEvents(prev => [...prev, adminEvent]);
-        recordEventLocally(adminEvent);
 
         setAdminStartTime(null);
       }
@@ -2615,7 +2452,6 @@ function RadTachInner() {
           duration: sessionTime - commsStartTime.session,
         };
         setSessionEvents(prev => [...prev, commsEvent]);
-        recordEventLocally(commsEvent);
 
         setCommsStartTime(null);
       }
@@ -2661,16 +2497,9 @@ function RadTachInner() {
       if (selectedModality !== null && isRunning) {
         setIsRunning(false);
       }
-      // Firebase: flush events on break start (user is idle, good time to write).
-      // Must route by engine: before 2026-09-29 this always sent legacy events
-      // to the canonical `events` collection, overwriting mode-enum docs in
-      // flag-on sessions (Clyde 2026-09-29 #1).
+      // Firebase: upload queued events on break start (user is idle, good time to write)
       if (FIREBASE_ENABLED && firestoreSessionId) {
-        if (sessionPrimaryRef.current) {
-          flushPrimaryStreams(sessionEvents, firestoreSessionId);
-        } else {
-          flushEventsToFirestore(sessionEvents, firestoreSessionId);
-        }
+        uploadEvents();
       }
     } else {
       // Stopping Break - drift correction + record event (Issue #1)
@@ -2692,7 +2521,6 @@ function RadTachInner() {
           duration: correctedSessionTime - breakStartTime.session,
         };
         setSessionEvents(prev => [...prev, breakEvent]);
-        recordEventLocally(breakEvent);
 
         setBreakStartTime(null);
       }
@@ -2742,7 +2570,6 @@ function RadTachInner() {
           associatedModality: lastStudyModality,
         };
         setSessionEvents(prev => [...prev, doubleTapEvent]);
-        recordEventLocally(doubleTapEvent);
 
         setDoubleTapStartTime(null);
       }

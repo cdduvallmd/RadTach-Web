@@ -22,7 +22,24 @@ export interface LocalEvent {
   id?: number;
   sessionKey: string;
   event: Record<string, any>;
+  // Position in mode-enum's event list (= Firestore evt-NNNN). Present on
+  // entries written by recordEvent; absent on pre-3b entries.
+  index?: number;
   createdAt: number;
+}
+
+// One event at its position in the session's event list.
+export interface IndexedEvent {
+  index: number;
+  event: Record<string, any>;
+}
+
+// Latest version wins: entries in write order, later ones replace earlier
+// ones at the same index. Used by replay and by crash recovery.
+export function mergeByIndex(entries: IndexedEvent[]): IndexedEvent[] {
+  const latest = new Map<number, Record<string, any>>();
+  for (const { index, event } of entries) latest.set(index, event);
+  return [...latest.entries()].sort((a, b) => a[0] - b[0]).map(([index, event]) => ({ index, event }));
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -165,6 +182,45 @@ export async function getLocalEvents(sessionKey: string): Promise<Record<string,
   });
 }
 
+// Mode-enum event added or edited: in ONE transaction, append it to the crash
+// log and queue it for upload, both tagged with its index. The queued entry
+// uses the existing flushEvents shape (one event at startIndex = index), so
+// any build can replay it, and replay in queue order applies the newest
+// version last. Replay is the only writer of events to Firestore.
+export async function recordEvent(
+  userId: string,
+  sessionKey: string,
+  index: number,
+  event: Record<string, any>,
+): Promise<void> {
+  const db = await openBuffer();
+  const createdAt = Date.now();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([LOCAL_EVENTS_STORE, STORE_NAME], 'readwrite');
+    tx.objectStore(LOCAL_EVENTS_STORE).add({ sessionKey, index, event, createdAt });
+    tx.objectStore(STORE_NAME).add({
+      operation: 'flushEvents', userId, sessionKey, payload: { events: [event] }, startIndex: index, createdAt,
+    });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// This session's crash log entries that carry an index (written by
+// recordEvent), in write order.
+export async function getLocalEventLog(sessionKey: string): Promise<IndexedEvent[]> {
+  const db = await openBuffer();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_EVENTS_STORE, 'readonly');
+    const request = tx.objectStore(LOCAL_EVENTS_STORE).index('sessionKey').getAll(sessionKey);
+    request.onsuccess = () => {
+      const rows = (request.result as LocalEvent[]).filter(r => r.index != null);
+      resolve(rows.map(r => ({ index: r.index as number, event: r.event })));
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
 export async function clearLocalEvents(sessionKey: string): Promise<void> {
   const db = await openBuffer();
   return new Promise((resolve, reject) => {
@@ -218,33 +274,6 @@ export async function bufferedCreateSession(
     const all = await getAllPendingWrites();
     const match = all.find(
       w => w.operation === 'createSession' && w.sessionKey === sessionKey && w.userId === userId,
-    );
-    if (match?.id != null) await deletePendingWrite(match.id);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function bufferedFlushEvents(
-  userId: string,
-  sessionKey: string,
-  events: Record<string, any>[],
-  startIndex: number,
-): Promise<boolean> {
-  await addPendingWrite({
-    operation: 'flushEvents',
-    userId,
-    sessionKey,
-    payload: { events },
-    startIndex,
-    createdAt: Date.now(),
-  });
-  try {
-    await firestoreService.flushEvents(userId, sessionKey, events, startIndex);
-    const all = await getAllPendingWrites();
-    const match = all.find(
-      w => w.operation === 'flushEvents' && w.sessionKey === sessionKey && w.startIndex === startIndex,
     );
     if (match?.id != null) await deletePendingWrite(match.id);
     return true;
@@ -309,14 +338,6 @@ async function executeWrite(write: PendingWrite): Promise<void> {
     case 'createSession':
       await firestoreService.createSession(write.userId, write.sessionKey, write.payload);
       break;
-    case 'flushEvents':
-      await firestoreService.flushEvents(
-        write.userId,
-        write.sessionKey,
-        write.payload.events,
-        write.startIndex ?? 0,
-      );
-      break;
     case 'endSession':
       await firestoreService.endSession(write.userId, write.sessionKey, write.payload);
       break;
@@ -352,6 +373,21 @@ export async function flushBuffer(currentAuthUid?: string): Promise<FlushResult>
   } finally {
     releaseLock();
   }
+}
+
+// createSession / endSession replay: write, mark late-arriving dates stale for
+// group stats, then dequeue. The entry is kept if the marker write fails.
+async function runSessionWrite(w: PendingWrite, stamp: Record<string, string> | null): Promise<void> {
+  if (stamp) Object.assign(w.payload, stamp);
+  await executeWrite(w);
+  if (w.payload.startDateTime && w.payload.system) {
+    const sessionDate = String(w.payload.startDateTime).slice(0, 10);
+    const todayDate = new Date().toISOString().slice(0, 10);
+    if (sessionDate < todayDate) {
+      await firestoreService.writeStaleMarker(w.payload.system, sessionDate, w.userId);
+    }
+  }
+  if (w.id != null) await deletePendingWrite(w.id);
 }
 
 async function doFlush(currentAuthUid?: string): Promise<FlushResult> {
@@ -394,56 +430,35 @@ async function doFlush(currentAuthUid?: string): Promise<FlushResult> {
     bySession.set(w.sessionKey, existing);
   }
 
-  // Order for session chain: createSession → flushEvents (by startIndex) → endSession
-  const opOrder: Record<string, number> = { createSession: 0, flushEvents: 1, endSession: 2 };
-  for (const [, chain] of bySession) {
-    chain.sort((a, b) => {
-      const orderDiff = (opOrder[a.operation] ?? 1) - (opOrder[b.operation] ?? 1);
-      if (orderDiff !== 0) return orderDiff;
-      // Within flushEvents, sort by startIndex
-      return (a.startIndex ?? 0) - (b.startIndex ?? 0);
-    });
+  // Each session chain runs in order: createSession → events → endSession.
+  // Queued events are merged by index in queue order (newest version wins),
+  // then sent as one write.
+  for (const [sessionKey, chain] of bySession) {
+    const byId = (a: PendingWrite, b: PendingWrite) => (a.id ?? 0) - (b.id ?? 0);
+    const creates = chain.filter(w => w.operation === 'createSession').sort(byId);
+    const eventWrites = chain.filter(w => w.operation === 'flushEvents').sort(byId);
+    const ends = chain.filter(w => w.operation === 'endSession').sort(byId);
+    const stamp = currentAuthUid && chain[0].userId !== currentAuthUid
+      ? { _flushedBy: currentAuthUid, _flushedAt: new Date().toISOString() }
+      : null;
 
-    let chainFailed = false;
-    for (const w of chain) {
-      if (chainFailed) break;
-      try {
-        // Audit trail: stamp cross-user flushes so they're attributable
-        if (currentAuthUid && w.userId !== currentAuthUid) {
-          const flushedAt = new Date().toISOString();
-          w.payload._flushedBy = currentAuthUid;
-          w.payload._flushedAt = flushedAt;
-          // flushEvents writes each event as a separate doc — stamp each one
-          if (w.operation === 'flushEvents' && Array.isArray(w.payload.events)) {
-            for (const evt of w.payload.events) {
-              evt._flushedBy = currentAuthUid;
-              evt._flushedAt = flushedAt;
-            }
-          }
-        }
-        await executeWrite(w);
-        // For late createSession/endSession writes, create a stale GAR marker
-        // so group stats get recomputed to include this late-arriving data.
-        // Don't delete the IDB entry until the marker also succeeds.
-        if (
-          (w.operation === 'createSession' || w.operation === 'endSession') &&
-          w.payload.startDateTime && w.payload.system
-        ) {
-          const sessionDate = String(w.payload.startDateTime).slice(0, 10);
-          const todayDate = new Date().toISOString().slice(0, 10);
-          if (sessionDate < todayDate) {
-            await firestoreService.writeStaleMarker(w.payload.system, sessionDate, w.userId);
-          }
-        }
-        if (w.id != null) await deletePendingWrite(w.id);
-        flushed++;
-      } catch (err: any) {
-        chainFailed = true;
-        const code = err?.code || '';
-        const isNetworkError = code === 'unavailable' || code === 'resource-exhausted';
-        if (isNetworkError) canRead = false;
-        // Skip to next session chain (don't block independent sessions)
+    try {
+      for (const w of creates) { await runSessionWrite(w, stamp); flushed++; }
+      if (eventWrites.length > 0) {
+        const queued = eventWrites.flatMap(w =>
+          (w.payload.events as Record<string, any>[]).map((event, i) => ({ index: (w.startIndex ?? 0) + i, event })));
+        // Audit trail: cross-user flushes are stamped on each event doc
+        const items = mergeByIndex(queued).map(it => (stamp ? { index: it.index, event: { ...it.event, ...stamp } } : it));
+        await firestoreService.writeEventsByIndex(chain[0].userId, sessionKey, items);
+        for (const w of eventWrites) if (w.id != null) await deletePendingWrite(w.id);
+        flushed += eventWrites.length;
       }
+      for (const w of ends) { await runSessionWrite(w, stamp); flushed++; }
+    } catch (err: any) {
+      const code = err?.code || '';
+      const isNetworkError = code === 'unavailable' || code === 'resource-exhausted';
+      if (isNetworkError) canRead = false;
+      // Skip to next session chain (don't block independent sessions)
     }
   }
 

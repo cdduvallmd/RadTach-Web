@@ -123,27 +123,19 @@ export const firestoreService = {
   },
 
   // Batch write: sends multiple events in a single network request (deterministic IDs for idempotency)
-  async flushEvents(userId: string, sessionId: string, events: Record<string, any>[], startIndex: number) {
-    if (events.length === 0) return;
-    const batch = writeBatch(db);
+  // Write events at their positions (evt-NNNN = index). Full overwrite per
+  // doc, so re-sending an index replaces that event (SWAP edits, Undo).
+  // Called only by the offline buffer's replay. Chunked under the 500-op limit.
+  async writeEventsByIndex(userId: string, sessionId: string, items: Array<{ index: number; event: Record<string, any> }>) {
+    if (items.length === 0) return;
     const eventsRef = collection(db, 'users', userId, 'sessions', sessionId, 'events');
-    for (let i = 0; i < events.length; i++) {
-      const eventDocRef = doc(eventsRef, `evt-${String(startIndex + i).padStart(4, '0')}`);
-      batch.set(eventDocRef, { ...events[i], recordedAt: serverTimestamp() });
+    for (let start = 0; start < items.length; start += 450) {
+      const batch = writeBatch(db);
+      for (const { index, event } of items.slice(start, start + 450)) {
+        batch.set(doc(eventsRef, `evt-${String(index).padStart(4, '0')}`), { ...event, recordedAt: serverTimestamp() });
+      }
+      await batch.commit();
     }
-    await batch.commit();
-  },
-
-  // Shadow mode-enum events: parallel subcollection for validation
-  async flushShadowEvents(userId: string, sessionId: string, events: Record<string, any>[], startIndex: number) {
-    if (events.length === 0) return;
-    const batch = writeBatch(db);
-    const eventsRef = collection(db, 'users', userId, 'sessions', sessionId, 'shadow_events');
-    for (let i = 0; i < events.length; i++) {
-      const eventDocRef = doc(eventsRef, `evt-${String(startIndex + i).padStart(4, '0')}`);
-      batch.set(eventDocRef, { ...events[i], recordedAt: serverTimestamp() });
-    }
-    await batch.commit();
   },
 
   async writeSyncSettings(userId: string, favorites: Array<{ cpt: string; aeTitle: string }>, sidecarCombos: Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>) {
@@ -539,6 +531,13 @@ export const firestoreService = {
   },
 
   // Orphaned session recovery: read all events from a session's events subcollection
+  // Session events with their positions, from the evt-NNNN doc IDs.
+  async getSessionEventsIndexed(userId: string, sessionId: string): Promise<Array<{ index: number; event: Record<string, any> }>> {
+    const eventsRef = collection(db, 'users', userId, 'sessions', sessionId, 'events');
+    const snapshot = await getDocs(query(eventsRef, orderBy('__name__')));
+    return snapshot.docs.map(d => ({ index: Number(d.id.replace('evt-', '')), event: d.data() }));
+  },
+
   async getSessionEvents(userId: string, sessionId: string): Promise<Record<string, any>[]> {
     const eventsRef = collection(db, 'users', userId, 'sessions', sessionId, 'events');
     const q = query(eventsRef, orderBy('__name__'));
@@ -602,45 +601,6 @@ export const firestoreService = {
   },
 
   // ── Feature Flags ────────────────────────────────────────────────────────
-
-  // Subscribe to feature flags doc at Config/featureFlags. Returns unsubscribe.
-  // The callback fires immediately on first successful snapshot and on every change.
-  // CRITICAL: On snapshot error (auth blip, rules redeploy timing) we DO NOT
-  // downgrade — the last-known-good value is preserved by NOT firing the
-  // callback. Without this, a transient error would silently flip mid-session
-  // flag-state to false and mis-stamp the next session. See Clyde finding #5
-  // (2026-06-18).
-  subscribeFeatureFlags(callback: (flags: { useModeEnumAsPrimary: boolean }) => void): () => void {
-    const docRef = doc(db, 'Config', 'featureFlags');
-    return onSnapshot(docRef, (snap) => {
-      const data = snap.exists() ? snap.data() : {};
-      callback({
-        useModeEnumAsPrimary: data?.useModeEnumAsPrimary === true,
-      });
-    }, (err) => {
-      // Log only — do NOT fire callback with downgraded defaults.
-      // Last-known-good value remains in the consumer's state.
-      console.warn('Feature flags subscription error (last-known-good preserved):', err);
-    });
-  },
-
-  // One-shot read of feature flags — used at session start to avoid the
-  // first-render race where useFeatureFlags() returns defaults until the
-  // async snapshot resolves. See Clyde finding #1 (2026-06-18).
-  // Defaults to all-off on read failure rather than throwing, because the
-  // caller (startSessionWithOffice) must not be blocked from creating a
-  // session by a feature-flag read.
-  async readFeatureFlagsOnce(): Promise<{ useModeEnumAsPrimary: boolean }> {
-    try {
-      const docRef = doc(db, 'Config', 'featureFlags');
-      const snap = await getDoc(docRef);
-      const data = snap.exists() ? snap.data() : {};
-      return { useModeEnumAsPrimary: data?.useModeEnumAsPrimary === true };
-    } catch (err) {
-      console.warn('Feature flags one-shot read failed (defaulting off):', err);
-      return { useModeEnumAsPrimary: false };
-    }
-  },
 
   // ── Sidecar / HL7 Command Doc Functions ─────────────────────────────────
 

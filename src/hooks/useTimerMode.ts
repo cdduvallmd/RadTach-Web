@@ -34,7 +34,7 @@
  *   (pendingDraftRestore set) AND modality matches. Otherwise a fresh
  *   context is created and the drafted slot is preserved for later resume.
  */
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +119,13 @@ function getCurrentISO(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+// An event added or replaced at `index` in the event list. Reported after each
+// signal / endSession so the caller can mirror the list (crash log, uploads).
+export interface ShadowEventChange {
+  index: number;
+  event: ShadowEvent;
+}
+
 export interface UseTimerModeReturn {
   signal: (action: TimerSignal, sessionTime: number) => void;
   startSession: () => void;
@@ -128,7 +135,7 @@ export interface UseTimerModeReturn {
   getMode: () => TimerMode;
 }
 
-export function useTimerMode(): UseTimerModeReturn {
+export function useTimerMode(onEventsChanged?: (changes: ShadowEventChange[]) => void): UseTimerModeReturn {
   const mode = useRef<TimerMode>('idle');
   const modeEnteredAt = useRef<number>(0);
   const modeEnteredSystem = useRef<string>('');
@@ -146,7 +153,35 @@ export function useTimerMode(): UseTimerModeReturn {
   // study that happens to be the same modality as the draft."
   const pendingDraftRestore = useRef<boolean>(false);
 
+  // Change reporting (mode-enum plan step 3b): every add or in-place edit of
+  // the event list is recorded by index and reported once per signal, so the
+  // caller's crash log and upload tracker follow this list exactly.
+  const changed = useRef<Set<number>>(new Set());
+  const onEventsChangedRef = useRef(onEventsChanged);
+  useEffect(() => {
+    onEventsChangedRef.current = onEventsChanged;
+  }, [onEventsChanged]);
+
   // ── Helpers ──────────────────────────────────────────────────────────────
+
+  const pushEvent = (event: ShadowEvent): void => {
+    events.current.push(event);
+    changed.current.add(events.current.length - 1);
+  };
+
+  const replaceEvent = (index: number, event: ShadowEvent): void => {
+    events.current[index] = event;
+    changed.current.add(index);
+  };
+
+  const emitChanges = (): void => {
+    if (changed.current.size === 0) return;
+    const list = [...changed.current]
+      .sort((a, b) => a - b)
+      .map(index => ({ index, event: events.current[index] }));
+    changed.current.clear();
+    onEventsChangedRef.current?.(list);
+  };
 
   const closeCurrentMode = useCallback((sessionTime: number): void => {
     const duration = sessionTime - modeEnteredAt.current;
@@ -156,15 +191,15 @@ export function useTimerMode(): UseTimerModeReturn {
     const currentMode = mode.current;
 
     if (currentMode === 'interstitial' && duration > 0) {
-      events.current.push({ type: 'INTERSTITIAL', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
+      pushEvent({ type: 'INTERSTITIAL', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
     } else if (currentMode === 'admin' && duration > 0) {
-      events.current.push({ type: 'ADMIN', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
+      pushEvent({ type: 'ADMIN', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
     } else if (currentMode === 'comms' && duration > 0) {
-      events.current.push({ type: 'COMMS', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
+      pushEvent({ type: 'COMMS', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
     } else if (currentMode === 'break' && duration > 0) {
-      events.current.push({ type: 'BREAK', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
+      pushEvent({ type: 'BREAK', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
     } else if (currentMode === 'doubleTap' && duration > 0) {
-      events.current.push({ type: 'DOUBLE_TAP', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration, associatedModality: lastStudyModality.current });
+      pushEvent({ type: 'DOUBLE_TAP', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration, associatedModality: lastStudyModality.current });
     }
   }, []);
 
@@ -230,7 +265,7 @@ export function useTimerMode(): UseTimerModeReturn {
         const elapsedTime = ctx.accumulatedTime + currentSegment;
         const variance = elapsedTime - ctx.parTime;
 
-        events.current.push({
+        pushEvent({
           type: 'STUDY',
           studyNumber: ctx.studyNumber,
           startTimeSession: ctx.originalStart,
@@ -262,7 +297,7 @@ export function useTimerMode(): UseTimerModeReturn {
         }
         if (lastInterIdx >= 0) {
           const inter = evts[lastInterIdx] as ShadowInterstitialEvent;
-          evts[lastInterIdx] = { ...inter, duration: 10, endTimeSession: inter.startTimeSession + 10 };
+          replaceEvent(lastInterIdx, { ...inter, duration: 10, endTimeSession: inter.startTimeSession + 10 });
         }
         let lastStudyIdx = -1;
         for (let i = evts.length - 1; i >= 0; i--) {
@@ -270,14 +305,14 @@ export function useTimerMode(): UseTimerModeReturn {
         }
         if (lastStudyIdx >= 0) {
           const study = evts[lastStudyIdx] as ShadowStudyEvent;
-          evts[lastStudyIdx] = {
+          replaceEvent(lastStudyIdx, {
             ...study,
             startTimeSession: action.correctedStart,
             startTimeSystem: action.correctedSystem,
             elapsedTime: action.correctedElapsedTime,
             variance: action.correctedElapsedTime - study.parTime,
             swapped: true,
-          };
+          });
         }
         break;
       }
@@ -393,6 +428,7 @@ export function useTimerMode(): UseTimerModeReturn {
         break;
       }
     }
+    emitChanges();
   }, [closeCurrentMode, enterMode]);
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -402,6 +438,7 @@ export function useTimerMode(): UseTimerModeReturn {
     modeEnteredAt.current = 0;
     modeEnteredSystem.current = getCurrentISO();
     events.current = [];
+    changed.current.clear();
     studyContext.current = null;
     wasInStudy.current = false;
     lastStudyModality.current = null;
@@ -415,7 +452,7 @@ export function useTimerMode(): UseTimerModeReturn {
       const ctx = studyContext.current;
       const currentSegment = sessionTime - modeEnteredAt.current;
       const elapsedTime = ctx.accumulatedTime + currentSegment;
-      events.current.push({
+      pushEvent({
         type: 'STUDY',
         studyNumber: ctx.studyNumber,
         startTimeSession: ctx.originalStart,
@@ -436,6 +473,7 @@ export function useTimerMode(): UseTimerModeReturn {
       closeCurrentMode(sessionTime);
     }
     mode.current = 'idle';
+    emitChanges();
     return [...events.current];
   }, [closeCurrentMode]);
 
@@ -444,6 +482,7 @@ export function useTimerMode(): UseTimerModeReturn {
     modeEnteredAt.current = 0;
     modeEnteredSystem.current = '';
     events.current = [];
+    changed.current.clear();
     studyContext.current = null;
     wasInStudy.current = false;
     lastStudyModality.current = null;
