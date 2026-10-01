@@ -297,13 +297,20 @@ export function flushBuffer(currentAuthUid?: string): Promise<FlushResult> {
     return running;
   }
   running = (async () => {
-    let result: FlushResult;
-    do {
-      again = false;
-      result = await withTabLock(() => doFlush(currentAuthUid));
-    } while (again);
-    return result;
-  })().finally(() => { running = null; });
+    // Clear `running` in the same step as the final `again` check, inside the
+    // function: a request arriving after that check must start a new flush,
+    // not join one that has already finished.
+    try {
+      let result: FlushResult;
+      do {
+        again = false;
+        result = await withTabLock(() => doFlush(currentAuthUid));
+      } while (again);
+      return result;
+    } finally {
+      running = null;
+    }
+  })();
   return running;
 }
 
