@@ -1,9 +1,12 @@
 /**
- * useTimerMode — Shadow mode-enum timer system.
+ * useTimerMode — the mode-enum timer engine: exactly one mode at a time
+ * (idle / study / interstitial / admin / comms / break / doubleTap).
  *
- * Runs in parallel with the production boolean-flag timers.
- * Records its own event stream to shadow_events subcollection.
- * After validation, this will replace the boolean system entirely.
+ * Canonical engine for every session (2026-10-01). Its event list is what
+ * reaches Firestore `events`: every add or edit is reported through the change
+ * callback to useEventSync. The legacy boolean-flag timers still run alongside
+ * only to drive the display and session totals until those move here
+ * (mode-enum plan Phases 4–6).
  *
  * Clyde fixes applied (2026-05-18):
  * - F1: Removed savedInterstitialStart spanning — ABC during interstitial
@@ -121,7 +124,7 @@ function getCurrentISO(): string {
 
 // An event added or replaced at `index` in the event list. Reported after each
 // signal / endSession so the caller can mirror the list (crash log, uploads).
-export interface ShadowEventChange {
+export interface EventChange {
   index: number;
   event: ShadowEvent;
 }
@@ -135,7 +138,7 @@ export interface UseTimerModeReturn {
   getMode: () => TimerMode;
 }
 
-export function useTimerMode(onEventsChanged?: (changes: ShadowEventChange[]) => void): UseTimerModeReturn {
+export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void): UseTimerModeReturn {
   const mode = useRef<TimerMode>('idle');
   const modeEnteredAt = useRef<number>(0);
   const modeEnteredSystem = useRef<string>('');

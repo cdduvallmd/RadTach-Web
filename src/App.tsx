@@ -21,7 +21,7 @@ import {
   isoDateInTimezone,
 } from './utils/pvcConfig';
 import AdminBlockClassifier, { type AdminBlock } from './components/pvc/AdminBlockClassifier';
-import { bufferedCreateSession, bufferedEndSession, bufferedSaveUserSettings, flushBuffer, hasPendingEndSession, getLocalEvents, getLocalEventLog, mergeByIndex, clearLocalEvents } from './services/offlineBuffer';
+import { flushBuffer, hasPendingEndSession, getLocalEvents, getLocalEventLog, mergeByIndex, clearLocalEvents } from './services/offlineBuffer';
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { RecoveryToast } from './components/RecoveryToast';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
@@ -347,7 +347,6 @@ function RadTachInner() {
   // Enabling both creates two competing retry layers with different semantics.
   const FIREBASE_ENABLED = true; // Toggle to true when Firebase project is configured
   const { currentUser, logout } = useAuth();
-  const [firestoreSessionId, setFirestoreSessionId] = useState<string | null>(null);
   const localSessionKeyRef = useRef<string | null>(null);
   const health = useFirestoreHealth();
   const lastFlushAttemptRef = useRef<number>(0);
@@ -435,10 +434,10 @@ function RadTachInner() {
   const firestoreFavoritesRef = useRef<Array<{ cpt: string; aeTitle: string }>>([]);
   const firestoreCombosRef = useRef<Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>>([]);
 
-  // ── Shadow mode-enum timer (parallel system for validation) ──────────
-  // Mode-enum engine and its event sync (crash log + upload queue).
-  const eventSync = useEventSync();
-  const shadow = useTimerMode(eventSync.record);
+  // ── Mode-enum timer engine ──────────────────────────────────────────
+  // Mode-enum engine and the session's persistence (crash log, upload queue, uploads).
+  const eventSync = useEventSync(health.reportFlush);
+  const modeEnum = useTimerMode(eventSync.record);
   // Swap subsystem (excisable — see src/hooks/useSwapSubsystem.ts):
   const swapArmed = useSwapArmed();
 
@@ -1160,38 +1159,6 @@ function RadTachInner() {
     return `${dateStr}-${sessionNum}-${userId}-${rand}`;
   };
 
-  // Upload mode-enum's queued events; report the result to the health indicator
-  // the same way the mount/tab-focus flush does.
-  const uploadEvents = () => {
-    eventSync.flush().then(result => {
-      if (result) {
-        health.setPendingCount(result.remaining);
-        if (result.remaining === 0 && result.flushed > 0) health.reportSuccess();
-        else if (result.remaining > 0) health.reportFailure(result.canRead);
-      }
-    });
-  };
-
-  // Firebase: flush events every 5 completed studies (human-cadence trigger).
-  // Kept as the fast path — flushes within seconds of each multiple of 5
-  // completions. The 30s safety-net interval below catches anything this misses
-  // (Clyde finding #3: decouple flush cadence from the legacy counter).
-  useEffect(() => {
-    if (!FIREBASE_ENABLED || !firestoreSessionId || studiesCompleted === 0) return;
-    if (studiesCompleted % 5 !== 0) return;
-
-    uploadEvents();
-  }, [studiesCompleted]);
-
-  // Firebase: 30s safety-net interval flush, independent of any counter.
-  useEffect(() => {
-    if (!FIREBASE_ENABLED || !firestoreSessionId || !currentUser) return;
-    const tick = () => uploadEvents();
-
-    const handle = setInterval(tick, 30000);
-    return () => clearInterval(handle);
-  }, [firestoreSessionId, currentUser]);
-
   // Firebase: flush IDB buffer on mount (handles data left from previous session) and on tab focus (debounced)
   useEffect(() => {
     if (!FIREBASE_ENABLED || !currentUser) return;
@@ -1200,13 +1167,7 @@ function RadTachInner() {
       const now = Date.now();
       if (now - lastFlushAttemptRef.current < FLUSH_DEBOUNCE_MS) return;
       lastFlushAttemptRef.current = now;
-      flushBuffer(currentUser.uid).then(result => {
-        if (result) {
-          health.setPendingCount(result.remaining);
-          if (result.remaining === 0 && result.flushed > 0) health.reportSuccess();
-          else if (result.remaining > 0) health.reportFailure(result.canRead);
-        }
-      });
+      flushBuffer(currentUser.uid).then(health.reportFlush, () => {});
     };
 
     attemptFlush();
@@ -1562,7 +1523,8 @@ function RadTachInner() {
     sessionClock.start();
     setTodaySessionCount(prev => prev + 1);
     setSessionEvents([]);
-    shadow.startSession();
+    const syncToken = eventSync.open();
+    modeEnum.startSession();
     // Start interstitial at session start so the first-study auto-swap has a
     // prior INTERSTITIAL fragment to harvest if the timer wasn't started
     // when the rad opened the study in PACS.
@@ -1575,9 +1537,6 @@ function RadTachInner() {
     // Firebase: create session document via IDB write-ahead buffer
     if (FIREBASE_ENABLED) {
       const localKey = await generateSessionIdAsync();
-      localSessionKeyRef.current = localKey;
-      setFirestoreSessionId(localKey);
-      eventSync.begin({ userId: currentUser!.uid, sessionKey: localKey });
 
       // PVC: compute shift credit + bonus for this session start.
       // Reload pvcConfig at session start so admin config changes take effect
@@ -1610,7 +1569,7 @@ function RadTachInner() {
         console.warn('PVC shift-credit lookup failed:', err);
       }
 
-      bufferedCreateSession(currentUser!.uid, localKey, {
+      const begun = eventSync.begin(syncToken, { userId: currentUser!.uid, sessionKey: localKey }, {
         sessionId: localKey,
         userAbbrev: currentUser!.uid,
         workstationId: workstationId,
@@ -1622,16 +1581,11 @@ function RadTachInner() {
         _modeEnumPrimary: true,
         ...(userDisplayName ? { displayName: userDisplayName } : {}),
         ...pvcFields,
-      }).then(ok => {
-        if (ok) health.reportSuccess();
-        else health.reportFailure(false);
-        return flushBuffer(currentUser!.uid);
-      }).then(result => {
-        if (result) {
-          if (result.remaining === 0 && result.flushed > 0) health.reportSuccess();
-          else if (result.remaining > 0) health.reportFailure(result.canRead);
-        }
       });
+      // Stopped while starting up: the session was never created, so there is
+      // nothing more to set up. (Clyde 2026-10-01b #3)
+      if (!begun) return;
+      localSessionKeyRef.current = localKey;
       firestoreService.writeSessionStatus(currentUser!.uid, true).catch(console.error);
       // Send sync_settings to Sidecar via command doc (replaces clearCommandDoc)
       firestoreService.writeSyncSettings(
@@ -1863,41 +1817,27 @@ function RadTachInner() {
     }
 
     // Mode-enum: finalize. endSession reports its closing event to eventSync,
-    // which logs and queues it like every other event.
-    shadow.endSession(sessionTime);
+    // which queues it like every other event.
+    modeEnum.endSession(sessionTime);
 
-    // Firebase: once every event is queued, queue the session end and settings
-    // (both are queued before any network wait, so logging off offline loses
-    // nothing), then upload. Replay sends create → events → end in order.
-    if (FIREBASE_ENABLED && localSessionKeyRef.current) {
+    // Firebase: queue the session end and settings behind the session's events
+    // (no network wait, so logging off offline loses nothing), then upload.
+    // Always called — a Stop during start-up cancels the session. (Clyde 2026-10-01b #3)
+    if (FIREBASE_ENABLED) {
       const data = buildSessionData();
-      const key = localSessionKeyRef.current;
       const summary = computeSessionSummary(finalEvents, sessionTime, sessionStartDateTime || undefined);
+      eventSync.finish({ ...data.session, summary }, {
+        parTimes, rvuValues, stealthMode, autoStartEnabled, useHMSFormat,
+        gpciZip, gpciValues, rvuDerivedMode, targetRvuPerHour,
+        favorites: firestoreFavoritesRef.current,
+        sidecarCombos: firestoreCombosRef.current,
+      }).then(result => {
+        if (result && result.remaining > 0) health.setHasPendingOnExit(true);
+      });
+    }
 
-      eventSync.end()
-        .then(() => Promise.all([
-          bufferedEndSession(currentUser!.uid, key, { ...data.session, summary }),
-          bufferedSaveUserSettings(currentUser!.uid, {
-            parTimes, rvuValues, stealthMode, autoStartEnabled, useHMSFormat,
-            gpciZip, gpciValues, rvuDerivedMode, targetRvuPerHour,
-            favorites: firestoreFavoritesRef.current,
-            sidecarCombos: firestoreCombosRef.current,
-          }),
-        ]))
-        .then(() => clearLocalEvents(key).catch(() => {}))
-        .then(() => flushBuffer(currentUser!.uid))
-        .then(result => {
-          if (result && result.remaining > 0) {
-            health.setHasPendingOnExit(true);
-            health.reportFailure(result.canRead);
-          } else if (result) {
-            health.reportSuccess();
-          }
-        })
-        .catch(err => console.error('Session-end write failed:', err));
-
+    if (FIREBASE_ENABLED && localSessionKeyRef.current) {
       localSessionKeyRef.current = null;
-      setFirestoreSessionId(null);
       // Write session_ended BEFORE sessionActive:false so Sidecar sees ended state before status change
       firestoreService.writeSessionEnded(currentUser!.uid)
         .then(() => firestoreService.writeSessionStatus(currentUser!.uid, false))
@@ -2062,7 +2002,7 @@ function RadTachInner() {
 
       // Shadow signal: study started
       if (selectedModality) {
-        shadow.signal({
+        modeEnum.signal({
           type: 'study_start',
           modality: selectedModality,
           complications: [...selectedComplications],
@@ -2197,7 +2137,7 @@ function RadTachInner() {
     setIsRunning(false);
 
     // Shadow signal: study complete
-    shadow.signal({ type: 'study_complete' }, sessionTime);
+    modeEnum.signal({ type: 'study_complete' }, sessionTime);
 
     // ── Swap correction (excisable subsystem — see src/hooks/useSwapSubsystem.ts) ──
     let effectiveTime = currentTime;
@@ -2209,7 +2149,7 @@ function RadTachInner() {
         sessionEvents,
         setSessionEvents,
         setInterstitialTime,
-        (params) => shadow.signal({ type: 'swap_detected', ...params }, sessionTime),
+        (params) => modeEnum.signal({ type: 'swap_detected', ...params }, sessionTime),
       );
       effectiveTime = result.effectiveTime;
       wasSwapped = result.wasSwapped;
@@ -2376,7 +2316,7 @@ function RadTachInner() {
 
   // Toggle Admin Time
   const toggleAdminTime = () => {
-    shadow.signal({ type: 'admin_toggle' }, sessionTime);
+    modeEnum.signal({ type: 'admin_toggle' }, sessionTime);
     if (!isAdminTimeRunning) {
       // Starting Admin Time
       setIsAdminTimeRunning(true);
@@ -2424,7 +2364,7 @@ function RadTachInner() {
 
   // Toggle Comms Time
   const toggleCommsTime = () => {
-    shadow.signal({ type: 'comms_toggle' }, sessionTime);
+    modeEnum.signal({ type: 'comms_toggle' }, sessionTime);
     if (!isCommsTimeRunning) {
       // Starting Comms Time
       setIsCommsTimeRunning(true);
@@ -2476,8 +2416,8 @@ function RadTachInner() {
   // taken anywhere — between studies, mid-study, mid-admin — same rule applies.
   const toggleBreakTime = () => {
     if (!isBreakTimeRunning) {
-      // Signal shadow before starting break (no drift issue on start)
-      shadow.signal({ type: 'break_toggle' }, sessionTime);
+      // Signal mode-enum before starting break (no drift issue on start)
+      modeEnum.signal({ type: 'break_toggle' }, sessionTime);
       // Starting Break - pause Interstitial, Admin, and Comms
       setIsBreakTimeRunning(true);
       setIsInterstitialRunning(false);
@@ -2497,10 +2437,6 @@ function RadTachInner() {
       if (selectedModality !== null && isRunning) {
         setIsRunning(false);
       }
-      // Firebase: upload queued events on break start (user is idle, good time to write)
-      if (FIREBASE_ENABLED && firestoreSessionId) {
-        uploadEvents();
-      }
     } else {
       // Stopping Break - drift correction + record event (Issue #1)
 
@@ -2508,8 +2444,8 @@ function RadTachInner() {
       // Break end is the cleanest correction point — no timers are mid-flight
       const correctedSessionTime = sessionClock.resyncAtBreakEnd();
 
-      // F2: Signal shadow with corrected time (after drift correction)
-      shadow.signal({ type: 'break_toggle' }, correctedSessionTime);
+      // F2: Signal mode-enum with corrected time (after drift correction)
+      modeEnum.signal({ type: 'break_toggle' }, correctedSessionTime);
 
       if (breakStartTime !== null) {
         const breakEvent: TimerEvent = {
@@ -2546,7 +2482,7 @@ function RadTachInner() {
       // Don't allow starting Double Tap during dictation
       return;
     }
-    shadow.signal({ type: 'doubletap_toggle', modality: lastStudyModality ?? undefined }, sessionTime);
+    modeEnum.signal({ type: 'doubletap_toggle', modality: lastStudyModality ?? undefined }, sessionTime);
 
     if (!isDoubleTapRunning) {
       // Starting Double Tap - stop Interstitial (productive time, not wasted)
@@ -2593,7 +2529,7 @@ function RadTachInner() {
         alert('Please select a modality before using Draft mode');
         return;
       }
-      shadow.signal({ type: 'draft_enter' }, sessionTime);
+      modeEnum.signal({ type: 'draft_enter' }, sessionTime);
       
       // Stop the timer if it's running
       if (isRunning) {
@@ -2635,7 +2571,7 @@ function RadTachInner() {
       }
       
       // Restore the drafted study
-      shadow.signal({ type: 'draft_exit' }, sessionTime);
+      modeEnum.signal({ type: 'draft_exit' }, sessionTime);
       setSelectedModality(draftStudy.modality);
       setSelectedComplications(draftStudy.complications);
       setCurrentTime(draftStudy.currentTime);

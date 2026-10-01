@@ -539,10 +539,8 @@ export const firestoreService = {
   },
 
   async getSessionEvents(userId: string, sessionId: string): Promise<Record<string, any>[]> {
-    const eventsRef = collection(db, 'users', userId, 'sessions', sessionId, 'events');
-    const q = query(eventsRef, orderBy('__name__'));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => d.data());
+    const items = await this.getSessionEventsIndexed(userId, sessionId);
+    return items.map(it => it.event);
   },
 
   async writeStaleMarker(system: string, date: string, reportedBy: string) {

@@ -1,5 +1,12 @@
 import { firestoreService } from './firestore';
 
+// Offline buffer: every Firestore write RadTach makes for a session goes into
+// an IndexedDB queue first, and the replay (flushBuffer) is the only thing that
+// sends it. A crash or a network outage leaves the queue intact; the next
+// replay picks up where the last one stopped. Alongside the queue, a crash log
+// (localEvents) keeps the session's events so an unfinished session can be
+// rebuilt after a crash.
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface PendingWrite {
@@ -49,11 +56,6 @@ const DB_VERSION = 2;
 const STORE_NAME = 'pendingWrites';
 const LOCAL_EVENTS_STORE = 'localEvents';
 const TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
-const LOCK_KEY = 'radtach_flush_lock';
-const LOCK_TTL = 10000; // 10 seconds
-
-// Firestore writeBatch limit is 500 operations. Max realistic batch for a full
-// shift offline is ~320 events. Well within limit, but noted here for awareness.
 
 // ── IDB Lifecycle ────────────────────────────────────────────────────────────
 
@@ -64,6 +66,14 @@ export async function openBuffer(): Promise<IDBDatabase> {
 
   // Request persistent storage so the browser won't evict IDB under pressure
   navigator.storage?.persist?.();
+
+  // If a newer version is opened in another tab, close this connection so the
+  // upgrade isn't blocked; the next call reopens. (Clyde 2026-10-01b L4)
+  const keep = (db: IDBDatabase) => {
+    db.onversionchange = () => { db.close(); dbInstance = null; };
+    dbInstance = db;
+    return db;
+  };
 
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -77,10 +87,8 @@ export async function openBuffer(): Promise<IDBDatabase> {
         store.createIndex('sessionKey', 'sessionKey', { unique: false });
       }
     };
-    request.onsuccess = () => {
-      dbInstance = request.result;
-      resolve(dbInstance);
-    };
+    request.onblocked = () => console.warn('Offline buffer upgrade blocked by another open RadTach tab');
+    request.onsuccess = () => resolve(keep(request.result));
     request.onerror = () => {
       // The stored database is newer than this code expects — e.g. a deploy
       // that raised DB_VERSION was reverted. Open at whatever version exists
@@ -88,10 +96,7 @@ export async function openBuffer(): Promise<IDBDatabase> {
       // uses are never removed by later versions). Clyde 2026-09-29 #16.
       if (request.error?.name === 'VersionError') {
         const fallback = indexedDB.open(DB_NAME);
-        fallback.onsuccess = () => {
-          dbInstance = fallback.result;
-          resolve(dbInstance);
-        };
+        fallback.onsuccess = () => resolve(keep(fallback.result));
         fallback.onerror = () => reject(fallback.error);
         return;
       }
@@ -100,7 +105,7 @@ export async function openBuffer(): Promise<IDBDatabase> {
   });
 }
 
-// ── Low-Level IDB Operations ─────────────────────────────────────────────────
+// ── Queue ────────────────────────────────────────────────────────────────────
 
 export async function addPendingWrite(write: Omit<PendingWrite, 'id'>): Promise<void> {
   const db = await openBuffer();
@@ -112,7 +117,25 @@ export async function addPendingWrite(write: Omit<PendingWrite, 'id'>): Promise<
   });
 }
 
-export async function getAllPendingWrites(): Promise<PendingWrite[]> {
+// Queue a session-document or settings write. It is sent only by the replay,
+// in order: createSession → events → endSession. If local storage fails, the
+// write goes straight to Firestore instead so it isn't lost. (Clyde 2026-10-01b #2)
+export async function queueSessionWrite(
+  operation: 'createSession' | 'endSession' | 'saveUserSettings',
+  userId: string,
+  sessionKey: string,
+  payload: Record<string, any>,
+): Promise<void> {
+  const write = { operation, userId, sessionKey, payload, createdAt: Date.now() };
+  try {
+    await addPendingWrite(write);
+  } catch (err) {
+    console.error(`Offline buffer: could not queue ${operation}, sending directly`, err);
+    await executeWrite(write);
+  }
+}
+
+async function getAllPendingWrites(): Promise<PendingWrite[]> {
   const db = await openBuffer();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -122,7 +145,7 @@ export async function getAllPendingWrites(): Promise<PendingWrite[]> {
   });
 }
 
-export async function deletePendingWrite(id: number): Promise<void> {
+async function deletePendingWrite(id: number): Promise<void> {
   const db = await openBuffer();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -132,17 +155,7 @@ export async function deletePendingWrite(id: number): Promise<void> {
   });
 }
 
-export async function clearAllPendingWrites(): Promise<void> {
-  const db = await openBuffer();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).clear();
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-export async function getPendingCount(): Promise<number> {
+async function getPendingCount(): Promise<number> {
   const db = await openBuffer();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -152,42 +165,37 @@ export async function getPendingCount(): Promise<number> {
   });
 }
 
-// ── Orphan Recovery Helper ───────────────────────────────────────────────────
-
+// Orphan recovery skips a session whose endSession is still queued.
 export async function hasPendingEndSession(sessionKey: string): Promise<boolean> {
   const all = await getAllPendingWrites();
   return all.some(w => w.operation === 'endSession' && w.sessionKey === sessionKey);
 }
 
-// ── Local Event Log (crash-proof event storage) ─────────────────────────────
-
-export async function addLocalEvent(sessionKey: string, event: Record<string, any>): Promise<void> {
-  const db = await openBuffer();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(LOCAL_EVENTS_STORE, 'readwrite');
-    tx.objectStore(LOCAL_EVENTS_STORE).add({ sessionKey, event, createdAt: Date.now() });
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-export async function getLocalEvents(sessionKey: string): Promise<Record<string, any>[]> {
-  const db = await openBuffer();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(LOCAL_EVENTS_STORE, 'readonly');
-    const index = tx.objectStore(LOCAL_EVENTS_STORE).index('sessionKey');
-    const request = index.getAll(sessionKey);
-    request.onsuccess = () => resolve((request.result as LocalEvent[]).map(r => r.event));
-    request.onerror = () => reject(request.error);
-  });
-}
+// ── Crash log ────────────────────────────────────────────────────────────────
 
 // Mode-enum event added or edited: in ONE transaction, append it to the crash
 // log and queue it for upload, both tagged with its index. The queued entry
 // uses the existing flushEvents shape (one event at startIndex = index), so
 // any build can replay it, and replay in queue order applies the newest
-// version last. Replay is the only writer of events to Firestore.
+// version last. Because both copies are written together, the queue always
+// holds an upload copy of everything in the crash log — clearing the crash
+// log never loses an event that hasn't reached Firestore. If local storage
+// fails, the event goes straight to Firestore instead. (Clyde 2026-10-01b #2)
 export async function recordEvent(
+  userId: string,
+  sessionKey: string,
+  index: number,
+  event: Record<string, any>,
+): Promise<void> {
+  try {
+    await logAndQueueEvent(userId, sessionKey, index, event);
+  } catch (err) {
+    console.error('Offline buffer: could not log event, sending directly', err);
+    await firestoreService.writeEventsByIndex(userId, sessionKey, [{ index, event: stripUndefined(event) }]);
+  }
+}
+
+async function logAndQueueEvent(
   userId: string,
   sessionKey: string,
   index: number,
@@ -206,17 +214,26 @@ export async function recordEvent(
   });
 }
 
-// This session's crash log entries that carry an index (written by
-// recordEvent), in write order.
+// This session's crash log entries that carry an index, in write order.
 export async function getLocalEventLog(sessionKey: string): Promise<IndexedEvent[]> {
+  const rows = await getLocalRows(sessionKey);
+  return rows.filter(r => r.index != null).map(r => ({ index: r.index as number, event: r.event }));
+}
+
+// Crash log entries without an index, from sessions recorded before step 3b
+// (2026-10-01). Recovery fallback only — remove after 2026-12-31, once no
+// pre-3b session can still be unrecovered.
+export async function getLocalEvents(sessionKey: string): Promise<Record<string, any>[]> {
+  const rows = await getLocalRows(sessionKey);
+  return rows.filter(r => r.index == null).map(r => r.event);
+}
+
+async function getLocalRows(sessionKey: string): Promise<LocalEvent[]> {
   const db = await openBuffer();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(LOCAL_EVENTS_STORE, 'readonly');
     const request = tx.objectStore(LOCAL_EVENTS_STORE).index('sessionKey').getAll(sessionKey);
-    request.onsuccess = () => {
-      const rows = (request.result as LocalEvent[]).filter(r => r.index != null);
-      resolve(rows.map(r => ({ index: r.index as number, event: r.event })));
-    };
+    request.onsuccess = () => resolve(request.result as LocalEvent[]);
     request.onerror = () => reject(request.error);
   });
 }
@@ -225,9 +242,7 @@ export async function clearLocalEvents(sessionKey: string): Promise<void> {
   const db = await openBuffer();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(LOCAL_EVENTS_STORE, 'readwrite');
-    const store = tx.objectStore(LOCAL_EVENTS_STORE);
-    const index = store.index('sessionKey');
-    const request = index.openCursor(sessionKey);
+    const request = tx.objectStore(LOCAL_EVENTS_STORE).index('sessionKey').openCursor(sessionKey);
     request.onsuccess = () => {
       const cursor = request.result;
       if (cursor) {
@@ -240,143 +255,70 @@ export async function clearLocalEvents(sessionKey: string): Promise<void> {
   });
 }
 
-// ── Multi-Tab Lock ───────────────────────────────────────────────────────────
+// ── Replay ───────────────────────────────────────────────────────────────────
 
-function acquireLock(): boolean {
-  const now = Date.now();
-  const existing = parseInt(localStorage.getItem(LOCK_KEY) || '0');
-  if (now - existing < LOCK_TTL) return false;
-  localStorage.setItem(LOCK_KEY, String(now));
-  return true;
-}
-
-function releaseLock(): void {
-  localStorage.removeItem(LOCK_KEY);
-}
-
-// ── Buffered Write Wrappers ──────────────────────────────────────────────────
-
-export async function bufferedCreateSession(
-  userId: string,
-  sessionKey: string,
-  sessionData: Record<string, any>,
-): Promise<boolean> {
-  await addPendingWrite({
-    operation: 'createSession',
-    userId,
-    sessionKey,
-    payload: sessionData,
-    createdAt: Date.now(),
-  });
-  try {
-    await firestoreService.createSession(userId, sessionKey, sessionData);
-    // Success — find and remove the entry we just wrote
-    const all = await getAllPendingWrites();
-    const match = all.find(
-      w => w.operation === 'createSession' && w.sessionKey === sessionKey && w.userId === userId,
-    );
-    if (match?.id != null) await deletePendingWrite(match.id);
-    return true;
-  } catch {
-    return false;
+// Firestore rejects `undefined` field values; one such field would block the
+// whole session's replay. Drop them before writing. (Clyde 2026-10-01b #4)
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(stripUndefined) as T;
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) if (v !== undefined) out[k] = stripUndefined(v);
+    return out as T;
   }
+  return value;
 }
-
-export async function bufferedEndSession(
-  userId: string,
-  sessionKey: string,
-  finalData: Record<string, any>,
-): Promise<boolean> {
-  await addPendingWrite({
-    operation: 'endSession',
-    userId,
-    sessionKey,
-    payload: finalData,
-    createdAt: Date.now(),
-  });
-  try {
-    await firestoreService.endSession(userId, sessionKey, finalData);
-    const all = await getAllPendingWrites();
-    const match = all.find(
-      w => w.operation === 'endSession' && w.sessionKey === sessionKey && w.userId === userId,
-    );
-    if (match?.id != null) await deletePendingWrite(match.id);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function bufferedSaveUserSettings(
-  userId: string,
-  settings: Record<string, any>,
-): Promise<boolean> {
-  await addPendingWrite({
-    operation: 'saveUserSettings',
-    userId,
-    sessionKey: '_settings',
-    payload: settings,
-    createdAt: Date.now(),
-  });
-  try {
-    await firestoreService.saveUserSettings(userId, settings);
-    const all = await getAllPendingWrites();
-    const match = all.find(
-      w => w.operation === 'saveUserSettings' && w.userId === userId,
-    );
-    if (match?.id != null) await deletePendingWrite(match.id);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// ── Replay Engine ────────────────────────────────────────────────────────────
 
 async function executeWrite(write: PendingWrite): Promise<void> {
+  const payload = stripUndefined(write.payload);
   switch (write.operation) {
     case 'createSession':
-      await firestoreService.createSession(write.userId, write.sessionKey, write.payload);
+      await firestoreService.createSession(write.userId, write.sessionKey, payload);
       break;
     case 'endSession':
-      await firestoreService.endSession(write.userId, write.sessionKey, write.payload);
+      await firestoreService.endSession(write.userId, write.sessionKey, payload);
       break;
     case 'saveUserSettings':
-      await firestoreService.saveUserSettings(write.userId, write.payload);
+      await firestoreService.saveUserSettings(write.userId, payload);
       break;
   }
 }
 
-export async function flushBuffer(currentAuthUid?: string): Promise<FlushResult> {
-  // Multi-tab safety: use navigator.locks if available, else localStorage lock
-  if (typeof navigator !== 'undefined' && 'locks' in navigator) {
-    return new Promise((resolve) => {
-      navigator.locks.request('radtach-flush', { ifAvailable: true }, async (lock) => {
-        if (!lock) {
-          // Another tab is flushing — report current state without doing work
-          const remaining = await getPendingCount();
-          resolve({ flushed: 0, remaining, canRead: true });
-          return;
-        }
-        resolve(await doFlush(currentAuthUid));
-      });
-    });
-  }
+// Replay coalescing (Clyde 2026-10-01b #1): a flush requested while one is
+// running is never dropped — the running flush runs once more before it
+// finishes, and every caller gets that final result. Across tabs, the Web
+// Lock makes replays wait their turn rather than skip.
+let running: Promise<FlushResult> | null = null;
+let again = false;
 
-  // Fallback: localStorage timestamp lock
-  if (!acquireLock()) {
-    const remaining = await getPendingCount();
-    return { flushed: 0, remaining, canRead: true };
+export function flushBuffer(currentAuthUid?: string): Promise<FlushResult> {
+  if (running) {
+    again = true;
+    return running;
   }
-  try {
-    return await doFlush(currentAuthUid);
-  } finally {
-    releaseLock();
-  }
+  running = (async () => {
+    let result: FlushResult;
+    do {
+      again = false;
+      result = await withTabLock(() => doFlush(currentAuthUid));
+    } while (again);
+    return result;
+  })().finally(() => { running = null; });
+  return running;
 }
 
-// createSession / endSession replay: write, mark late-arriving dates stale for
-// group stats, then dequeue. The entry is kept if the marker write fails.
+// All current browsers support Web Locks; without it replays are still
+// serialised within a tab, just not across tabs. (Clyde 2026-10-01b L3)
+async function withTabLock(fn: () => Promise<FlushResult>): Promise<FlushResult> {
+  if (typeof navigator !== 'undefined' && 'locks' in navigator) {
+    return await navigator.locks.request('radtach-flush', fn);
+  }
+  return fn();
+}
+
+// createSession / endSession: write, mark late-arriving dates stale for group
+// stats, then dequeue (kept if the marker write fails). After endSession the
+// session's crash log is no longer needed. (Clyde 2026-10-01b L1)
 async function runSessionWrite(w: PendingWrite, stamp: Record<string, string> | null): Promise<void> {
   if (stamp) Object.assign(w.payload, stamp);
   await executeWrite(w);
@@ -388,6 +330,12 @@ async function runSessionWrite(w: PendingWrite, stamp: Record<string, string> | 
     }
   }
   if (w.id != null) await deletePendingWrite(w.id);
+  if (w.operation === 'endSession') await clearLocalEvents(w.sessionKey).catch(() => {});
+}
+
+function isNetworkError(err: any): boolean {
+  const code = err?.code || '';
+  return code === 'unavailable' || code === 'resource-exhausted';
 }
 
 async function doFlush(currentAuthUid?: string): Promise<FlushResult> {
@@ -399,45 +347,38 @@ async function doFlush(currentAuthUid?: string): Promise<FlushResult> {
   let canRead = true;
 
   // TTL cleanup: remove entries older than 60 days
-  const expired = all.filter(w => now - w.createdAt > TTL_MS);
-  for (const w of expired) {
-    if (w.id != null) await deletePendingWrite(w.id);
+  for (const w of all) {
+    if (now - w.createdAt > TTL_MS && w.id != null) await deletePendingWrite(w.id);
   }
   const live = all.filter(w => now - w.createdAt <= TTL_MS);
+  const byId = (a: PendingWrite, b: PendingWrite) => (a.id ?? 0) - (b.id ?? 0);
 
-  // Separate settings writes (independent) from session writes
-  const settingsWrites = live.filter(w => w.operation === 'saveUserSettings');
-  const sessionWrites = live.filter(w => w.operation !== 'saveUserSettings');
-
-  // Process settings first
-  for (const w of settingsWrites) {
+  // Settings writes are independent of sessions
+  for (const w of live.filter(x => x.operation === 'saveUserSettings').sort(byId)) {
     try {
       await executeWrite(w);
       if (w.id != null) await deletePendingWrite(w.id);
       flushed++;
-    } catch (err: any) {
-      const code = err?.code || '';
-      const isNetworkError = code === 'unavailable' || code === 'resource-exhausted';
-      if (isNetworkError) canRead = false;
+    } catch (err) {
+      if (isNetworkError(err)) canRead = false;
+      else console.error('Offline buffer: settings write failed', err);
     }
   }
 
-  // Group session writes by sessionKey, process each chain in order
   const bySession = new Map<string, PendingWrite[]>();
-  for (const w of sessionWrites) {
-    const existing = bySession.get(w.sessionKey) || [];
-    existing.push(w);
-    bySession.set(w.sessionKey, existing);
+  for (const w of live) {
+    if (w.operation === 'saveUserSettings') continue;
+    bySession.set(w.sessionKey, [...(bySession.get(w.sessionKey) ?? []), w]);
   }
 
   // Each session chain runs in order: createSession → events → endSession.
   // Queued events are merged by index in queue order (newest version wins),
-  // then sent as one write.
+  // then sent as one write. A failure skips to the next session.
   for (const [sessionKey, chain] of bySession) {
-    const byId = (a: PendingWrite, b: PendingWrite) => (a.id ?? 0) - (b.id ?? 0);
     const creates = chain.filter(w => w.operation === 'createSession').sort(byId);
     const eventWrites = chain.filter(w => w.operation === 'flushEvents').sort(byId);
     const ends = chain.filter(w => w.operation === 'endSession').sort(byId);
+    // Audit trail: writes flushed by a different signed-in user are stamped
     const stamp = currentAuthUid && chain[0].userId !== currentAuthUid
       ? { _flushedBy: currentAuthUid, _flushedAt: new Date().toISOString() }
       : null;
@@ -447,18 +388,18 @@ async function doFlush(currentAuthUid?: string): Promise<FlushResult> {
       if (eventWrites.length > 0) {
         const queued = eventWrites.flatMap(w =>
           (w.payload.events as Record<string, any>[]).map((event, i) => ({ index: (w.startIndex ?? 0) + i, event })));
-        // Audit trail: cross-user flushes are stamped on each event doc
-        const items = mergeByIndex(queued).map(it => (stamp ? { index: it.index, event: { ...it.event, ...stamp } } : it));
+        const items = mergeByIndex(queued).map(it =>
+          ({ index: it.index, event: stripUndefined(stamp ? { ...it.event, ...stamp } : it.event) }));
         await firestoreService.writeEventsByIndex(chain[0].userId, sessionKey, items);
         for (const w of eventWrites) if (w.id != null) await deletePendingWrite(w.id);
         flushed += eventWrites.length;
       }
       for (const w of ends) { await runSessionWrite(w, stamp); flushed++; }
-    } catch (err: any) {
-      const code = err?.code || '';
-      const isNetworkError = code === 'unavailable' || code === 'resource-exhausted';
-      if (isNetworkError) canRead = false;
-      // Skip to next session chain (don't block independent sessions)
+    } catch (err) {
+      if (isNetworkError(err)) canRead = false;
+      // Anything else (rules rejection, bad data) would repeat on every
+      // replay — make it visible. (Clyde 2026-10-01b #4)
+      else console.error(`Offline buffer: replay failed for session ${sessionKey}`, err);
     }
   }
 

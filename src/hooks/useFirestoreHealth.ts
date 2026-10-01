@@ -14,6 +14,14 @@ export interface FirestoreHealth {
   dismissError(): void;
   setHasPendingOnExit(val: boolean): void;
   setPendingCount(count: number): void;
+  reportFlush(result: FlushOutcome | null): void;
+}
+
+// Outcome of an offline-buffer replay (offlineBuffer.flushBuffer).
+export interface FlushOutcome {
+  flushed: number;
+  remaining: number;
+  canRead: boolean;
 }
 
 export function useFirestoreHealth(): FirestoreHealth {
@@ -46,6 +54,14 @@ export function useFirestoreHealth(): FirestoreHealth {
     });
   }, []);
 
+  // One place to read a replay result: pending count, then green/yellow/red.
+  const reportFlush = useCallback((result: FlushOutcome | null) => {
+    if (!result) return;
+    setPendingCount(result.remaining);
+    if (result.remaining === 0 && result.flushed > 0) reportSuccess();
+    else if (result.remaining > 0) reportFailure(result.canRead);
+  }, [reportSuccess, reportFailure]);
+
   const dismissError = useCallback(() => {
     setErrorCode(null);
   }, []);
@@ -61,5 +77,6 @@ export function useFirestoreHealth(): FirestoreHealth {
     dismissError,
     setHasPendingOnExit,
     setPendingCount,
+    reportFlush,
   };
 }

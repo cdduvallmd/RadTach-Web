@@ -1,66 +1,101 @@
 /**
- * useEventSync — keeps mode-enum's events crash-safe and uploaded
- * (mode-enum plan step 3b).
+ * useEventSync — one session's persistence (mode-enum plan step 3b).
  *
- * record() is useTimerMode's change callback. Every added or edited event is
- * written, in order, to the local crash log and the upload queue in one IDB
- * transaction (recordEvent). flush() runs the offline buffer's replay — the
- * only writer of events to Firestore — which merges the queue by index so the
- * newest version of each event wins. Edits (SWAP, Undo) are just more changes.
+ * Everything a session writes goes through the offline buffer's queue, in the
+ * order it happens: the session document at begin, each event change from
+ * useTimerMode, then the session end and settings at finish. The buffer's
+ * replay is the only thing that uploads; this hook runs it every 30 s while a
+ * session is open and once more at finish, and reports each result.
  *
- * The session's identity is fixed by begin() once its key is known; changes
- * reported before then are held and written at begin(). end() closes it and
- * resolves when all of its events are queued.
+ * Lifecycle:
+ *   open()                     at Start, before useTimerMode starts. Returns a token.
+ *   begin(token, session, doc) once the session key is known. Returns false if
+ *                              the session was stopped in the meantime.
+ *   record(changes)            useTimerMode's change callback.
+ *   finish(end, settings)      at Stop. Queues without waiting on the network,
+ *                              then uploads; resolves with the upload result.
  */
-import { useRef, useCallback } from 'react';
-import { recordEvent, flushBuffer, type FlushResult } from '../services/offlineBuffer';
-import type { ShadowEventChange } from './useTimerMode';
+import { useRef, useCallback, useEffect } from 'react';
+import { recordEvent, queueSessionWrite, flushBuffer, type FlushResult } from '../services/offlineBuffer';
+import type { EventChange } from './useTimerMode';
 
 interface SyncSession {
   userId: string;
   sessionKey: string;
 }
 
-export function useEventSync() {
-  const session = useRef<SyncSession | null>(null);
-  const early = useRef<ShadowEventChange[]>([]);
-  // Writes are chained so the queue order matches the change order.
-  const writes = useRef<Promise<void>>(Promise.resolve());
+const UPLOAD_INTERVAL_MS = 30000;
 
-  const write = (s: SyncSession, changes: ShadowEventChange[]) => {
+export function useEventSync(onUpload: (result: FlushResult | null) => void) {
+  const session = useRef<SyncSession | null>(null);
+  const generation = useRef(0);
+  // Changes reported between open() and begin(), written at begin().
+  const held = useRef<EventChange[]>([]);
+  // Every queue write is chained, so the queue order matches the change order.
+  const writes = useRef<Promise<void>>(Promise.resolve());
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onUploadRef = useRef(onUpload);
+  useEffect(() => { onUploadRef.current = onUpload; }, [onUpload]);
+
+  const chain = (step: () => Promise<void>) => {
+    writes.current = writes.current.then(step).catch(err => console.error('Event sync: write failed', err));
+  };
+
+  const queueChanges = (s: SyncSession, changes: EventChange[]) => {
     for (const { index, event } of changes) {
-      writes.current = writes.current
-        .then(() => recordEvent(s.userId, s.sessionKey, index, event as Record<string, any>))
-        .catch(() => {});
+      chain(() => recordEvent(s.userId, s.sessionKey, index, event as Record<string, any>));
     }
   };
 
-  const record = useCallback((changes: ShadowEventChange[]) => {
-    if (session.current) write(session.current, changes);
-    else early.current.push(...changes);
-  }, []);
+  // Wait for queued writes to land, then replay the queue.
+  const upload = (userId: string): Promise<FlushResult | null> =>
+    writes.current
+      .then(() => flushBuffer(userId))
+      .catch(err => { console.error('Event sync: upload failed', err); return null; })
+      .then(result => { onUploadRef.current(result); return result; });
 
-  const begin = useCallback((s: SyncSession) => {
-    session.current = s;
-    const held = early.current;
-    early.current = [];
-    write(s, held);
-  }, []);
+  const stopTimer = () => {
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+  };
 
-  // Close the session. Resolves once all of its events are in the queue —
-  // no upload involved, so it doesn't wait on the network.
-  const end = useCallback((): Promise<void> => {
+  useEffect(() => stopTimer, []);
+
+  const open = useCallback((): number => {
+    stopTimer();
     session.current = null;
-    early.current = [];
-    return writes.current;
+    held.current = [];
+    return ++generation.current;
   }, []);
 
-  // Upload: wait for queued writes to land, then run the replay.
-  const flush = useCallback((): Promise<FlushResult | null> => {
+  const begin = useCallback((token: number, s: SyncSession, sessionDoc: Record<string, any>): boolean => {
+    // Stopped (or restarted) while the session was starting up. (Clyde 2026-10-01b #3)
+    if (token !== generation.current) return false;
+    session.current = s;
+    chain(() => queueSessionWrite('createSession', s.userId, s.sessionKey, sessionDoc));
+    queueChanges(s, held.current);
+    held.current = [];
+    upload(s.userId);
+    timer.current = setInterval(() => upload(s.userId), UPLOAD_INTERVAL_MS);
+    return true;
+  }, []);
+
+  const record = useCallback((changes: EventChange[]) => {
+    if (session.current) queueChanges(session.current, changes);
+    else held.current.push(...changes);
+  }, []);
+
+  const finish = useCallback((sessionEnd: Record<string, any>, settings: Record<string, any>): Promise<FlushResult | null> => {
+    generation.current++;
+    stopTimer();
+    held.current = [];
     const s = session.current;
-    if (!s) return writes.current.then(() => null);
-    return writes.current.then(() => flushBuffer(s.userId));
+    session.current = null;
+    if (!s) return Promise.resolve(null);
+    chain(() => queueSessionWrite('endSession', s.userId, s.sessionKey, sessionEnd));
+    chain(() => queueSessionWrite('saveUserSettings', s.userId, s.sessionKey, settings));
+    return upload(s.userId);
   }, []);
 
-  return { record, begin, end, flush };
+  return { open, begin, record, finish };
 }
