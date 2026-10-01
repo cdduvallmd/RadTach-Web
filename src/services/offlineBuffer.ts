@@ -64,7 +64,22 @@ export async function openBuffer(): Promise<IDBDatabase> {
       dbInstance = request.result;
       resolve(dbInstance);
     };
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      // The stored database is newer than this code expects — e.g. a deploy
+      // that raised DB_VERSION was reverted. Open at whatever version exists
+      // instead of failing, so buffering keeps working (the stores this code
+      // uses are never removed by later versions). Clyde 2026-09-29 #16.
+      if (request.error?.name === 'VersionError') {
+        const fallback = indexedDB.open(DB_NAME);
+        fallback.onsuccess = () => {
+          dbInstance = fallback.result;
+          resolve(dbInstance);
+        };
+        fallback.onerror = () => reject(fallback.error);
+        return;
+      }
+      reject(request.error);
+    };
   });
 }
 
