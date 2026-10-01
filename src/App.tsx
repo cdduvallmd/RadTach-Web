@@ -1167,7 +1167,7 @@ function RadTachInner() {
       const now = Date.now();
       if (now - lastFlushAttemptRef.current < FLUSH_DEBOUNCE_MS) return;
       lastFlushAttemptRef.current = now;
-      flushBuffer(currentUser.uid).then(health.reportFlush, () => {});
+      flushBuffer().then(health.reportFlush, () => {});
     };
 
     attemptFlush();
@@ -1191,7 +1191,7 @@ function RadTachInner() {
 
     const runAutoRecovery = async () => {
       try {
-        try { await flushBuffer(currentUser.uid); } catch { /* continue anyway */ }
+        try { await flushBuffer(); } catch { /* continue anyway */ }
 
         const orphans = await firestoreService.getOrphanedSessions(currentUser.uid);
         if (orphans.length === 0) { setRecoveryChecked(true); return; }
@@ -1525,7 +1525,7 @@ function RadTachInner() {
     setSessionEvents([]);
     const syncToken = eventSync.open();
     modeEnum.startSession();
-    // Start interstitial at session start so the first-study auto-swap has a
+    // Start interstitial at session start so a swap on the first study has a
     // prior INTERSTITIAL fragment to harvest if the timer wasn't started
     // when the rad opened the study in PACS.
     setIsInterstitialRunning(true);
@@ -3784,10 +3784,10 @@ function RadTachInner() {
                     <div className="flex items-start">
                       <span className="flex-shrink-0 w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold mr-3">⇄</span>
                       <div>
-                        <h3 className="font-semibold text-white">Auto-Swap (Automatic)</h3>
-                        <p className="text-sm text-gray-300">Forgot to start the timer? If you realize mid-study, pick the modality, start, and stop quickly — if the elapsed time is under 5 seconds, RadTach assumes you forgot and <strong>swaps</strong>: the preceding interstitial time becomes your study time, and the interstitial is replaced with a 10-second default gap. Swapped studies are marked with a hash pattern on the Filmstrip and counted in session stats.</p>
+                        <h3 className="font-semibold text-white">Swap (from Sidecar)</h3>
+                        <p className="text-sm text-gray-300">Forgot to start the timer? On Sidecar, start the study with <strong>⇄ START + SWAP</strong> instead of START. When you complete it, RadTach <strong>swaps</strong>: the preceding interstitial time becomes your study time, and the interstitial is replaced with a 10-second default gap. Swapped studies are marked with a hash pattern on the Filmstrip and counted in session stats.</p>
                         <div className="bg-yellow-900 bg-opacity-40 border border-yellow-600 rounded p-2 mt-2 text-xs text-yellow-200">
-                          <strong>Two rules after a swap:</strong> (1) Do not Undo a swapped study — the interstitial has already been rewritten and undo cannot restore it. (2) Run the next study for at least 5 seconds, or it will trigger another swap and overwrite the one you just made.
+                          <strong>After a swap:</strong> do not Undo the swapped study — the interstitial has already been rewritten and undo cannot restore it.
                         </div>
                       </div>
                     </div>

@@ -122,10 +122,10 @@ export const firestoreService = {
     });
   },
 
-  // Batch write: sends multiple events in a single network request (deterministic IDs for idempotency)
   // Write events at their positions (evt-NNNN = index). Full overwrite per
   // doc, so re-sending an index replaces that event (SWAP edits, Undo).
-  // Called only by the offline buffer's replay. Chunked under the 500-op limit.
+  // Called by the offline buffer: its replay, and its direct-write fallback
+  // when local storage fails. Chunked under the 500-op limit.
   async writeEventsByIndex(userId: string, sessionId: string, items: Array<{ index: number; event: Record<string, any> }>) {
     if (items.length === 0) return;
     const eventsRef = collection(db, 'users', userId, 'sessions', sessionId, 'events');
@@ -151,12 +151,12 @@ export const firestoreService = {
 
   async saveFavorites(userId: string, favorites: Array<{ cpt: string; aeTitle: string }>) {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
-    await _retryUpdate(docRef, { favorites });
+    await _retryUpdate(docRef, { favorites, updatedAt: serverTimestamp() });
   },
 
   async saveSidecarCombos(userId: string, combos: Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>) {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
-    await _retryUpdate(docRef, { sidecarCombos: combos });
+    await _retryUpdate(docRef, { sidecarCombos: combos, updatedAt: serverTimestamp() });
   },
 
   async getUserSettings(userId: string): Promise<Record<string, any> | null> {
@@ -470,7 +470,7 @@ export const firestoreService = {
 
   async setUserPvcSettings(userId: string, settings: UserPvcSettings): Promise<void> {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
-    await _retryUpdate(docRef, { pvc: settings });
+    await _retryUpdate(docRef, { pvc: settings, updatedAt: serverTimestamp() });
   },
 
   // Query today's prior sessions for PVC shift-credit calculation.

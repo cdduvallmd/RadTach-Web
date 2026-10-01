@@ -1,4 +1,5 @@
 import { firestoreService } from './firestore';
+import { auth } from './firebase';
 
 // Offline buffer: every Firestore write RadTach makes for a session goes into
 // an IndexedDB queue first, and the replay (flushBuffer) is the only thing that
@@ -107,13 +108,21 @@ export async function openBuffer(): Promise<IDBDatabase> {
 
 // ── Queue ────────────────────────────────────────────────────────────────────
 
+// A write transaction can fail at commit (Chrome reports a full disk this way)
+// with `abort` and no `error`. Reject on both, or the promise never settles and
+// the fallback never runs. (Clyde 2026-10-01c #2)
+function rejectOnFailure(tx: IDBTransaction, reject: (err: unknown) => void) {
+  tx.onerror = () => reject(tx.error);
+  tx.onabort = () => reject(tx.error ?? new Error('IDB transaction aborted'));
+}
+
 export async function addPendingWrite(write: Omit<PendingWrite, 'id'>): Promise<void> {
   const db = await openBuffer();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     tx.objectStore(STORE_NAME).add(write);
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    rejectOnFailure(tx, reject);
   });
 }
 
@@ -131,7 +140,7 @@ export async function queueSessionWrite(
     await addPendingWrite(write);
   } catch (err) {
     console.error(`Offline buffer: could not queue ${operation}, sending directly`, err);
-    await executeWrite(write);
+    sendDirect(() => executeWrite(write));
   }
 }
 
@@ -151,11 +160,11 @@ async function deletePendingWrite(id: number): Promise<void> {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     tx.objectStore(STORE_NAME).delete(id);
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    rejectOnFailure(tx, reject);
   });
 }
 
-async function getPendingCount(): Promise<number> {
+export async function getPendingCount(): Promise<number> {
   const db = await openBuffer();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -191,8 +200,18 @@ export async function recordEvent(
     await logAndQueueEvent(userId, sessionKey, index, event);
   } catch (err) {
     console.error('Offline buffer: could not log event, sending directly', err);
-    await firestoreService.writeEventsByIndex(userId, sessionKey, [{ index, event: stripUndefined(event) }]);
+    sendDirect(() => firestoreService.writeEventsByIndex(userId, sessionKey, [{ index, event: stripUndefined(event) }]));
   }
+}
+
+// Fallback when local storage fails: start the Firestore write without waiting
+// on it. Offline it would wait for the network and hold up the session's later
+// writes, which local storage may still accept. The SDK sends writes in the
+// order they were issued. Accepted edge: if storage fails between two versions
+// of one event, the older (queued) version can replay over the newer (direct)
+// one. Needs storage to start failing mid-session. (Clyde 2026-10-01c #3)
+function sendDirect(write: () => Promise<unknown>): void {
+  write().catch(err => console.error('Offline buffer: direct write failed', err));
 }
 
 async function logAndQueueEvent(
@@ -210,7 +229,7 @@ async function logAndQueueEvent(
       operation: 'flushEvents', userId, sessionKey, payload: { events: [event] }, startIndex: index, createdAt,
     });
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    rejectOnFailure(tx, reject);
   });
 }
 
@@ -251,16 +270,17 @@ export async function clearLocalEvents(sessionKey: string): Promise<void> {
       }
     };
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    rejectOnFailure(tx, reject);
   });
 }
 
 // ── Replay ───────────────────────────────────────────────────────────────────
 
 // Firestore rejects `undefined` field values; one such field would block the
-// whole session's replay. Drop them before writing. (Clyde 2026-10-01b #4)
+// whole session's replay. Drop them before writing; array elements become null
+// so positions are kept. (Clyde 2026-10-01b #4, 2026-10-01c L5)
 function stripUndefined<T>(value: T): T {
-  if (Array.isArray(value)) return value.map(stripUndefined) as T;
+  if (Array.isArray(value)) return value.map(v => (v === undefined ? null : stripUndefined(v))) as T;
   if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) if (v !== undefined) out[k] = stripUndefined(v);
@@ -286,12 +306,13 @@ async function executeWrite(write: PendingWrite): Promise<void> {
 
 // Replay coalescing (Clyde 2026-10-01b #1): a flush requested while one is
 // running is never dropped — the running flush runs once more before it
-// finishes, and every caller gets that final result. Across tabs, the Web
-// Lock makes replays wait their turn rather than skip.
+// finishes, and every caller gets that final result. That holds when a round
+// throws, too (Clyde 2026-10-01c L1). Across tabs, the Web Lock makes replays
+// wait their turn rather than skip.
 let running: Promise<FlushResult> | null = null;
 let again = false;
 
-export function flushBuffer(currentAuthUid?: string): Promise<FlushResult> {
+export function flushBuffer(): Promise<FlushResult> {
   if (running) {
     again = true;
     return running;
@@ -304,9 +325,13 @@ export function flushBuffer(currentAuthUid?: string): Promise<FlushResult> {
       let result: FlushResult;
       do {
         again = false;
-        result = await withTabLock(() => doFlush(currentAuthUid));
+        try {
+          result = await withTabLock(() => doFlush());
+        } catch (err) {
+          if (!again) throw err;
+        }
       } while (again);
-      return result;
+      return result!;
     } finally {
       running = null;
     }
@@ -340,12 +365,19 @@ async function runSessionWrite(w: PendingWrite, stamp: Record<string, string> | 
   if (w.operation === 'endSession') await clearLocalEvents(w.sessionKey).catch(() => {});
 }
 
+async function serverSettingsNewer(w: PendingWrite): Promise<boolean> {
+  const updatedAt = (await firestoreService.getUserSettings(w.userId))?.updatedAt;
+  const newer = typeof updatedAt?.toMillis === 'function' && updatedAt.toMillis() > w.createdAt;
+  if (newer) console.warn('Offline buffer: settings changed since this snapshot was queued; not sending it');
+  return newer;
+}
+
 function isNetworkError(err: any): boolean {
   const code = err?.code || '';
   return code === 'unavailable' || code === 'resource-exhausted';
 }
 
-async function doFlush(currentAuthUid?: string): Promise<FlushResult> {
+async function doFlush(): Promise<FlushResult> {
   const all = await getAllPendingWrites();
   if (all.length === 0) return { flushed: 0, remaining: 0, canRead: true };
 
@@ -360,10 +392,16 @@ async function doFlush(currentAuthUid?: string): Promise<FlushResult> {
   const live = all.filter(w => now - w.createdAt <= TTL_MS);
   const byId = (a: PendingWrite, b: PendingWrite) => (a.id ?? 0) - (b.id ?? 0);
 
-  // Settings writes are independent of sessions
-  for (const w of live.filter(x => x.operation === 'saveUserSettings').sort(byId)) {
+  // Settings writes are independent of sessions. Each is a full snapshot of
+  // the settings doc, so only a user's newest queued one is sent, and only if
+  // the server copy hasn't changed since it was taken — a snapshot queued
+  // offline must not replay days later over newer settings saved elsewhere.
+  // Older snapshots are dropped. (Clyde 2026-10-01c L4)
+  const settingsWrites = live.filter(x => x.operation === 'saveUserSettings').sort(byId);
+  const newestSettings = new Map(settingsWrites.map(w => [w.userId, w]));
+  for (const w of settingsWrites) {
     try {
-      await executeWrite(w);
+      if (newestSettings.get(w.userId) === w && !(await serverSettingsNewer(w))) await executeWrite(w);
       if (w.id != null) await deletePendingWrite(w.id);
       flushed++;
     } catch (err) {
@@ -385,9 +423,13 @@ async function doFlush(currentAuthUid?: string): Promise<FlushResult> {
     const creates = chain.filter(w => w.operation === 'createSession').sort(byId);
     const eventWrites = chain.filter(w => w.operation === 'flushEvents').sort(byId);
     const ends = chain.filter(w => w.operation === 'endSession').sort(byId);
-    // Audit trail: writes flushed by a different signed-in user are stamped
-    const stamp = currentAuthUid && chain[0].userId !== currentAuthUid
-      ? { _flushedBy: currentAuthUid, _flushedAt: new Date().toISOString() }
+    // Audit trail: writes flushed by a different signed-in user are stamped.
+    // Read the user now, not when the flush was requested: a rerun can start
+    // after a sign-out and sign-in as someone else. The data itself always
+    // goes to the user who recorded it. (Clyde 2026-10-01c L2)
+    const authUid = auth.currentUser?.uid;
+    const stamp = authUid && chain[0].userId !== authUid
+      ? { _flushedBy: authUid, _flushedAt: new Date().toISOString() }
       : null;
 
     try {

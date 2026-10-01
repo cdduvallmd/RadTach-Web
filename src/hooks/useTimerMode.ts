@@ -54,8 +54,8 @@ export type TimerSignal =
   | { type: 'draft_exit' }
   | { type: 'swap_detected'; correctedElapsedTime: number; correctedStart: number; correctedSystem: string };
 
-// Shadow events use the same shape as production events
-export interface ShadowStudyEvent {
+// Same shape as the legacy engine's events
+export interface ModeStudyEvent {
   type: 'STUDY';
   studyNumber: number;
   startTimeSession: number;
@@ -76,7 +76,7 @@ export interface ShadowStudyEvent {
   targetRvuPerHour?: number;
 }
 
-export interface ShadowInterstitialEvent {
+export interface ModeInterstitialEvent {
   type: 'INTERSTITIAL';
   startTimeSession: number;
   startTimeSystem: string;
@@ -85,7 +85,7 @@ export interface ShadowInterstitialEvent {
   duration: number;
 }
 
-export interface ShadowTimerEvent {
+export interface ModeTimerEvent {
   type: 'ADMIN' | 'COMMS' | 'BREAK' | 'DOUBLE_TAP';
   startTimeSession: number;
   startTimeSystem: string;
@@ -95,7 +95,7 @@ export interface ShadowTimerEvent {
   associatedModality?: string | null;
 }
 
-export type ShadowEvent = ShadowStudyEvent | ShadowInterstitialEvent | ShadowTimerEvent;
+export type ModeEvent = ModeStudyEvent | ModeInterstitialEvent | ModeTimerEvent;
 
 interface StudyContext {
   modality: string;
@@ -126,15 +126,15 @@ function getCurrentISO(): string {
 // signal / endSession so the caller can mirror the list (crash log, uploads).
 export interface EventChange {
   index: number;
-  event: ShadowEvent;
+  event: ModeEvent;
 }
 
 export interface UseTimerModeReturn {
   signal: (action: TimerSignal, sessionTime: number) => void;
   startSession: () => void;
-  endSession: (sessionTime: number) => ShadowEvent[];
+  endSession: (sessionTime: number) => ModeEvent[];
   reset: () => void;
-  getEvents: () => ShadowEvent[];
+  getEvents: () => ModeEvent[];
   getMode: () => TimerMode;
 }
 
@@ -142,7 +142,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
   const mode = useRef<TimerMode>('idle');
   const modeEnteredAt = useRef<number>(0);
   const modeEnteredSystem = useRef<string>('');
-  const events = useRef<ShadowEvent[]>([]);
+  const events = useRef<ModeEvent[]>([]);
   const studyContext = useRef<StudyContext | null>(null);
   const wasInStudy = useRef<boolean>(false);
   const lastStudyModality = useRef<string | null>(null);
@@ -167,12 +167,12 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  const pushEvent = (event: ShadowEvent): void => {
+  const pushEvent = (event: ModeEvent): void => {
     events.current.push(event);
     changed.current.add(events.current.length - 1);
   };
 
-  const replaceEvent = (index: number, event: ShadowEvent): void => {
+  const replaceEvent = (index: number, event: ModeEvent): void => {
     events.current[index] = event;
     changed.current.add(index);
   };
@@ -299,7 +299,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
           if (evts[i].type === 'INTERSTITIAL') { lastInterIdx = i; break; }
         }
         if (lastInterIdx >= 0) {
-          const inter = evts[lastInterIdx] as ShadowInterstitialEvent;
+          const inter = evts[lastInterIdx] as ModeInterstitialEvent;
           replaceEvent(lastInterIdx, { ...inter, duration: 10, endTimeSession: inter.startTimeSession + 10 });
         }
         let lastStudyIdx = -1;
@@ -307,7 +307,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
           if (evts[i].type === 'STUDY') { lastStudyIdx = i; break; }
         }
         if (lastStudyIdx >= 0) {
-          const study = evts[lastStudyIdx] as ShadowStudyEvent;
+          const study = evts[lastStudyIdx] as ModeStudyEvent;
           replaceEvent(lastStudyIdx, {
             ...study,
             startTimeSession: action.correctedStart,
@@ -449,7 +449,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     pendingDraftRestore.current = false;
   }, []);
 
-  const endSession = useCallback((sessionTime: number): ShadowEvent[] => {
+  const endSession = useCallback((sessionTime: number): ModeEvent[] => {
     if (mode.current === 'study' && studyContext.current) {
       // F6: Include accumulatedTime for interrupted studies
       const ctx = studyContext.current;
@@ -493,7 +493,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     pendingDraftRestore.current = false;
   }, []);
 
-  const getEvents = useCallback((): ShadowEvent[] => [...events.current], []);
+  const getEvents = useCallback((): ModeEvent[] => [...events.current], []);
   const getMode = useCallback((): TimerMode => mode.current, []);
 
   return { signal, startSession, endSession, reset, getEvents, getMode };
