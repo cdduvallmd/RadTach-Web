@@ -6,6 +6,7 @@ import {
   addDoc,
 
   getDoc,
+  getDocFromServer,
   getDocs,
   setDoc,
   updateDoc,
@@ -22,7 +23,7 @@ import {
 } from 'firebase/firestore';
 import type { StoredSession, GroupStats, CompositeStats, WorkstationStats } from '../types/reports';
 import type { CptDatabase, ChargemasterEntry } from '../types/cpt';
-import type { SidecarCommand } from '../types/sidecar';
+import type { SidecarCommand, SidecarLists } from '../types/sidecar';
 import type { PvcConfig, UserPvcSettings } from '../types/pvc';
 import { DEFAULT_PVC_CONFIG, DEFAULT_USER_PVC_SETTINGS } from '../types/pvc';
 
@@ -138,25 +139,21 @@ export const firestoreService = {
     }
   },
 
-  async writeSyncSettings(userId: string, favorites: Array<{ cpt: string; aeTitle: string }>, sidecarCombos: Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>) {
+  async writeSyncSettings(userId: string, lists: SidecarLists) {
     const docRef = doc(db, 'users', userId, 'commands', 'current');
     await setDoc(docRef, {
       action: 'sync_settings' as const,
       source: 'radtach' as const,
-      favorites,
-      sidecarCombos,
+      ...lists,
       timestamp: serverTimestamp(),
     });
   },
 
-  async saveFavorites(userId: string, favorites: Array<{ cpt: string; aeTitle: string }>) {
+  // Sidecar's lists are written together with their edit time; merge leaves
+  // RadTach's settings fields alone.
+  async saveSidecarLists(userId: string, lists: SidecarLists) {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
-    await _retryUpdate(docRef, { favorites, updatedAt: serverTimestamp() });
-  },
-
-  async saveSidecarCombos(userId: string, combos: Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>) {
-    const docRef = doc(db, 'users', userId, 'settings', 'current');
-    await _retryUpdate(docRef, { sidecarCombos: combos, updatedAt: serverTimestamp() });
+    await setDoc(docRef, { ...lists }, { merge: true });
   },
 
   async getUserSettings(userId: string): Promise<Record<string, any> | null> {
@@ -185,12 +182,25 @@ export const firestoreService = {
     );
   },
 
-  async saveUserSettings(userId: string, settings: Record<string, any>) {
+  // RadTach's own settings fields. Merge, so fields owned elsewhere (Sidecar's
+  // lists, Console-set pvc) are never deleted. radtachSettingsAt is the client
+  // time the values were taken; the offline buffer's replay compares it to
+  // skip a queued snapshot that something newer has replaced. (Clyde 2026-10-01d #1, #5)
+  async saveUserSettings(userId: string, settings: Record<string, any>, takenAt: number = Date.now()) {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
     await setDoc(docRef, {
       ...settings,
+      radtachSettingsAt: takenAt,
       updatedAt: serverTimestamp(),
-    });
+    }, { merge: true });
+  },
+
+  // From the server, never the cache: offline this rejects instead of
+  // answering from a stale local copy. (Clyde 2026-10-01d #2)
+  async getRadtachSettingsAt(userId: string): Promise<number | null> {
+    const snap = await getDocFromServer(doc(db, 'users', userId, 'settings', 'current'));
+    const at = snap.exists() ? snap.data().radtachSettingsAt : null;
+    return typeof at === 'number' ? at : null;
   },
 
   async updateSession(userId: string, sessionId: string, data: Record<string, any>) {
@@ -470,7 +480,7 @@ export const firestoreService = {
 
   async setUserPvcSettings(userId: string, settings: UserPvcSettings): Promise<void> {
     const docRef = doc(db, 'users', userId, 'settings', 'current');
-    await _retryUpdate(docRef, { pvc: settings, updatedAt: serverTimestamp() });
+    await _retryUpdate(docRef, { pvc: settings });
   },
 
   // Query today's prior sessions for PVC shift-credit calculation.

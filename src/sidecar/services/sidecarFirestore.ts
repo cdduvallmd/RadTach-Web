@@ -5,7 +5,7 @@ import {
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
-import type { SidecarCommand } from '../../types/sidecar';
+import type { SidecarCommand, SidecarLists } from '../../types/sidecar';
 
 export function listenToSessionStatus(
   uid: string,
@@ -53,17 +53,12 @@ export function listenToUserSettings(
   });
 }
 
-export async function writeSyncSettingsResponse(
-  uid: string,
-  favorites: Array<{ cpt: string; aeTitle: string }>,
-  sidecarCombos: Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>,
-): Promise<void> {
+export async function writeSyncSettingsResponse(uid: string, lists: SidecarLists): Promise<void> {
   const docRef = doc(db, 'users', uid, 'commands', 'current');
   await setDoc(docRef, {
     action: 'sync_settings_response' as const,
     source: 'sidecar' as const,
-    favorites,
-    sidecarCombos,
+    ...lists,
     timestamp: serverTimestamp(),
   });
 }

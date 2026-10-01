@@ -289,6 +289,8 @@ function stripUndefined<T>(value: T): T {
   return value;
 }
 
+const SIDECAR_LIST_FIELDS = ['favorites', 'sidecarCombos', 'sidecarEditedAt'];
+
 async function executeWrite(write: PendingWrite): Promise<void> {
   const payload = stripUndefined(write.payload);
   switch (write.operation) {
@@ -298,9 +300,14 @@ async function executeWrite(write: PendingWrite): Promise<void> {
     case 'endSession':
       await firestoreService.endSession(write.userId, write.sessionKey, payload);
       break;
-    case 'saveUserSettings':
-      await firestoreService.saveUserSettings(write.userId, payload);
+    case 'saveUserSettings': {
+      // Snapshots queued before 2026-10-01 also carry Sidecar's lists. Sidecar
+      // owns those (newer edit wins), so never write them from here — an old
+      // snapshot would bring deleted favorites/combos back. (Clyde 2026-10-01e #2)
+      const radtachFields = Object.fromEntries(Object.entries(payload).filter(([k]) => !SIDECAR_LIST_FIELDS.includes(k)));
+      await firestoreService.saveUserSettings(write.userId, radtachFields, write.createdAt);
       break;
+    }
   }
 }
 
@@ -365,9 +372,11 @@ async function runSessionWrite(w: PendingWrite, stamp: Record<string, string> | 
   if (w.operation === 'endSession') await clearLocalEvents(w.sessionKey).catch(() => {});
 }
 
+// Both times are client clocks: when this snapshot was taken, and when the
+// server's RadTach settings were taken. (Clyde 2026-10-01d #1)
 async function serverSettingsNewer(w: PendingWrite): Promise<boolean> {
-  const updatedAt = (await firestoreService.getUserSettings(w.userId))?.updatedAt;
-  const newer = typeof updatedAt?.toMillis === 'function' && updatedAt.toMillis() > w.createdAt;
+  const serverAt = await firestoreService.getRadtachSettingsAt(w.userId);
+  const newer = serverAt != null && serverAt > w.createdAt;
   if (newer) console.warn('Offline buffer: settings changed since this snapshot was queued; not sending it');
   return newer;
 }
@@ -392,14 +401,17 @@ async function doFlush(): Promise<FlushResult> {
   const live = all.filter(w => now - w.createdAt <= TTL_MS);
   const byId = (a: PendingWrite, b: PendingWrite) => (a.id ?? 0) - (b.id ?? 0);
 
-  // Settings writes are independent of sessions. Each is a full snapshot of
-  // the settings doc, so only a user's newest queued one is sent, and only if
-  // the server copy hasn't changed since it was taken — a snapshot queued
-  // offline must not replay days later over newer settings saved elsewhere.
-  // Older snapshots are dropped. (Clyde 2026-10-01c L4)
+  // Settings writes are independent of sessions. Each is a snapshot of
+  // RadTach's own settings fields, so only a user's newest queued one is sent,
+  // and only if no newer RadTach settings have reached the server since it was
+  // taken — a snapshot queued offline must not replay days later over settings
+  // saved on another workstation. Older snapshots are dropped. Another user's
+  // settings stay queued for their next login: the rules let only them write
+  // it. (Clyde 2026-10-01c L4, 2026-10-01d #1, #4)
   const settingsWrites = live.filter(x => x.operation === 'saveUserSettings').sort(byId);
   const newestSettings = new Map(settingsWrites.map(w => [w.userId, w]));
   for (const w of settingsWrites) {
+    if (w.userId !== auth.currentUser?.uid) continue;
     try {
       if (newestSettings.get(w.userId) === w && !(await serverSettingsNewer(w))) await executeWrite(w);
       if (w.id != null) await deletePendingWrite(w.id);

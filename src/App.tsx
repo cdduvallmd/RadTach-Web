@@ -27,6 +27,7 @@ import { RecoveryToast } from './components/RecoveryToast';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
 import { useTimerMode } from './hooks/useTimerMode';
 import { useEventSync } from './hooks/useEventSync';
+import { useSidecarRelay } from './hooks/useSidecarRelay';
 import { useSessionClock } from './hooks/useSessionClock';
 import { useSwapArmed, handleSidecarCommandSwapFlag, shouldApplySwap, applySwap } from './hooks/useSwapSubsystem';
 import { BUILD_ID } from './buildId';
@@ -430,9 +431,6 @@ function RadTachInner() {
   const doubleTapTimeRef = useRef<number | null>(null); // Issue #3: Double Tap timer
   const processSidecarStartRef = useRef<(cmd: SidecarCommand) => void>(() => {});
   const processSidecarStopRef = useRef<() => void>(() => {});
-  // Cached Firestore favorites/combos for sync_settings relay to Sidecar
-  const firestoreFavoritesRef = useRef<Array<{ cpt: string; aeTitle: string }>>([]);
-  const firestoreCombosRef = useRef<Array<{ cpts: string[]; bilateralFlags: boolean[]; modality: string; aeTitle?: string }>>([]);
 
   // ── Mode-enum timer engine ──────────────────────────────────────────
   // Mode-enum engine and the session's persistence (crash log, upload queue, uploads).
@@ -940,13 +938,6 @@ function RadTachInner() {
           if (typeof settings.currentSystem === 'string' && settings.currentSystem) {
             setSystemInput(settings.currentSystem);
           }
-          // Cache favorites/combos for Sidecar sync relay
-          if (Array.isArray(settings.favorites)) {
-            firestoreFavoritesRef.current = settings.favorites;
-          }
-          if (Array.isArray(settings.sidecarCombos)) {
-            firestoreCombosRef.current = settings.sidecarCombos;
-          }
         }
 
         // Load display name from user profile (null = checked but missing)
@@ -976,21 +967,8 @@ function RadTachInner() {
     return () => { cancelled = true; };
   }, [currentUser]);
 
-  // Live subscription to users/{uid}/settings/current so favorites/combos refs
-  // stay fresh when Sidecar edits them independently. Without this, deleting
-  // a combo on Sidecar was resurrected on the next session-start sync-push
-  // because RadTach's cached copy (populated once at login) was stale. The
-  // subscription updates the refs only — no React state / re-render churn —
-  // and its data flows out via writeSyncSettings on the next session start.
-  useEffect(() => {
-    if (!FIREBASE_ENABLED || !currentUser) return;
-    const unsub = firestoreService.listenToUserSettings(currentUser.uid, (settings) => {
-      if (!settings) return;
-      if (Array.isArray(settings.favorites)) firestoreFavoritesRef.current = settings.favorites;
-      if (Array.isArray(settings.sidecarCombos)) firestoreCombosRef.current = settings.sidecarCombos;
-    });
-    return unsub;
-  }, [currentUser]);
+  // Sidecar favorites/combos relay (see src/hooks/useSidecarRelay.ts).
+  const sidecarRelay = useSidecarRelay(FIREBASE_ENABLED ? currentUser?.uid ?? null : null);
 
   // Load CPT database (one-time, for Sidecar/HL7 RVU lookups)
   useEffect(() => {
@@ -1068,18 +1046,8 @@ function RadTachInner() {
       } else if (cmd.action === 'stop') {
         processSidecarStopRef.current();
       } else if (cmd.action === 'sync_settings_response') {
-        // Sidecar sent back merged favorites/combos — write to Firestore.
-        // Accept empty arrays (delete-down-to-zero); only Array.isArray gate.
-        const newFavs = cmd.favorites;
-        const newCombos = cmd.sidecarCombos;
-        if (Array.isArray(newFavs)) {
-          firestoreFavoritesRef.current = newFavs;
-          firestoreService.saveFavorites(currentUser.uid, newFavs).catch(console.error);
-        }
-        if (Array.isArray(newCombos)) {
-          firestoreCombosRef.current = newCombos;
-          firestoreService.saveSidecarCombos(currentUser.uid, newCombos).catch(console.error);
-        }
+        // Sidecar holds a newer edit of its favorites/combos than the server.
+        sidecarRelay.receiveFromSidecar(cmd);
       }
 
       // Ack the command (skip ack for sync messages to avoid overwriting)
@@ -1588,11 +1556,7 @@ function RadTachInner() {
       localSessionKeyRef.current = localKey;
       firestoreService.writeSessionStatus(currentUser!.uid, true).catch(console.error);
       // Send sync_settings to Sidecar via command doc (replaces clearCommandDoc)
-      firestoreService.writeSyncSettings(
-        currentUser!.uid,
-        firestoreFavoritesRef.current,
-        firestoreCombosRef.current,
-      ).catch(console.error);
+      sidecarRelay.sendToSidecar();
     }
     // Reset all counters
     sessionClock.zero();
@@ -1829,8 +1793,6 @@ function RadTachInner() {
       eventSync.finish({ ...data.session, summary }, {
         parTimes, rvuValues, stealthMode, autoStartEnabled, useHMSFormat,
         gpciZip, gpciValues, rvuDerivedMode, targetRvuPerHour,
-        favorites: firestoreFavoritesRef.current,
-        sidecarCombos: firestoreCombosRef.current,
       }).then(result => {
         if (result && result.remaining > 0) health.setHasPendingOnExit(true);
       });

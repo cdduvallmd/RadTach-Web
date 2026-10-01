@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { firestoreService } from '../services/firestore';
-import { listenToCommandDoc, listenToUserSettings, writeStartCommand, writeStopCommand, writeSyncSettingsResponse } from './services/sidecarFirestore';
+import { listenToCommandDoc, listenToUserSettings, writeStartCommand, writeStopCommand } from './services/sidecarFirestore';
+import { useSidecarLists } from './hooks/useSidecarLists';
 import { buildCptTree, type ModalityGroup, type TreeLeaf } from './utils/buildCptTree';
 import { searchCpts, type SearchResult } from './utils/cptSearch';
 import type { CptDatabase, CptEntry, ChargemasterEntry } from '../types/cpt';
@@ -62,7 +63,6 @@ interface Props {
 const COMMON_CPTS = ['70450', '74177', '71046', '70553', '73030', '71045', '73620', '76536', '72148', '72141'];
 const RECENT_KEY = 'sidecar_recent';
 const MAX_RECENT = 10;
-const COMBO_KEY = 'sidecar_saved_combos';
 
 function loadRecent(): RecentEntry[] {
   try {
@@ -81,28 +81,6 @@ function saveRecent(entries: RecentEntry[]) {
   localStorage.setItem(RECENT_KEY, JSON.stringify(entries.slice(0, MAX_RECENT)));
 }
 
-function loadSavedCombos(): SavedCombo[] {
-  try {
-    return JSON.parse(localStorage.getItem(COMBO_KEY) || '[]');
-  } catch { return []; }
-}
-
-function saveSavedCombos(combos: SavedCombo[]) {
-  localStorage.setItem(COMBO_KEY, JSON.stringify(combos));
-}
-
-const FAVORITES_KEY = 'sidecar_favorites';
-
-function loadLocalFavorites(): FavoriteEntry[] {
-  try {
-    return JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
-  } catch { return []; }
-}
-
-function saveLocalFavorites(entries: FavoriteEntry[]) {
-  localStorage.setItem(FAVORITES_KEY, JSON.stringify(entries));
-}
-
 export default function SidecarMain({ gooseConnected, testMode = false }: Props) {
   const { currentUser } = useAuth();
   const [screen, setScreen] = useState<Screen>({ type: 'home' });
@@ -112,8 +90,6 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [recentEntries, setRecentEntries] = useState<RecentEntry[]>(loadRecent);
-  const [savedCombos, setSavedCombos] = useState<SavedCombo[]>(loadSavedCombos); // localStorage as fallback, Firestore is primary
-  const [favorites, setFavorites] = useState<FavoriteEntry[]>([]);
   const [gpciValues, setGpciValues] = useState<GpciValues | null>(null);
   const [systemName, setSystemName] = useState<string | null>(null);
   const [chargemaster, setChargemaster] = useState<ChargemasterEntry[] | null>(null);
@@ -125,10 +101,16 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
 
   // Sync log for debugging favorites/combos persistence
   const [syncLog, setSyncLog] = useState<string[]>([]);
-  const addSyncLog = (msg: string) => {
+  const addSyncLog = useCallback((msg: string) => {
     const ts = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
     setSyncLog(prev => [`${ts} ${msg}`, ...prev].slice(0, 20));
-  };
+  }, []);
+
+  // Favorites and saved combos: newer edit wins, so deletes stick.
+  const sidecarLists = useSidecarLists(currentUser?.uid ?? null, addSyncLog);
+  const { favorites, sidecarCombos: savedCombos } = sidecarLists.lists;
+  const editLists = sidecarLists.edit;
+  const receiveRelay = sidecarLists.receiveRelay;
 
   const cptDbRef = useRef(cptDb);
   cptDbRef.current = cptDb;
@@ -149,10 +131,8 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   }, [cptDb, chargemaster]);
 
   // Listen to user settings via onSnapshot (persistent connection, survives flaky networks)
-  const settingsMergedRef = useRef(false); // one-time combo merge flag
   useEffect(() => {
     if (!currentUser) return;
-    settingsMergedRef.current = false;
     addSyncLog('Settings listener started');
     const unsub = listenToUserSettings(currentUser.uid, (settings) => {
       if (!settings) { addSyncLog('Settings: empty doc'); return; }
@@ -166,65 +146,9 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       if (typeof settings.currentSystem === 'string' && settings.currentSystem) {
         setSystemName(settings.currentSystem);
       }
-      if (!settingsMergedRef.current) {
-        // One-time merge on first snapshot: Firestore + localStorage for both favorites and combos
-        settingsMergedRef.current = true;
-
-        // Favorites merge
-        const firestoreFavs = Array.isArray(settings.favorites) ? settings.favorites as FavoriteEntry[] : [];
-        addSyncLog(`Merge: Firestore ${firestoreFavs.length} favs, localStorage ${loadLocalFavorites().length} favs`);
-        const localFavs = loadLocalFavorites();
-        const favSeen = new Set<string>();
-        const mergedFavs: FavoriteEntry[] = [];
-        for (const f of [...firestoreFavs, ...localFavs]) {
-          if (!favSeen.has(f.cpt)) { favSeen.add(f.cpt); mergedFavs.push(f); }
-        }
-        setFavorites(mergedFavs);
-        saveLocalFavorites(mergedFavs);
-        addSyncLog(`Merged favs: ${mergedFavs.length} (${mergedFavs.length > firestoreFavs.length ? 'pushing to Firestore' : 'no change'})`);
-        if (mergedFavs.length > firestoreFavs.length) {
-          firestoreService.saveFavorites(currentUser.uid, mergedFavs)
-            .then(() => addSyncLog('Favs write OK'))
-            .catch(err => addSyncLog(`Favs write FAIL: ${err.message}`));
-        }
-
-        // Combos merge (named versions win over unnamed)
-        const firestoreCombos = Array.isArray(settings.sidecarCombos) ? settings.sidecarCombos as SavedCombo[] : [];
-        const localCombos = loadSavedCombos();
-        addSyncLog(`Merge: Firestore ${firestoreCombos.length} combos, localStorage ${localCombos.length} combos`);
-        const comboKey = (c: SavedCombo) => [...c.cpts].sort().join(',');
-        const comboMap = new Map<string, SavedCombo>();
-        for (const c of [...firestoreCombos, ...localCombos]) {
-          const k = comboKey(c);
-          const existing = comboMap.get(k);
-          if (!existing || (c.aeTitle && !existing.aeTitle)) {
-            comboMap.set(k, c);
-          }
-        }
-        const mergedCombos = [...comboMap.values()];
-        setSavedCombos(mergedCombos);
-        saveSavedCombos(mergedCombos);
-        const remoteNameMap = new Map(firestoreCombos.map(c => [comboKey(c), c.aeTitle]));
-        const hasNew = mergedCombos.length > firestoreCombos.length;
-        const hasNewNames = mergedCombos.some(c => c.aeTitle && !remoteNameMap.get(comboKey(c)));
-        addSyncLog(`Merged combos: ${mergedCombos.length} (${hasNew ? 'new items' : ''}${hasNewNames ? ' new names' : ''}${!hasNew && !hasNewNames ? 'no change' : ''})`);
-        if (hasNew || hasNewNames) {
-          firestoreService.saveSidecarCombos(currentUser.uid, mergedCombos)
-            .then(() => addSyncLog('Combos write OK'))
-            .catch(err => addSyncLog(`Combos write FAIL: ${err.message}`));
-        }
-      } else {
-        // Subsequent updates: Firestore is source of truth
-        if (Array.isArray(settings.favorites)) {
-          setFavorites(settings.favorites as FavoriteEntry[]);
-        }
-        if (Array.isArray(settings.sidecarCombos)) {
-          setSavedCombos(settings.sidecarCombos as SavedCombo[]);
-        }
-      }
     });
     return unsub;
-  }, [currentUser]);
+  }, [currentUser, addSyncLog]);
 
   // Load chargemaster when system name is available
   useEffect(() => {
@@ -248,56 +172,12 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
           pendingStopTimer.current = null;
         }
       } else if (cmd?.action === 'sync_settings' && cmd.source === 'radtach') {
-        // RadTach sent Firestore favorites/combos — merge with localStorage
-        const remoteFavs: FavoriteEntry[] = Array.isArray(cmd.favorites) ? cmd.favorites as FavoriteEntry[] : [];
-        addSyncLog(`CMD sync_settings: ${remoteFavs.length} favs, ${Array.isArray(cmd.sidecarCombos) ? cmd.sidecarCombos.length : 0} combos from RadTach`);
-        const localFavs = loadLocalFavorites();
-        const favSeen = new Set<string>();
-        const mergedFavs: FavoriteEntry[] = [];
-        for (const f of [...remoteFavs, ...localFavs]) {
-          if (!favSeen.has(f.cpt)) { favSeen.add(f.cpt); mergedFavs.push(f); }
-        }
-        setFavorites(mergedFavs);
-        saveLocalFavorites(mergedFavs);
-
-        const remoteCombos: SavedCombo[] = Array.isArray(cmd.sidecarCombos) ? cmd.sidecarCombos as SavedCombo[] : [];
-        const localCombos = loadSavedCombos();
-        const comboKey = (c: SavedCombo) => [...c.cpts].sort().join(',');
-        // Build a map preferring the copy with an aeTitle (named > unnamed)
-        const comboMap = new Map<string, SavedCombo>();
-        for (const c of [...remoteCombos, ...localCombos]) {
-          const k = comboKey(c);
-          const existing = comboMap.get(k);
-          if (!existing) {
-            comboMap.set(k, c);
-          } else if (c.aeTitle && !existing.aeTitle) {
-            // Named version wins over unnamed
-            comboMap.set(k, c);
-          }
-        }
-        const mergedCombos = [...comboMap.values()];
-        setSavedCombos(mergedCombos);
-        saveSavedCombos(mergedCombos);
-
-        // Respond if local contributed new items OR named versions that Firestore didn't have
-        const remoteKeys = new Set(remoteCombos.map(comboKey));
-        const remoteNameMap = new Map(remoteCombos.map(c => [comboKey(c), c.aeTitle]));
-        const hasNewItems = mergedCombos.some(c => !remoteKeys.has(comboKey(c)));
-        const hasNewNames = mergedCombos.some(c => c.aeTitle && !remoteNameMap.get(comboKey(c)));
-        const favsChanged = mergedFavs.length > remoteFavs.length;
-        addSyncLog(`CMD merge: ${mergedFavs.length} favs, ${mergedCombos.length} combos`);
-        if (favsChanged || hasNewItems || hasNewNames) {
-          addSyncLog('Sending sync_settings_response...');
-          writeSyncSettingsResponse(currentUser.uid, mergedFavs, mergedCombos)
-            .then(() => addSyncLog('Response write OK'))
-            .catch(err => addSyncLog(`Response write FAIL: ${err.message}`));
-        } else {
-          addSyncLog('No changes to send back');
-        }
+        addSyncLog(`CMD sync_settings: ${cmd.favorites?.length ?? 0} favs, ${cmd.sidecarCombos?.length ?? 0} combos from RadTach`);
+        receiveRelay(cmd);
       }
     });
     return unsub;
-  }, [currentUser]);
+  }, [currentUser, receiveRelay, addSyncLog]);
 
   const handleStart = useCallback(async (exams: SelectedExam[], comboAeTitle?: string, userTitle?: string, swap: boolean = false) => {
     if (exams.length === 0 || sending) return;
@@ -325,24 +205,24 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
       return next;
     });
 
-    // Save combo for modality-level recall (never expires)
-    if (exams.length > 1) {
+    // Save combo for modality-level recall (never expires). Not in Test Mode:
+    // it runs offline, where an edit on a stale local copy would replace the
+    // server's lists on reconnect. (Clyde 2026-10-01f #1)
+    if (exams.length > 1 && !testMode) {
       const combo: SavedCombo = {
         cpts: exams.map(e => e.cpt),
         bilateralFlags: exams.map(e => e.bilateral),
         modality: exams[0].entry.modality,
         ...(effectiveTitle ? { aeTitle: effectiveTitle } : {}),
       };
-      setSavedCombos(prev => {
+      editLists(({ sidecarCombos: prev }) => {
         const key = (c: SavedCombo) => [...c.cpts].sort().join(',');
         const comboKey = key(combo);
         // Preserve existing aeTitle if user didn't provide a new one
         const existing = prev.find(c => key(c) === comboKey);
-        const merged = { ...combo, aeTitle: combo.aeTitle || existing?.aeTitle };
-        const next = [merged, ...prev.filter(c => key(c) !== comboKey)];
-        saveSavedCombos(next);
-        if (currentUser) firestoreService.saveSidecarCombos(currentUser.uid, next).catch(console.error);
-        return next;
+        const aeTitle = combo.aeTitle || existing?.aeTitle;
+        const merged = aeTitle ? { ...combo, aeTitle } : combo;
+        return { sidecarCombos: [merged, ...prev.filter(c => key(c) !== comboKey)] };
       });
     }
 
@@ -369,7 +249,7 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
     } finally {
       setSending(false);
     }
-  }, [currentUser, sending, testMode]);
+  }, [currentUser, sending, testMode, editLists]);
 
   // Track pending stop for network lag indicator on home screen
   const [pendingStop, setPendingStop] = useState(false);
@@ -416,50 +296,31 @@ export default function SidecarMain({ gooseConnected, testMode = false }: Props)
   }, []);
 
   const handleRenameCombo = useCallback((index: number, aeTitle: string) => {
-    setSavedCombos(prev => {
-      const next = prev.map((c, i) => i === index ? { ...c, aeTitle: aeTitle || undefined } : c);
-      saveSavedCombos(next);
-      if (currentUser) firestoreService.saveSidecarCombos(currentUser.uid, next).catch(console.error);
-      return next;
-    });
-  }, [currentUser]);
+    // A cleared name drops the key: Firestore rejects undefined values.
+    const rename = (c: SavedCombo): SavedCombo => {
+      const next = { ...c };
+      delete next.aeTitle;
+      return aeTitle ? { ...next, aeTitle } : next;
+    };
+    editLists(({ sidecarCombos }) => ({
+      sidecarCombos: sidecarCombos.map((c, i) => i === index ? rename(c) : c),
+    }));
+  }, [editLists]);
 
   const handleDeleteCombo = useCallback((index: number) => {
     addSyncLog(`Delete combo at index ${index}`);
-    setSavedCombos(prev => {
-      const next = prev.filter((_, i) => i !== index);
-      saveSavedCombos(next);
-      if (currentUser) firestoreService.saveSidecarCombos(currentUser.uid, next)
-        .then(() => addSyncLog('Combo delete → Firestore OK'))
-        .catch(err => addSyncLog(`Combo delete → Firestore FAIL: ${err.message}`));
-      return next;
-    });
-  }, [currentUser]);
+    editLists(({ sidecarCombos }) => ({ sidecarCombos: sidecarCombos.filter((_, i) => i !== index) }));
+  }, [editLists, addSyncLog]);
 
   const handleAddFavorite = useCallback((cpt: string, aeTitle: string) => {
     addSyncLog(`Add fav: ${cpt} "${aeTitle}"`);
-    setFavorites(prev => {
-      const next = [{ cpt, aeTitle }, ...prev.filter(f => f.cpt !== cpt)];
-      saveLocalFavorites(next);
-      addSyncLog(`Saved ${next.length} favs to localStorage`);
-      if (currentUser) firestoreService.saveFavorites(currentUser.uid, next)
-        .then(() => addSyncLog('Fav add → Firestore OK'))
-        .catch(err => addSyncLog(`Fav add → Firestore FAIL: ${err.message}`));
-      return next;
-    });
-  }, [currentUser]);
+    editLists(({ favorites }) => ({ favorites: [{ cpt, aeTitle }, ...favorites.filter(f => f.cpt !== cpt)] }));
+  }, [editLists, addSyncLog]);
 
   const handleRemoveFavorite = useCallback((cpt: string) => {
     addSyncLog(`Remove fav: ${cpt}`);
-    setFavorites(prev => {
-      const next = prev.filter(f => f.cpt !== cpt);
-      saveLocalFavorites(next);
-      if (currentUser) firestoreService.saveFavorites(currentUser.uid, next)
-        .then(() => addSyncLog('Fav remove → Firestore OK'))
-        .catch(err => addSyncLog(`Fav remove → Firestore FAIL: ${err.message}`));
-      return next;
-    });
-  }, [currentUser]);
+    editLists(({ favorites }) => ({ favorites: favorites.filter(f => f.cpt !== cpt) }));
+  }, [editLists, addSyncLog]);
 
   const handleFavoriteSelect = useCallback((fav: FavoriteEntry) => {
     if (!cptDb) return;

@@ -58,6 +58,9 @@ export function useFirestoreHealth(): FirestoreHealth {
   const reportFlush = useCallback((result: FlushOutcome | null) => {
     if (!result) return;
     setPendingCount(result.remaining);
+    // Everything uploaded: the post-session "stored locally" notice no longer
+    // applies. (Clyde 2026-10-01d #3)
+    if (result.remaining === 0) setHasPendingOnExit(false);
     if (result.remaining === 0 && result.flushed > 0) reportSuccess();
     else if (result.remaining > 0) reportFailure(result.canRead);
   }, [reportSuccess, reportFailure]);
