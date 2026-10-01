@@ -122,8 +122,10 @@ export const firestoreService = {
       const snap = await tx.get(docRef);
       if (!snap.exists()) return { recovered: false };
       const existing = snap.data();
-      if (existing.endTime) return { recovered: false };
-      tx.update(docRef, { ...finalData, endTime });
+      // Already closed for real (another tab/device recovered it, or its end
+      // arrived). A sweep-closed session is still open to a better recovery.
+      if (existing.endTime && existing._autoFinalized !== true) return { recovered: false };
+      tx.update(docRef, { ...finalData, endTime, _autoFinalized: deleteField() });
       return { recovered: true };
     });
   },
@@ -540,9 +542,11 @@ export const firestoreService = {
   // Orphaned session recovery: find sessions missing endTime (crash/power loss)
   async getOrphanedSessions(userId: string): Promise<{ id: string; [key: string]: any }[]> {
     // Firestore can't query for missing fields directly, so we fetch recent sessions
-    // and filter client-side for docs where endTime is absent.
+    // and filter client-side for docs where endTime is absent. A session the
+    // server-side orphan sweep closed (`_autoFinalized`) also counts: its totals
+    // were reconstructed without this browser's crash log, so recover it here.
     const sessions = await this.getRecentSessions(userId, 30);
-    return sessions.filter(s => !s.endTime);
+    return sessions.filter(s => !s.endTime || s._autoFinalized === true);
   },
 
   // Orphaned session recovery: read all events from a session's events subcollection

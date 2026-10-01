@@ -23,6 +23,7 @@ const MAX_PER_RUN = 100;
 interface EventRow {
   type?: string;
   duration?: number;
+  elapsedTime?: number; // STUDY events record their time here, not in duration
   rvu?: number;
   startTimeSession?: number;
   endTimeSession?: number;
@@ -49,7 +50,7 @@ async function finalizeOne(userId: string, sessionId: string): Promise<void> {
     switch (e.type) {
       case 'STUDY':
         studiesCompleted += 1;
-        totalSessionTime += dur;
+        totalSessionTime += e.elapsedTime ?? 0;
         totalRVU += e.rvu ?? 0;
         break;
       case 'INTERSTITIAL':
