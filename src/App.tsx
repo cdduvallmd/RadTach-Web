@@ -26,6 +26,7 @@ import { reconstructSessionData } from './utils/sessionRecovery';
 import { RecoveryToast } from './components/RecoveryToast';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
 import { useTimerMode } from './hooks/useTimerMode';
+import { useSessionClock } from './hooks/useSessionClock';
 import { useSwapArmed, handleSidecarCommandSwapFlag, shouldApplySwap, applySwap } from './hooks/useSwapSubsystem';
 import { BUILD_ID } from './buildId';
 
@@ -218,11 +219,15 @@ function RadTachInner() {
   // Track if Admin/Comms auto-paused a study (so we can resume it when they stop)
   // studyWasAutoPaused removed — ABC buttons stop study timer, study_start resumes
 
-  // Total and Interstitial time tracking
-  const [sessionTime, setSessionTime] = useState(0);
+  // Session clock — the one clock shared by both timer engines (mode-enum plan
+  // step 3a). Pauses while the Stop Session dialog is open.
+  const [showStopSessionDialog, setShowStopSessionDialog] = useState(false);
+  const sessionClock = useSessionClock(showStopSessionDialog);
+  const { sessionTime, isRunning: isSessionTimeRunning } = sessionClock;
+
+  // Interstitial time tracking
   const [interstitialTime, setInterstitialTime] = useState(0);
   const [isInterstitialRunning, setIsInterstitialRunning] = useState(false);
-  const [isSessionTimeRunning, setIsSessionTimeRunning] = useState(false);
   
   // Admin and Comms time tracking
   const [adminTime, setAdminTime] = useState(0);
@@ -329,7 +334,6 @@ function RadTachInner() {
   const [sessionEvents, setSessionEvents] = useState<SessionEvent[]>([]);
   const [deletedStudies, setDeletedStudies] = useState(0);
   const [cumulativeParTime, setCumulativeParTime] = useState(0);
-  const [showStopSessionDialog, setShowStopSessionDialog] = useState(false);
   const [showPostSessionScreen, setShowPostSessionScreen] = useState(false);
   const [todaySessionCount, setTodaySessionCount] = useState(0);
   const [sessionTags, setSessionTags] = useState<SessionTag[]>(['No Comment']);
@@ -418,7 +422,6 @@ function RadTachInner() {
   // studyPauseTime removed — pause functionality replaced by ABC
 
   const timerRef = useRef<number | null>(null);
-  const sessionTimeRef = useRef<number | null>(null);
   const interstitialTimeRef = useRef<number | null>(null);
   const adminTimeRef = useRef<number | null>(null);
   const commsTimeRef = useRef<number | null>(null);
@@ -426,7 +429,6 @@ function RadTachInner() {
   const timeSinceLastBreakRef = useRef<number | null>(null);
   // pauseTimeRef removed — pause functionality replaced by ABC
   const doubleTapTimeRef = useRef<number | null>(null); // Issue #3: Double Tap timer
-  const sessionStartMsRef = useRef<number>(0); // Wall-clock ms at session start (for drift correction)
   const processSidecarStartRef = useRef<(cmd: SidecarCommand) => void>(() => {});
   const processSidecarStopRef = useRef<() => void>(() => {});
   // Cached Firestore favorites/combos for sync_settings relay to Sidecar
@@ -663,25 +665,6 @@ function RadTachInner() {
       }
     };
   }, [isDoubleTapRunning, showStopSessionDialog]);
-
-  // Session time effect
-  useEffect(() => {
-    if (isSessionTimeRunning && !showStopSessionDialog) {
-      sessionTimeRef.current = setInterval(() => {
-        setSessionTime(prev => prev + 1);
-      }, 1000);
-    } else {
-      if (sessionTimeRef.current) {
-        clearInterval(sessionTimeRef.current);
-      }
-    }
-
-    return () => {
-      if (sessionTimeRef.current) {
-        clearInterval(sessionTimeRef.current);
-      }
-    };
-  }, [isSessionTimeRunning, showStopSessionDialog]);
 
   // Interstitial time effect
   useEffect(() => {
@@ -1687,9 +1670,8 @@ function RadTachInner() {
   const startSessionWithOffice = async (workstationId: string) => {
     const now = getCurrentDateTime();
     setSessionStartDateTime(now);
-    sessionStartMsRef.current = Date.now();
     setIsSessionActive(true);
-    setIsSessionTimeRunning(true);
+    sessionClock.start();
     setTodaySessionCount(prev => prev + 1);
     setSessionEvents([]);
     shadow.startSession();
@@ -1784,7 +1766,7 @@ function RadTachInner() {
       ).catch(console.error);
     }
     // Reset all counters
-    setSessionTime(0);
+    sessionClock.zero();
     setInterstitialTime(0);
     setAdminTime(0);
     setCommsTime(0);
@@ -2079,7 +2061,7 @@ function RadTachInner() {
     }
 
     setIsSessionActive(false);
-    setIsSessionTimeRunning(false);
+    sessionClock.stop();
     setIsRunning(false);
     setIsInterstitialRunning(false);
     setIsAdminTimeRunning(false);
@@ -2088,7 +2070,7 @@ function RadTachInner() {
     setIsDoubleTapRunning(false);
     setSessionStartDateTime(null);
     setSessionEvents([]);
-    setSessionTime(0);
+    sessionClock.zero();
     setInterstitialTime(0);
     setAdminTime(0);
     setCommsTime(0);
@@ -2121,7 +2103,7 @@ function RadTachInner() {
     setDoubleTapStartTime(null);
     setInterstitialStartTime(null);
     setStudyStartTime(null);
-    sessionStartMsRef.current = 0;
+    sessionClock.clearAnchor();
     setSessionTags(['No Comment']);
     setSessionDescription('');
     setVerifiedRVU('');
@@ -2236,7 +2218,7 @@ function RadTachInner() {
 
       // Start session time if this is the first study
       if (!isSessionTimeRunning) {
-        setIsSessionTimeRunning(true);
+        sessionClock.ensureRunning();
       }
 
       // Shadow signal: study started
@@ -2695,12 +2677,7 @@ function RadTachInner() {
 
       // Drift correction: reconcile sessionTime with wall clock at break boundary
       // Break end is the cleanest correction point — no timers are mid-flight
-      const wallClockElapsed = Math.round((Date.now() - sessionStartMsRef.current) / 1000);
-      const drift = wallClockElapsed - sessionTime;
-      const correctedSessionTime = Math.abs(drift) > 2 ? wallClockElapsed : sessionTime;
-      if (Math.abs(drift) > 2) {
-        setSessionTime(wallClockElapsed);
-      }
+      const correctedSessionTime = sessionClock.resyncAtBreakEnd();
 
       // F2: Signal shadow with corrected time (after drift correction)
       shadow.signal({ type: 'break_toggle' }, correctedSessionTime);
