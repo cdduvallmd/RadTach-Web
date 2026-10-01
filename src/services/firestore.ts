@@ -20,6 +20,7 @@ import {
   where,
   Timestamp,
   onSnapshot,
+  deleteField,
 } from 'firebase/firestore';
 import type { StoredSession, GroupStats, CompositeStats, WorkstationStats } from '../types/reports';
 import type { CptDatabase, ChargemasterEntry } from '../types/cpt';
@@ -90,7 +91,11 @@ export const firestoreService = {
     const endTime = finalData.stopDateTime
       ? Timestamp.fromDate(new Date(finalData.stopDateTime))
       : serverTimestamp();
-    await updateDoc(docRef, { ...finalData, endTime });
+    // The real end-of-session data supersedes a server-side orphan sweep
+    // (functions/src/orphanSweep.ts) that may have closed this session first
+    // with reconstructed totals: clear `_autoFinalized`, or group stats, daily
+    // aggregates and the coaching brief would keep excluding a genuine session.
+    await updateDoc(docRef, { ...finalData, endTime, _autoFinalized: deleteField() });
   },
 
   /**
