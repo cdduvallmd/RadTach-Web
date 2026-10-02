@@ -31,11 +31,13 @@
  *   eventually completed, while production retained the full elapsed time
  *   via its separate draftStudy state. Diagnosed 2026-06-06 from a
  *   ~1200s STUDY-duration divergence on a draft-heavy day.
- * - Fix: draft_enter MOVES studyContext to draftedStudyContext; draft_exit
- *   sets pendingDraftRestore = true; study_start restores from
- *   draftedStudyContext only when the user explicitly intends to resume
- *   (pendingDraftRestore set) AND modality matches. Otherwise a fresh
- *   context is created and the drafted slot is preserved for later resume.
+ * - Fix: draft_enter MOVES studyContext to draftedStudyContext, where it
+ *   waits until a study_start carries its studyId (Resume Draft).
+ *
+ * Study identity (2026-10-01, plan step 3c): study_start matches contexts by
+ * studyId, never by modality. The same id resumes the open or drafted study;
+ * any other id starts a new one, so a study mode-enum failed to close can't
+ * leak its id, start or RVU into the next study.
  */
 import { useRef, useCallback, useEffect } from 'react';
 
@@ -44,19 +46,20 @@ import { useRef, useCallback, useEffect } from 'react';
 export type TimerMode = 'idle' | 'study' | 'interstitial' | 'admin' | 'comms' | 'break' | 'doubleTap';
 
 export type TimerSignal =
-  | { type: 'study_start'; modality: string; complications: string[]; parTime: number; studyNumber: number; rvu: number; cpts?: string[]; rvuSource?: string; rvuDerivedMode?: boolean; targetRvuPerHour?: number }
-  | { type: 'study_complete' }
+  | { type: 'study_start'; studyId: string; modality: string; complications: string[]; parTime: number; studyNumber: number; rvu: number; cpts?: string[]; rvuSource?: string; rvuDerivedMode?: boolean; targetRvuPerHour?: number }
+  | { type: 'study_complete'; rvu: number; parTime: number; complications: string[]; cpts?: string[]; rvuSource?: string }
   | { type: 'admin_toggle' }
   | { type: 'comms_toggle' }
   | { type: 'break_toggle' }
   | { type: 'doubletap_toggle'; modality?: string }
   | { type: 'draft_enter' }
-  | { type: 'draft_exit' }
-  | { type: 'swap_detected'; correctedElapsedTime: number; correctedStart: number; correctedSystem: string };
+  | { type: 'swap_detected'; studyId: string; correctedElapsedTime: number; correctedStart: number; correctedSystem: string }
+  | { type: 'undo_study'; studyId: string };
 
 // Same shape as the legacy engine's events
 export interface ModeStudyEvent {
   type: 'STUDY';
+  studyId?: string; // random, set at study start; absent on events before step 3c
   studyNumber: number;
   startTimeSession: number;
   startTimeSystem: string;
@@ -74,6 +77,27 @@ export interface ModeStudyEvent {
   cpts?: string[];
   rvuDerivedMode?: boolean;
   targetRvuPerHour?: number;
+  // When the study ended (after any interruptions). Absent before step 3c.
+  endTimeSession?: number;
+  endTimeSystem?: string;
+}
+
+// Marks an ADMIN event that replaced an undone study, or an event taken while
+// that study was open. Its time is Admin time, but it is not an Admin button
+// press, an interruption, or a meeting candidate (see utils/adminEvents.ts).
+export interface UndoneStudy {
+  studyId: string;
+  originalType?: string; // for events taken during the study (e.g. 'COMMS')
+  studyNumber?: number;
+  modality?: string;
+  complications?: string[];
+  rvu?: number;
+  cpts?: string[];
+  rvuSource?: string;
+  parTime?: number;
+  elapsedTime?: number;
+  swapped?: boolean;
+  drafted?: boolean;
 }
 
 export interface ModeInterstitialEvent {
@@ -93,11 +117,13 @@ export interface ModeTimerEvent {
   endTimeSystem: string;
   duration: number;
   associatedModality?: string | null;
+  undoneStudy?: UndoneStudy;
 }
 
 export type ModeEvent = ModeStudyEvent | ModeInterstitialEvent | ModeTimerEvent;
 
 interface StudyContext {
+  studyId: string;
   modality: string;
   complications: string[];
   parTime: number;
@@ -150,11 +176,6 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
   // resumed (or the session ends, in which case it's discarded — production
   // does the same since a never-resumed draft never gets emitted as STUDY).
   const draftedStudyContext = useRef<StudyContext | null>(null);
-  // True after draft_exit fires; cleared by the next study_start. Tells
-  // study_start that the user intends to resume the drafted study so we can
-  // distinguish "Resume Draft → click Par Time" from "Sidecar fires a new
-  // study that happens to be the same modality as the draft."
-  const pendingDraftRestore = useRef<boolean>(false);
 
   // Change reporting (mode-enum plan step 3b): every add or in-place edit of
   // the event list is recorded by index and reported once per signal, so the
@@ -186,6 +207,91 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     onEventsChangedRef.current?.(list);
   };
 
+  // Reading time = time banked before interruptions, plus the current
+  // segment if the study is the active mode.
+  const pushStudy = useCallback((ctx: StudyContext, sessionTime: number): void => {
+    const current = mode.current === 'study' ? sessionTime - modeEnteredAt.current : 0;
+    const elapsedTime = ctx.accumulatedTime + current;
+    pushEvent({
+      type: 'STUDY',
+      studyId: ctx.studyId,
+      studyNumber: ctx.studyNumber,
+      startTimeSession: ctx.originalStart,
+      startTimeSystem: ctx.originalStartSystem,
+      endTimeSession: sessionTime,
+      endTimeSystem: getCurrentISO(),
+      modality: ctx.modality,
+      complications: ctx.complications,
+      parTime: ctx.parTime,
+      elapsedTime,
+      variance: elapsedTime - ctx.parTime,
+      rvu: ctx.rvu,
+      pauseTime: ctx.pauseTime,
+      pauseUsed: ctx.pauseTime > 0,
+      drafted: ctx.drafted,
+      ...(ctx.cpts ? { rvuSource: ctx.rvuSource, cpts: ctx.cpts } : {}),
+      ...(ctx.rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour: ctx.targetRvuPerHour } : {}),
+    });
+  }, []);
+
+  // Undo (plan step 3c): the undone study becomes Admin from its start to its
+  // end, and so does every interruption taken while it was open. Each event is
+  // replaced at its own index, so the event sync uploads the edits as usual.
+  const undoStudy = useCallback((studyId: string): void => {
+    const evts = events.current;
+    const index = evts.findIndex(e => e.type === 'STUDY' && e.studyId === studyId);
+    if (index < 0) {
+      console.warn('[mode-enum] undo_study: no STUDY with id', studyId);
+      return;
+    }
+    // Every STUDY with a studyId was built by pushStudy, so it has end times.
+    const study = evts[index] as ModeStudyEvent & { endTimeSession: number; endTimeSystem: string };
+    replaceEvent(index, {
+      type: 'ADMIN',
+      startTimeSession: study.startTimeSession,
+      startTimeSystem: study.startTimeSystem,
+      endTimeSession: study.endTimeSession,
+      endTimeSystem: study.endTimeSystem,
+      duration: study.elapsedTime,
+      undoneStudy: {
+        studyId,
+        originalType: 'STUDY',
+        studyNumber: study.studyNumber,
+        modality: study.modality,
+        complications: study.complications,
+        rvu: study.rvu,
+        cpts: study.cpts,
+        rvuSource: study.rvuSource,
+        parTime: study.parTime,
+        elapsedTime: study.elapsedTime,
+        swapped: study.swapped ?? false,
+        drafted: study.drafted,
+      },
+    });
+    // A drafted study's span holds other studies' work, so only the study
+    // itself is converted (accepted, plan 3c).
+    if (study.drafted) return;
+    // Interruptions taken while the study was open sit just before it in the
+    // list. Walk back until another study or anything older than this one,
+    // so the conversion can never reach into an earlier study.
+    for (
+      let i = index - 1;
+      i >= 0 && evts[i].type !== 'STUDY' && evts[i].startTimeSession >= study.startTimeSession;
+      i--
+    ) {
+      const e = evts[i] as ModeInterstitialEvent | ModeTimerEvent;
+      replaceEvent(i, {
+        type: 'ADMIN',
+        startTimeSession: e.startTimeSession,
+        startTimeSystem: e.startTimeSystem,
+        endTimeSession: e.endTimeSession,
+        endTimeSystem: e.endTimeSystem,
+        duration: e.duration,
+        undoneStudy: { studyId, originalType: e.type },
+      });
+    }
+  }, []);
+
   const closeCurrentMode = useCallback((sessionTime: number): void => {
     const duration = sessionTime - modeEnteredAt.current;
     const startSession = modeEnteredAt.current;
@@ -212,6 +318,33 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     modeEnteredSystem.current = getCurrentISO();
   }, []);
 
+  // Admin, Comms and Break share one rule: pressing the running one ends it
+  // and returns to the study it interrupted (or to interstitial); pressing
+  // another ends whatever is running first, so no time is dropped.
+  // Interstitial time just before the press is absorbed into the new mode.
+  const toggleInterruption = useCallback((target: 'admin' | 'comms' | 'break', sessionTime: number): void => {
+    const current = mode.current;
+    if (current === 'idle') return;
+    if (current === target) {
+      closeCurrentMode(sessionTime);
+      enterMode(wasInStudy.current && studyContext.current ? 'study' : 'interstitial', sessionTime);
+      wasInStudy.current = false;
+    } else if (current === 'interstitial') {
+      mode.current = target; // keep modeEnteredAt at the interstitial's start
+    } else if (current === 'study') {
+      if (studyContext.current) {
+        studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
+      }
+      wasInStudy.current = true;
+      enterMode(target, sessionTime);
+    } else {
+      // Another interruption (or double tap) is running: end it first. A
+      // study it interrupted stays open (wasInStudy unchanged).
+      closeCurrentMode(sessionTime);
+      enterMode(target, sessionTime);
+    }
+  }, [closeCurrentMode, enterMode]);
+
   // ── Signal Handler ───────────────────────────────────────────────────────
 
   const signal = useCallback((action: TimerSignal, sessionTime: number): void => {
@@ -220,25 +353,22 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     switch (action.type) {
       case 'study_start': {
         if (currentMode === 'idle') break;
-        // Close whatever mode we're in (interstitial, admin, comms)
+        // Already reading this study: nothing to do (restarting would drop
+        // the current segment).
+        if (currentMode === 'study' && studyContext.current?.studyId === action.studyId) break;
+        // Close whatever mode we're in (interstitial, admin, comms, break).
+        // The study is now the active mode, so no interruption is pending.
         closeCurrentMode(sessionTime);
+        wasInStudy.current = false;
 
-        // Drafted-study resume: only when the rad explicitly clicked Resume
-        // Draft (pendingDraftRestore) AND the new modality matches the
-        // drafted study. Restores the original studyContext including its
-        // pre-draft accumulatedTime — so when the resumed study eventually
-        // completes, the recorded elapsedTime spans pre-draft + post-resume.
-        const wantsResume = pendingDraftRestore.current;
-        pendingDraftRestore.current = false;
-        if (
-          wantsResume &&
-          draftedStudyContext.current &&
-          draftedStudyContext.current.modality === action.modality
-        ) {
+        if (draftedStudyContext.current?.studyId === action.studyId) {
+          // Resume Draft: keeps the pre-draft time, so the completed study's
+          // elapsedTime spans pre-draft + post-resume.
           studyContext.current = draftedStudyContext.current;
           draftedStudyContext.current = null;
-        } else if (!studyContext.current || studyContext.current.modality !== action.modality) {
+        } else if (studyContext.current?.studyId !== action.studyId) {
           studyContext.current = {
+            studyId: action.studyId,
             modality: action.modality,
             complications: action.complications,
             parTime: action.parTime,
@@ -260,55 +390,50 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
       }
 
       case 'study_complete': {
-        if (currentMode !== 'study') break;
-        const ctx = studyContext.current;
-        if (!ctx) break;
-
-        const currentSegment = sessionTime - modeEnteredAt.current;
-        const elapsedTime = ctx.accumulatedTime + currentSegment;
-        const variance = elapsedTime - ctx.parTime;
-
-        pushEvent({
-          type: 'STUDY',
-          studyNumber: ctx.studyNumber,
-          startTimeSession: ctx.originalStart,
-          startTimeSystem: ctx.originalStartSystem,
-          modality: ctx.modality,
-          complications: ctx.complications,
-          parTime: ctx.parTime,
-          elapsedTime,
-          variance,
-          rvu: ctx.rvu,
-          pauseTime: ctx.pauseTime,
-          pauseUsed: ctx.pauseTime > 0,
-          drafted: ctx.drafted,
-          ...(ctx.cpts ? { rvuSource: ctx.rvuSource, cpts: ctx.cpts } : {}),
-          ...(ctx.rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour: ctx.targetRvuPerHour } : {}),
-        });
-
+        if (!studyContext.current) break;
+        // Record the final details, which may have changed since the start.
+        const ctx: StudyContext = {
+          ...studyContext.current,
+          rvu: action.rvu,
+          parTime: action.parTime,
+          complications: action.complications,
+          cpts: action.cpts,
+          rvuSource: action.rvuSource,
+        };
+        if (currentMode === 'study') {
+          pushStudy(ctx, sessionTime);
+          enterMode('interstitial', sessionTime);
+        } else if (wasInStudy.current && (currentMode === 'admin' || currentMode === 'comms' || currentMode === 'break')) {
+          // Ended while an interruption taken during the study is still on.
+          // Split the interruption at the study's end: the part inside the
+          // study stays in its span (Undo converts it), the rest carries on.
+          closeCurrentMode(sessionTime);
+          pushStudy(ctx, sessionTime);
+          wasInStudy.current = false;
+          enterMode(currentMode, sessionTime);
+        } else {
+          break;
+        }
         lastStudyModality.current = ctx.modality;
         studyContext.current = null;
-        enterMode('interstitial', sessionTime);
         break;
       }
 
       case 'swap_detected': {
+        // The swapped study, by id, and the interstitial between it and the
+        // previous study. No such gap (the study started straight from
+        // Comms/Admin/Break) means there is nothing to reclaim.
         const evts = events.current;
-        let lastInterIdx = -1;
-        for (let i = evts.length - 1; i >= 0; i--) {
-          if (evts[i].type === 'INTERSTITIAL') { lastInterIdx = i; break; }
+        const studyIdx = evts.findIndex(e => e.type === 'STUDY' && e.studyId === action.studyId);
+        let interIdx = -1;
+        for (let i = studyIdx - 1; i >= 0 && evts[i].type !== 'STUDY' && !('undoneStudy' in evts[i]); i--) {
+          if (evts[i].type === 'INTERSTITIAL') { interIdx = i; break; }
         }
-        if (lastInterIdx >= 0) {
-          const inter = evts[lastInterIdx] as ModeInterstitialEvent;
-          replaceEvent(lastInterIdx, { ...inter, duration: 10, endTimeSession: inter.startTimeSession + 10 });
-        }
-        let lastStudyIdx = -1;
-        for (let i = evts.length - 1; i >= 0; i--) {
-          if (evts[i].type === 'STUDY') { lastStudyIdx = i; break; }
-        }
-        if (lastStudyIdx >= 0) {
-          const study = evts[lastStudyIdx] as ModeStudyEvent;
-          replaceEvent(lastStudyIdx, {
+        if (studyIdx >= 0 && interIdx >= 0) {
+          const inter = evts[interIdx] as ModeInterstitialEvent;
+          replaceEvent(interIdx, { ...inter, duration: 10, endTimeSession: inter.startTimeSession + 10 });
+          const study = evts[studyIdx] as ModeStudyEvent;
+          replaceEvent(studyIdx, {
             ...study,
             startTimeSession: action.correctedStart,
             startTimeSystem: action.correctedSystem,
@@ -320,82 +445,20 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
         break;
       }
 
-      case 'admin_toggle': {
-        if (currentMode === 'admin') {
-          // Turning off admin — emit ADMIN event
-          closeCurrentMode(sessionTime);
-          if (wasInStudy.current) {
-            enterMode('study', sessionTime);
-          } else {
-            // Start fresh interstitial post-admin
-            enterMode('interstitial', sessionTime);
-          }
-          wasInStudy.current = false;
-        } else {
-          wasInStudy.current = currentMode === 'study';
-          if (currentMode === 'interstitial') {
-            // Absorb pre-toggle interstitial — keep modeEnteredAt at the interstitial's start
-            mode.current = 'admin';
-          } else {
-            if (currentMode === 'study' && studyContext.current) {
-              studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
-            }
-            enterMode('admin', sessionTime);
-          }
-        }
+      case 'admin_toggle':
+        toggleInterruption('admin', sessionTime);
         break;
-      }
 
-      case 'comms_toggle': {
-        if (currentMode === 'comms') {
-          closeCurrentMode(sessionTime);
-          if (wasInStudy.current) {
-            enterMode('study', sessionTime);
-          } else {
-            enterMode('interstitial', sessionTime);
-          }
-          wasInStudy.current = false;
-        } else {
-          wasInStudy.current = currentMode === 'study';
-          if (currentMode === 'interstitial') {
-            mode.current = 'comms';
-          } else {
-            if (currentMode === 'study' && studyContext.current) {
-              studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
-            }
-            enterMode('comms', sessionTime);
-          }
-        }
+      case 'comms_toggle':
+        toggleInterruption('comms', sessionTime);
         break;
-      }
 
-      case 'break_toggle': {
-        if (currentMode === 'break') {
-          closeCurrentMode(sessionTime);
-          // Mirror Admin/Comms: if the user was mid-study when Break started,
-          // resume study mode directly without an interstitial transition.
-          if (wasInStudy.current) {
-            enterMode('study', sessionTime);
-          } else {
-            enterMode('interstitial', sessionTime);
-          }
-          wasInStudy.current = false;
-        } else {
-          wasInStudy.current = currentMode === 'study';
-          if (currentMode === 'interstitial') {
-            mode.current = 'break';
-          } else {
-            if (currentMode === 'study' && studyContext.current) {
-              studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
-            }
-            closeCurrentMode(sessionTime);
-            enterMode('break', sessionTime);
-          }
-        }
+      case 'break_toggle':
+        toggleInterruption('break', sessionTime);
         break;
-      }
 
       case 'doubletap_toggle': {
+        // Never during a study (App blocks it then).
         if (currentMode === 'doubleTap') {
           closeCurrentMode(sessionTime);
           enterMode('interstitial', sessionTime);
@@ -403,36 +466,46 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
           // Absorb pre-toggle interstitial into DOUBLE_TAP
           mode.current = 'doubleTap';
           if (action.modality) lastStudyModality.current = action.modality;
+        } else if (!wasInStudy.current && (currentMode === 'admin' || currentMode === 'comms' || currentMode === 'break')) {
+          // A new mode ends the running one.
+          closeCurrentMode(sessionTime);
+          enterMode('doubleTap', sessionTime);
+          wasInStudy.current = false;
+          if (action.modality) lastStudyModality.current = action.modality;
         }
         break;
       }
 
       case 'draft_enter': {
-        if (currentMode === 'study' && studyContext.current) {
-          studyContext.current.drafted = true;
+        const ctx = studyContext.current;
+        if (!ctx) break;
+        if (currentMode === 'study') {
           // Accumulate pre-draft study time so it's preserved when the draft
           // is resumed and eventually completed.
-          studyContext.current.accumulatedTime += sessionTime - modeEnteredAt.current;
-          // Move the drafted context to its own slot so subsequent studies
-          // (including different-modality Sidecar studies) can't clobber it.
-          draftedStudyContext.current = studyContext.current;
-          studyContext.current = null;
+          ctx.accumulatedTime += sessionTime - modeEnteredAt.current;
           enterMode('interstitial', sessionTime);
+        } else if (!(wasInStudy.current && (currentMode === 'admin' || currentMode === 'comms' || currentMode === 'break'))) {
+          break;
         }
+        // Drafted during an interruption: the interruption carries on, and
+        // ends in interstitial since the study is no longer open.
+        ctx.drafted = true;
+        // Move the drafted context to its own slot so subsequent studies
+        // (including different-modality Sidecar studies) can't clobber it.
+        draftedStudyContext.current = ctx;
+        studyContext.current = null;
+        wasInStudy.current = false;
         break;
       }
 
-      case 'draft_exit': {
-        // Mark intent to resume — consumed by the next study_start. If the
-        // rad changes their mind and starts a different modality first,
-        // study_start will clear this flag but leave draftedStudyContext
-        // intact for the actual resume later.
-        pendingDraftRestore.current = true;
+      case 'undo_study': {
+        undoStudy(action.studyId);
         break;
       }
+
     }
     emitChanges();
-  }, [closeCurrentMode, enterMode]);
+  }, [closeCurrentMode, enterMode, pushStudy, undoStudy, toggleInterruption]);
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -446,39 +519,19 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     wasInStudy.current = false;
     lastStudyModality.current = null;
     draftedStudyContext.current = null;
-    pendingDraftRestore.current = false;
   }, []);
 
   const endSession = useCallback((sessionTime: number): ModeEvent[] => {
-    if (mode.current === 'study' && studyContext.current) {
-      // F6: Include accumulatedTime for interrupted studies
-      const ctx = studyContext.current;
-      const currentSegment = sessionTime - modeEnteredAt.current;
-      const elapsedTime = ctx.accumulatedTime + currentSegment;
-      pushEvent({
-        type: 'STUDY',
-        studyNumber: ctx.studyNumber,
-        startTimeSession: ctx.originalStart,
-        startTimeSystem: ctx.originalStartSystem,
-        modality: ctx.modality,
-        complications: ctx.complications,
-        parTime: ctx.parTime,
-        elapsedTime,
-        variance: elapsedTime - ctx.parTime,
-        rvu: ctx.rvu,
-        pauseTime: ctx.pauseTime,
-        pauseUsed: ctx.pauseTime > 0,
-        drafted: ctx.drafted,
-        ...(ctx.cpts ? { rvuSource: ctx.rvuSource, cpts: ctx.cpts } : {}),
-        ...(ctx.rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour: ctx.targetRvuPerHour } : {}),
-      });
-    } else {
-      closeCurrentMode(sessionTime);
-    }
+    // A study still open (or interrupted) at Stop is recorded after the
+    // interruption that was running, as at study_complete.
+    const ctx = studyContext.current;
+    const studyOpen = ctx && (mode.current === 'study' || wasInStudy.current);
+    closeCurrentMode(sessionTime);
+    if (studyOpen) pushStudy(ctx, sessionTime);
     mode.current = 'idle';
     emitChanges();
     return [...events.current];
-  }, [closeCurrentMode]);
+  }, [closeCurrentMode, pushStudy]);
 
   const reset = useCallback((): void => {
     mode.current = 'idle';
@@ -490,7 +543,6 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     wasInStudy.current = false;
     lastStudyModality.current = null;
     draftedStudyContext.current = null;
-    pendingDraftRestore.current = false;
   }, []);
 
   const getEvents = useCallback((): ModeEvent[] => [...events.current], []);

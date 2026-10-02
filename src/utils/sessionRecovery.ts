@@ -7,6 +7,7 @@
 
 import { computeSessionSummary } from './sessionSummary';
 import type { SessionSummary } from './sessionSummary';
+import { isAdminPress } from './adminEvents';
 
 // Event shapes as stored in Firestore (looser than the in-app types since
 // Firestore docs come back as plain objects)
@@ -99,7 +100,7 @@ export function reconstructSessionData(
 
   const interstitialTime = interstitials.reduce((sum, e) => sum + (e.duration || 0), 0);
   const adminTime = admins.reduce((sum, e) => sum + (e.duration || 0), 0);
-  const adminEventCount = admins.length;
+  const adminEventCount = admins.filter(isAdminPress).length;
   const commsTime = commsEvents.reduce((sum, e) => sum + (e.duration || 0), 0);
   const commsEventCount = commsEvents.length;
   const breakTime = breaks.reduce((sum, e) => sum + (e.duration || 0), 0);
@@ -145,7 +146,7 @@ export function reconstructSessionData(
     stopDateTime,
     totalSessionTime,
     studiesCompleted,
-    deletedStudies: 0, // Deleted studies are removed from events array, unrecoverable
+    deletedStudies: admins.filter(e => (e as { undoneStudy?: { originalType?: string } }).undoneStudy?.originalType === 'STUDY').length,
     cumulativeParTime,
     interstitialTime,
     adminTime,

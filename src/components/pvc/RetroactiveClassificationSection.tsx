@@ -11,6 +11,7 @@ import { firestoreService } from '../../services/firestore';
 import type { StoredSession } from '../../types/reports';
 import AdminBlockClassifier, { type AdminBlock } from './AdminBlockClassifier';
 import { subDays } from 'date-fns';
+import { isAdminPress } from '../../utils/adminEvents';
 
 interface Props {
   userId: string;
@@ -74,7 +75,7 @@ export default function RetroactiveClassificationSection({ userId }: Props) {
       const eventDocs = await firestoreService.getSessionEvents(userId, s.sessionId);
       const blocks: AdminBlock[] = [];
       for (const e of eventDocs) {
-        if (e.type === 'ADMIN' && (e.duration ?? 0) >= ADMIN_BLOCK_MIN_SEC) {
+        if (isAdminPress(e) && (e.duration ?? 0) >= ADMIN_BLOCK_MIN_SEC) {
           blocks.push({
             index: blocks.length,
             startTimeSession: e.startTimeSession ?? 0,

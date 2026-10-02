@@ -25,12 +25,13 @@ import { flushBuffer, hasPendingEndSession, getLocalEvents, getLocalEventLog, me
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { RecoveryToast } from './components/RecoveryToast';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
-import { useTimerMode } from './hooks/useTimerMode';
+import { useTimerMode, type UndoneStudy } from './hooks/useTimerMode';
 import { useEventSync } from './hooks/useEventSync';
 import { useSidecarRelay } from './hooks/useSidecarRelay';
 import { useSessionClock } from './hooks/useSessionClock';
 import { useSwapArmed, handleSidecarCommandSwapFlag, shouldApplySwap, applySwap } from './hooks/useSwapSubsystem';
 import { BUILD_ID } from './buildId';
+import { isAdminPress } from './utils/adminEvents';
 
 // ============================================================================
 // EXTERNAL INTEGRATION CONTRACT — HL7 / Middleware Interface
@@ -58,13 +59,29 @@ interface RVUConfig {
 }
 
 interface LastStudyData {
+  studyId: string;
   variance: number;
   rvu: number;
   streakBefore: number;
   elapsedTime: number;
+  parTime: number;
+  completedAt: number; // completedStudies timestamp, for rolling RVU
+}
+
+// Sidecar/HL7 per-exam RVU, replacing modality defaults while set
+interface CptOverride {
+  cpts: string[];
+  rvu: number;
+  rvuRaw?: number;          // pre-PVC adjustment total
+  breakdown: Array<{ cpt: string; description: string; raw: number; adjusted: number }>;
+  bilateral: boolean;
+  source: RvuSource;
+  examDesc: string;
 }
 
 interface DraftStudyData {
+  studyId: string | null;
+  cptOverride: CptOverride | null; // kept so a resumed Sidecar study keeps its CPT RVU
   modality: Modality | null;
   complications: Complication[];
   currentTime: number;
@@ -74,6 +91,7 @@ interface DraftStudyData {
 // Event types for session recording (Issue #1)
 interface StudyEvent {
   type: 'STUDY';
+  studyId?: string;
   studyNumber: number;
   startTimeSession: number;
   startTimeSystem: string;
@@ -118,6 +136,7 @@ interface TimerEvent {
   endTimeSystem: string;
   duration: number;
   associatedModality?: Modality | null; // For DOUBLE_TAP events
+  undoneStudy?: UndoneStudy; // ADMIN that replaced an undone study (step 3c)
 }
 
 type SessionEvent = StudyEvent | InterstitialEvent | TimerEvent;
@@ -297,15 +316,7 @@ function RadTachInner() {
   const [cptDatabase, setCptDatabase] = useState<CptDatabase | null>(null);
 
   // Sidecar/HL7 override state — when non-null, accurate per-exam RVU replaces modality defaults
-  const [cptOverride, setCptOverride] = useState<{
-    cpts: string[];
-    rvu: number;
-    rvuRaw?: number;          // pre-PVC adjustment total
-    breakdown: Array<{ cpt: string; description: string; raw: number; adjusted: number }>;
-    bilateral: boolean;
-    source: RvuSource;
-    examDesc: string;
-  } | null>(null);
+  const [cptOverride, setCptOverride] = useState<CptOverride | null>(null);
 
   // PVC (Practice Value Customization) — loaded when system is verified.
   // Null = not loaded yet or no PVC config for this system. Always check
@@ -418,6 +429,9 @@ function RadTachInner() {
   const [doubleTapStartTime, setDoubleTapStartTime] = useState<{session: number, system: string} | null>(null);
   const [interstitialStartTime, setInterstitialStartTime] = useState<{session: number, system: string} | null>(null);
   const [studyStartTime, setStudyStartTime] = useState<{session: number, system: string} | null>(null);
+  // Random id for the open study (no PHI), shared by both engines so Undo
+  // targets exactly this study (plan step 3c). Kept across a draft.
+  const studyIdRef = useRef<string | null>(null);
   const [lastStudyModality, setLastStudyModality] = useState<Modality | null>(null);
   // studyPauseTime removed — pause functionality replaced by ABC
 
@@ -1644,7 +1658,7 @@ function RadTachInner() {
     const ADMIN_BLOCK_MIN_SEC = 30 * 60;
     const blocks: AdminBlock[] = [];
     for (const e of sessionEvents) {
-      if (e.type === 'ADMIN' && (e as TimerEvent).duration >= ADMIN_BLOCK_MIN_SEC) {
+      if (isAdminPress(e) && (e as TimerEvent).duration >= ADMIN_BLOCK_MIN_SEC) {
         const te = e as TimerEvent;
         blocks.push({
           index: blocks.length,
@@ -1849,10 +1863,62 @@ function RadTachInner() {
     setDoubleTapStartTime(null);
     setInterstitialStartTime(null);
     setStudyStartTime(null);
+    studyIdRef.current = null;
     sessionClock.clearAnchor();
     setSessionTags(['No Comment']);
     setSessionDescription('');
     setVerifiedRVU('');
+  };
+
+  // A new mode ends the running one (same rule as mode-enum's
+  // toggleInterruption): record and stop any running Admin, Comms, Break or
+  // Double Tap. Called on study start and when any of those is turned on.
+  const stopRunningTimers = () => {
+    const end = { endTimeSession: sessionTime, endTimeSystem: getCurrentDateTime() };
+    const running: Array<[boolean, { session: number; system: string } | null, TimerEvent['type']]> = [
+      [isAdminTimeRunning, adminStartTime, 'ADMIN'],
+      [isCommsTimeRunning, commsStartTime, 'COMMS'],
+      [isBreakTimeRunning, breakStartTime, 'BREAK'],
+      [isDoubleTapRunning, doubleTapStartTime, 'DOUBLE_TAP'],
+    ];
+    const evts: TimerEvent[] = running
+      .filter(([on, start]) => on && start !== null)
+      .map(([, start, type]) => ({
+        type,
+        startTimeSession: start!.session,
+        startTimeSystem: start!.system,
+        ...end,
+        duration: sessionTime - start!.session,
+        ...(type === 'DOUBLE_TAP' ? { associatedModality: lastStudyModality } : {}),
+      }));
+    if (evts.length > 0) setSessionEvents(prev => [...prev, ...evts]);
+    setIsAdminTimeRunning(false);
+    setIsCommsTimeRunning(false);
+    setIsBreakTimeRunning(false);
+    setIsDoubleTapRunning(false);
+    setAdminStartTime(null);
+    setCommsStartTime(null);
+    setBreakStartTime(null);
+    setDoubleTapStartTime(null);
+  };
+
+  // Tell mode-enum the study is (re)starting. Used by Par Time and by an
+  // Admin/Comms/Break off press that resumes the study; mode-enum ignores it
+  // when it is already reading this study.
+  const signalStudyStart = (at: number) => {
+    if (!selectedModality) return;
+    if (studyIdRef.current === null) studyIdRef.current = crypto.randomUUID();
+    modeEnum.signal({
+      type: 'study_start',
+      studyId: studyIdRef.current,
+      modality: selectedModality,
+      complications: [...selectedComplications],
+      parTime: currentParTime,
+      studyNumber: studiesCompleted + 1,
+      rvu: currentStudyRVU,
+      ...(cptOverride ? { cpts: cptOverride.cpts, rvuSource: cptOverride.source } : {}),
+      ...(rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour } : {}),
+    }, at);
   };
 
   // Start/Stop timer
@@ -1873,14 +1939,13 @@ function RadTachInner() {
       setIsRunning(true);
 
       setIsInterstitialRunning(false); // Stop interstitial time
-      setIsAdminTimeRunning(false); // Stop admin time
-      setIsCommsTimeRunning(false); // Stop comms time
-      setIsBreakTimeRunning(false); // Stop break time
-      setIsDoubleTapRunning(false); // Stop double tap time
 
       // Record study start time (Issue #1)
       if (studyStartTime === null) {
         setStudyStartTime({ session: sessionTime, system: getCurrentDateTime() });
+      }
+      if (studyIdRef.current === null) {
+        studyIdRef.current = crypto.randomUUID();
       }
 
       // Record interstitial end if it was running (Issue #1)
@@ -1898,83 +1963,15 @@ function RadTachInner() {
         setInterstitialStartTime(null);
       }
 
-      // Record Admin event if it was running (study start auto-stops it)
-      if (isAdminTimeRunning && adminStartTime !== null) {
-        const evt: TimerEvent = {
-          type: 'ADMIN',
-          startTimeSession: adminStartTime.session,
-          startTimeSystem: adminStartTime.system,
-          endTimeSession: sessionTime,
-          endTimeSystem: getCurrentDateTime(),
-          duration: sessionTime - adminStartTime.session,
-        };
-        setSessionEvents(prev => [...prev, evt]);
-        setAdminStartTime(null);
-
-      }
-
-      // Record Comms event if it was running
-      if (isCommsTimeRunning && commsStartTime !== null) {
-        const evt: TimerEvent = {
-          type: 'COMMS',
-          startTimeSession: commsStartTime.session,
-          startTimeSystem: commsStartTime.system,
-          endTimeSession: sessionTime,
-          endTimeSystem: getCurrentDateTime(),
-          duration: sessionTime - commsStartTime.session,
-        };
-        setSessionEvents(prev => [...prev, evt]);
-        setCommsStartTime(null);
-
-      }
-
-      // Record Break event if it was running
-      if (isBreakTimeRunning && breakStartTime !== null) {
-        const evt: TimerEvent = {
-          type: 'BREAK',
-          startTimeSession: breakStartTime.session,
-          startTimeSystem: breakStartTime.system,
-          endTimeSession: sessionTime,
-          endTimeSystem: getCurrentDateTime(),
-          duration: sessionTime - breakStartTime.session,
-        };
-        setSessionEvents(prev => [...prev, evt]);
-        setBreakStartTime(null);
-      }
-
-      // Record Double-Tap event if it was running
-      if (isDoubleTapRunning && doubleTapStartTime !== null) {
-        const evt: TimerEvent = {
-          type: 'DOUBLE_TAP',
-          startTimeSession: doubleTapStartTime.session,
-          startTimeSystem: doubleTapStartTime.system,
-          endTimeSession: sessionTime,
-          endTimeSystem: getCurrentDateTime(),
-          duration: sessionTime - doubleTapStartTime.session,
-          associatedModality: lastStudyModality,
-        };
-        setSessionEvents(prev => [...prev, evt]);
-        setDoubleTapStartTime(null);
-      }
+      // Study start ends any running Admin/Comms/Break/Double Tap
+      stopRunningTimers();
 
       // Start session time if this is the first study
       if (!isSessionTimeRunning) {
         sessionClock.ensureRunning();
       }
 
-      // Shadow signal: study started
-      if (selectedModality) {
-        modeEnum.signal({
-          type: 'study_start',
-          modality: selectedModality,
-          complications: [...selectedComplications],
-          parTime: currentParTime,
-          studyNumber: studiesCompleted + 1,
-          rvu: currentStudyRVU,
-          ...(cptOverride ? { cpts: cptOverride.cpts, rvuSource: cptOverride.source } : {}),
-          ...(rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour } : {}),
-        }, sessionTime);
-      }
+      signalStudyStart(sessionTime);
     }
     // Pause branch removed — use Admin/Comms/Break to interrupt a study
   };
@@ -2098,8 +2095,19 @@ function RadTachInner() {
     
     setIsRunning(false);
 
+    const studyId = studyIdRef.current ?? crypto.randomUUID();
+    studyIdRef.current = null;
+
     // Shadow signal: study complete
-    modeEnum.signal({ type: 'study_complete' }, sessionTime);
+    // The study's final details: the rad may change them after the start.
+    modeEnum.signal({
+      type: 'study_complete',
+      rvu: currentStudyRVU,
+      parTime: currentParTime,
+      complications: [...selectedComplications],
+      cpts: cptOverride?.cpts,
+      rvuSource: cptOverride?.source,
+    }, sessionTime);
 
     // ── Swap correction (excisable subsystem — see src/hooks/useSwapSubsystem.ts) ──
     let effectiveTime = currentTime;
@@ -2111,7 +2119,7 @@ function RadTachInner() {
         sessionEvents,
         setSessionEvents,
         setInterstitialTime,
-        (params) => modeEnum.signal({ type: 'swap_detected', ...params }, sessionTime),
+        (params) => modeEnum.signal({ type: 'swap_detected', studyId, ...params }, sessionTime),
       );
       effectiveTime = result.effectiveTime;
       wasSwapped = result.wasSwapped;
@@ -2129,12 +2137,17 @@ function RadTachInner() {
       setCurrentStreak(0);
     }
 
-    // Save study info for undo (Issue #21: include elapsedTime for interstitial recovery)
+    const now = Date.now();
+
+    // Save study info for undo
     setLastStudy({
+      studyId,
       variance: variance,
       rvu: currentStudyRVU,
       streakBefore: currentStreak,
       elapsedTime: effectiveTime,
+      parTime: currentParTime,
+      completedAt: now,
     });
 
     setCumulativeVariance(prev => prev + variance);
@@ -2150,7 +2163,6 @@ function RadTachInner() {
     }
 
     // Issue #6: Track completed study with timestamp for rolling RVU calculation
-    const now = Date.now();
     const updatedStudies = [...completedStudies, { timestamp: now, rvu: currentStudyRVU }];
     setCompletedStudies(updatedStudies);
 
@@ -2176,6 +2188,7 @@ function RadTachInner() {
       }
       const studyEvent: StudyEvent = {
         type: 'STUDY',
+        studyId,
         studyNumber: studiesCompleted + 1,
         startTimeSession: eventStart.session,
         startTimeSystem: eventStart.system,
@@ -2204,9 +2217,13 @@ function RadTachInner() {
     // Save modality for double tap tracking (Issue #1)
     setLastStudyModality(selectedModality);
 
-    // Start interstitial time and track start (Issue #1)
-    setIsInterstitialRunning(true);
-    setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
+    // Start interstitial time and track start (Issue #1) — unless an
+    // Admin/Comms/Break taken during the study is still on; its off press
+    // starts interstitial then.
+    if (!isAdminTimeRunning && !isCommsTimeRunning && !isBreakTimeRunning) {
+      setIsInterstitialRunning(true);
+      setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
+    }
 
     // Reset for next study
     setCurrentTime(0);
@@ -2268,9 +2285,41 @@ function RadTachInner() {
     // Track deleted study (Issue #1)
     setDeletedStudies(prev => prev + 1);
 
-    // Issue #21: Add erased study's elapsed time to Interstitial Timer
-    // Use case: Study opened but someone else claimed it (worklist collision)
-    setInterstitialTime(prev => prev + lastStudy.elapsedTime);
+    // Plan step 3c: an undone study is Admin time, not a study. Mode-enum
+    // converts the study and everything taken while it was open; legacy
+    // converts only the study (accepted until Phase 6).
+    modeEnum.signal({ type: 'undo_study', studyId: lastStudy.studyId }, sessionTime);
+    setSessionEvents(prev => prev.map((e): SessionEvent => {
+      if (e.type !== 'STUDY' || e.studyId !== lastStudy.studyId) return e;
+      return {
+        type: 'ADMIN',
+        startTimeSession: e.startTimeSession,
+        startTimeSystem: e.startTimeSystem,
+        endTimeSession: e.startTimeSession + e.elapsedTime,
+        endTimeSystem: getCurrentDateTime(),
+        duration: e.elapsedTime,
+        undoneStudy: {
+          studyId: lastStudy.studyId,
+          originalType: 'STUDY',
+          studyNumber: e.studyNumber,
+          modality: e.modality,
+          complications: e.complications,
+          rvu: e.rvu,
+          cpts: e.cpts,
+          rvuSource: e.rvuSource,
+          parTime: e.parTime,
+          elapsedTime: e.elapsedTime,
+          swapped: e.swapped ?? false,
+          drafted: e.drafted,
+        },
+      };
+    }));
+    setAdminTime(prev => prev + lastStudy.elapsedTime);
+    setCumulativeParTime(prev => prev - lastStudy.parTime);
+    const remaining = completedStudies.filter(st => st.timestamp !== lastStudy.completedAt);
+    setCompletedStudies(remaining);
+    const sixtyMinutesAgo = Date.now() - 60 * 60 * 1000;
+    setRollingRVU(remaining.filter(st => st.timestamp >= sixtyMinutesAgo).reduce((sum, st) => sum + st.rvu, 0));
 
     // Clear the last study
     setLastStudy(null);
@@ -2281,9 +2330,9 @@ function RadTachInner() {
     modeEnum.signal({ type: 'admin_toggle' }, sessionTime);
     if (!isAdminTimeRunning) {
       // Starting Admin Time
+      stopRunningTimers();
       setIsAdminTimeRunning(true);
       setIsInterstitialRunning(false);
-      setIsCommsTimeRunning(false);
       setAdminEvents(prev => prev + 1); // Issue #4: Increment event counter
       // Absorb pre-toggle interstitial into ADMIN start time (unified absorption rule)
       const adminStart = interstitialStartTime ?? { session: sessionTime, system: getCurrentDateTime() };
@@ -2317,6 +2366,7 @@ function RadTachInner() {
       const studyResuming = selectedModality !== null && currentTime > 0;
       if (studyResuming) {
         setIsRunning(true);
+        signalStudyStart(sessionTime);
       } else {
         setIsInterstitialRunning(true);
         setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
@@ -2329,9 +2379,9 @@ function RadTachInner() {
     modeEnum.signal({ type: 'comms_toggle' }, sessionTime);
     if (!isCommsTimeRunning) {
       // Starting Comms Time
+      stopRunningTimers();
       setIsCommsTimeRunning(true);
       setIsInterstitialRunning(false);
-      setIsAdminTimeRunning(false);
       setCommsEvents(prev => prev + 1); // Issue #4: Increment event counter
       // Absorb pre-toggle interstitial into COMMS start time
       const commsStart = interstitialStartTime ?? { session: sessionTime, system: getCurrentDateTime() };
@@ -2365,6 +2415,7 @@ function RadTachInner() {
       const studyResuming = selectedModality !== null && currentTime > 0;
       if (studyResuming) {
         setIsRunning(true);
+        signalStudyStart(sessionTime);
       } else {
         setIsInterstitialRunning(true);
         setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
@@ -2380,11 +2431,10 @@ function RadTachInner() {
     if (!isBreakTimeRunning) {
       // Signal mode-enum before starting break (no drift issue on start)
       modeEnum.signal({ type: 'break_toggle' }, sessionTime);
-      // Starting Break - pause Interstitial, Admin, and Comms
+      // Starting Break - ends Admin/Comms/Double Tap, absorbs Interstitial
+      stopRunningTimers();
       setIsBreakTimeRunning(true);
       setIsInterstitialRunning(false);
-      setIsAdminTimeRunning(false);
-      setIsCommsTimeRunning(false);
       // Reset Time Since Last Break and decline tracking
       setTimeSinceLastBreak(0);
       setLastBreakDeclineTime(0);
@@ -2429,6 +2479,7 @@ function RadTachInner() {
       const studyResuming = selectedModality !== null && currentTime > 0;
       if (studyResuming) {
         setIsRunning(true);
+        signalStudyStart(correctedSessionTime);
       } else {
         setIsInterstitialRunning(true);
         setInterstitialStartTime({ session: correctedSessionTime, system: getCurrentDateTime() });
@@ -2448,6 +2499,7 @@ function RadTachInner() {
 
     if (!isDoubleTapRunning) {
       // Starting Double Tap - stop Interstitial (productive time, not wasted)
+      stopRunningTimers();
       setIsDoubleTapRunning(true);
       setIsInterstitialRunning(false);
       setDoubleTapEvents(prev => prev + 1);
@@ -2500,12 +2552,17 @@ function RadTachInner() {
       
       // Save the current study
       setDraftStudy({
+        studyId: studyIdRef.current,
+        cptOverride,
         modality: selectedModality,
         complications: [...selectedComplications],
         currentTime: currentTime,
         parTime: currentParTime
       });
       
+      studyIdRef.current = null;
+      setCptOverride(null);
+
       // Clear current selections and reset timer
       setSelectedModality(null);
       setSelectedComplications([]);
@@ -2513,9 +2570,12 @@ function RadTachInner() {
 
       // Start interstitial time AT the Draft press, so the post-Draft span
       // is tracked. Without this, an ABC absorbs nothing or a Resume's
-      // interstitial event has a stale start.
-      setIsInterstitialRunning(true);
-      setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
+      // interstitial event has a stale start. Not while an Admin/Comms/Break
+      // is still on; its off press starts interstitial then.
+      if (!isAdminTimeRunning && !isCommsTimeRunning && !isBreakTimeRunning) {
+        setIsInterstitialRunning(true);
+        setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
+      }
 
       // Enter draft mode
       setIsDraftMode(true);
@@ -2533,10 +2593,11 @@ function RadTachInner() {
       }
       
       // Restore the drafted study
-      modeEnum.signal({ type: 'draft_exit' }, sessionTime);
       setSelectedModality(draftStudy.modality);
       setSelectedComplications(draftStudy.complications);
       setCurrentTime(draftStudy.currentTime);
+      setCptOverride(draftStudy.cptOverride);
+      studyIdRef.current = draftStudy.studyId;
       setWasDrafted(true);
 
       // Keep interstitial running until user clicks Par Time to resume

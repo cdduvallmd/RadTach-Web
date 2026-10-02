@@ -2,6 +2,8 @@
 // Computed from in-memory sessionEvents at session end, written as a
 // summary field on the session document.
 
+import { isAdminPress } from './adminEvents';
+
 interface StudyEvent {
   type: 'STUDY';
   studyNumber: number;
@@ -308,7 +310,7 @@ export function computeSessionSummary(
 
   // ── 7J: Interruption recovery cost ────────────────────────────────────
   const interruptionRecoveryCost = computeInterruptionRecoveryCost(
-    interstitials, admins, comms
+    interstitials, admins.filter(isAdminPress), comms
   );
 
   // ── 7K: Complication stacking ─────────────────────────────────────────

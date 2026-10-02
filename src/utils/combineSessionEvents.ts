@@ -49,6 +49,7 @@ export function combineSessionEvents(
           ...evt,
           studyNumber: evt.studyNumber + studyNumberOffset,
           startTimeSession: evt.startTimeSession + timeOffset,
+          ...(evt.endTimeSession !== undefined ? { endTimeSession: evt.endTimeSession + timeOffset } : {}),
         };
         combinedEvents.push(study);
       } else if (evt.type === 'INTERSTITIAL') {

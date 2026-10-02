@@ -149,8 +149,16 @@ export function applySwap<E extends EventWithType>(
   }) => void,
 ): SwapResult {
   const events = [...sessionEvents];
+  // Only the gap between the previous study and this one can be reclaimed.
+  // If the rad went straight from Comms/Admin/Break into this study, there is
+  // no such gap, and an older interstitial must not be used.
   let lastInterIdx = -1;
-  for (let i = events.length - 1; i >= 0; i--) {
+  // An undone study (now ADMIN with undoneStudy) also ends the search.
+  for (
+    let i = events.length - 1;
+    i >= 0 && events[i].type !== 'STUDY' && !(events[i] as { undoneStudy?: unknown }).undoneStudy;
+    i--
+  ) {
     if (events[i].type === 'INTERSTITIAL') {
       lastInterIdx = i;
       break;
