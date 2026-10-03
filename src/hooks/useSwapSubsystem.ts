@@ -137,6 +137,11 @@ export function shouldApplySwap(consumeManualArm: () => boolean): boolean {
  * Max-clamped at 0 to guard against pathological inputs (interstitial +
  * currentTime shorter than the 10s buffer).
  */
+function localISO(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 export function applySwap<E extends EventWithType>(
   currentTime: number,
   sessionEvents: E[],
@@ -175,10 +180,13 @@ export function applySwap<E extends EventWithType>(
     endTimeSession: inter.startTimeSession + 10,
   } as unknown as E;
   setSessionEvents(events);
-  setInterstitialTime((prev) => prev - (inter.duration - 10));
+  // inter.duration is wall-clock (3d) while the counter can lag when the
+  // window is covered, so never let the display counter go negative.
+  setInterstitialTime((prev) => Math.max(0, prev - (inter.duration - 10)));
   const swapStartOverride = {
     session: inter.startTimeSession + 10,
-    system: new Date(new Date(inter.startTimeSystem).getTime() + 10000).toISOString(),
+    // Local time like every other stamp (toISOString would be UTC).
+    system: localISO(new Date(new Date(inter.startTimeSystem).getTime() + 10000)),
   };
   emitShadowSwap({
     correctedElapsedTime: effectiveTime,

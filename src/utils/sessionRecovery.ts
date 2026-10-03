@@ -125,8 +125,8 @@ export function reconstructSessionData(
           latestSystemTime = (evt as any).endTimeSystem || '';
         }
       }
-      // Check startTimeSession + elapsedTime (study events)
-      if (evt.type === 'STUDY') {
+      // Older STUDY events have no end time: estimate it (step 3e)
+      if (evt.type === 'STUDY' && evt.endTimeSession === undefined) {
         const studyEnd = evt.startTimeSession + evt.elapsedTime;
         if (studyEnd > latestSessionTime) {
           latestSessionTime = studyEnd;
@@ -146,7 +146,10 @@ export function reconstructSessionData(
     stopDateTime,
     totalSessionTime,
     studiesCompleted,
-    deletedStudies: admins.filter(e => (e as { undoneStudy?: { originalType?: string } }).undoneStudy?.originalType === 'STUDY').length,
+    deletedStudies: admins.filter(e => {
+      const u = (e as { undoneStudy?: { originalType?: string; neverResumed?: boolean } }).undoneStudy;
+      return u?.originalType === 'STUDY' && !u.neverResumed;
+    }).length,
     cumulativeParTime,
     interstitialTime,
     adminTime,

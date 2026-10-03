@@ -50,6 +50,7 @@ export function combineSessionEvents(
           studyNumber: evt.studyNumber + studyNumberOffset,
           startTimeSession: evt.startTimeSession + timeOffset,
           ...(evt.endTimeSession !== undefined ? { endTimeSession: evt.endTimeSession + timeOffset } : {}),
+          ...(evt.draftGaps ? { draftGaps: evt.draftGaps.map(g => ({ start: g.start + timeOffset, end: g.end + timeOffset })) } : {}),
         };
         combinedEvents.push(study);
       } else if (evt.type === 'INTERSTITIAL') {

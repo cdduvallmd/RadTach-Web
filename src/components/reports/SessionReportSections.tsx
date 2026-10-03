@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import type { SessionSummary } from '../../utils/sessionSummary';
 import { isAdminPress } from '../../utils/adminEvents';
+import { studyEndTime } from '../../utils/studyEnd';
 
 // ── Types (mirrored from Reports.tsx) ────────────────────────────────────────
 
@@ -29,6 +30,7 @@ export interface StudyEvent {
   pauseTime: number;
   pauseUsed: boolean;
   drafted: boolean;
+  draftGaps?: Array<{ start: number; end: number }>; // drafted: when it was on hold (3e)
   swapped?: boolean;
   rvuDerivedMode?: boolean;
   targetRvuPerHour?: number;
@@ -348,7 +350,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
 
     const totalSessionMin = sessionData
       ? sessionData.totalSessionTime / 60
-      : Math.max(...studies.map(s => (s.startTimeSession + s.elapsedTime) / 60), 1);
+      : Math.max(...studies.map(s => studyEndTime(s) / 60), 1);
 
     const CONTAINER_WIDTH = 900;
     const pxPerMin = filmstripExpanded ? 12 : Math.max(CONTAINER_WIDTH / totalSessionMin, 1);
@@ -375,47 +377,89 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
     const yTickStep = rawStep <= 0.25 ? 0.2 : rawStep <= 0.6 ? 0.5 : 1.0;
     for (let r = yTickStep; r <= maxRvu; r += yTickStep) yTicks.push(Math.round(r * 10) / 10);
 
-    const studyRects = studies.map((s, i) => {
-      const x1 = xScale(s.startTimeSession / 60);
-      const x2 = xScale((s.startTimeSession + s.elapsedTime) / 60);
-      const w = Math.max(x2 - x1, 4);
+    // Each study is drawn from its start to its true end, so an interrupted
+    // study spans its Admin/Comms/Break (drawn below the axis). A drafted
+    // study is drawn purple, in pieces around the time it was on hold, so the
+    // studies read in between show in its gaps. Older drafted studies (no
+    // draftGaps) keep one bar of their reading length.
+    const DRAFTED_FILL = '#a855f7';
+    const studyRects = studies.flatMap((s, i) => {
+      const end = s.drafted && !s.draftGaps ? s.startTimeSession + s.elapsedTime : studyEndTime(s);
+      // Holds are clamped to the study's span, so odd or older data can't draw
+      // backwards or over other studies.
+      const pieces: Array<[number, number]> = [];
+      let from = s.startTimeSession;
+      for (const g of s.draftGaps ?? []) {
+        const to = Math.min(g.start, end);
+        if (to > from) pieces.push([from, to]);
+        from = Math.max(from, Math.min(g.end, end));
+      }
+      if (end > from) pieces.push([from, end]);
+      if (pieces.length === 0) pieces.push([s.startTimeSession, s.startTimeSession + s.elapsedTime]);
       const overPar = s.elapsedTime > s.parTime;
-      const fill = overPar ? '#ef4444' : '#22c55e';
+      const fill = s.drafted ? DRAFTED_FILL : overPar ? '#ef4444' : '#22c55e';
       const h = zeroY - yScaleRvu(s.rvu);
-      let parTickX: number | null = null;
-      if (overPar && filmstripExpanded) parTickX = xScale((s.startTimeSession + s.parTime) / 60);
-      return {
-        key: `study-${i}`, x: x1, w, h, y: zeroY - h, fill, parTickX, swapped: !!s.swapped,
-        tooltip: [
-          `#${s.studyNumber} ${s.modality}${s.complications.length ? ` (${s.complications.join(', ')})` : ''}`,
-          `Elapsed: ${formatMinSec(s.elapsedTime)} / Par: ${formatMinSec(s.parTime)}`,
-          `Variance: ${formatMinSec(s.variance)}`,
-          `RVU: ${s.rvu.toFixed(2)}`,
-          s.pauseUsed ? 'Pause: Yes' : '',
-          s.swapped ? 'Swapped' : '',
-        ].filter(Boolean),
-      };
-    });
-
-    const eventRects = nonStudyEvents
-      .filter(e => 'duration' in e && (e as { duration: number }).duration > 0)
-      .map((e, i) => {
-        const dur = (e as { duration: number }).duration;
-        const startMin = e.startTimeSession / 60;
-        const durMin = dur / 60;
-        const x1 = xScale(startMin);
-        const x2 = xScale(startMin + durMin);
-        const w = Math.max(x2 - x1, 3);
+      const parTickX = overPar && !s.drafted && filmstripExpanded ? xScale((s.startTimeSession + s.parTime) / 60) : null;
+      const tooltip = [
+        `#${s.studyNumber} ${s.modality}${s.complications.length ? ` (${s.complications.join(', ')})` : ''}`,
+        `Elapsed: ${formatMinSec(s.elapsedTime)} / Par: ${formatMinSec(s.parTime)}`,
+        `Variance: ${formatMinSec(s.variance)}`,
+        `RVU: ${s.rvu.toFixed(2)}`,
+        s.pauseUsed ? 'Pause: Yes' : '',
+        s.drafted ? 'Drafted' : '',
+        s.swapped ? 'Swapped' : '',
+      ].filter(Boolean);
+      return pieces.map(([a, b], p) => {
+        const x = xScale(a / 60);
         return {
-          key: `event-${i}`, x: x1, w, y: zeroY + PAR_TICK_HEIGHT + 2, h: BELOW_AXIS_HEIGHT - 4,
-          fill: eventColor[e.type] || '#6b7280',
-          tooltip: [`${e.type}`, `Duration: ${formatMinSec(dur)}`],
+          key: `study-${i}-${p}`, x, w: Math.max(xScale(b / 60) - x, 4), h, y: zeroY - h, fill,
+          parTickX: p === 0 ? parTickX : null, swapped: !!s.swapped, tooltip,
         };
       });
+    });
+
+    // Each event is drawn from its start to its recorded end. An undone
+    // study's Admin block spans the whole study, so it is drawn in pieces
+    // around the events inside it (its interruptions, now Admin too) rather
+    // than over them. An undone or never-resumed drafted study keeps its
+    // reading length, since its span holds other studies.
+    type Undone = { originalType?: string; drafted?: boolean; neverResumed?: boolean };
+    const timed = nonStudyEvents.filter(e => 'duration' in e && (e as { duration: number }).duration > 0);
+    const eventRects = timed.flatMap((e, i) => {
+      const dur = (e as { duration: number }).duration;
+      const undone = (e as { undoneStudy?: Undone }).undoneStudy;
+      let pieces: Array<[number, number]> = [[e.startTimeSession, e.endTimeSession]];
+      if (undone?.drafted) {
+        pieces = [[e.startTimeSession, e.startTimeSession + dur]];
+      } else if (undone?.originalType === 'STUDY') {
+        pieces = [];
+        let from = e.startTimeSession;
+        const inside = timed
+          .filter(o => o !== e && o.startTimeSession >= e.startTimeSession && o.endTimeSession <= e.endTimeSession)
+          .sort((a, b) => a.startTimeSession - b.startTimeSession);
+        for (const o of inside) {
+          if (o.startTimeSession > from) pieces.push([from, o.startTimeSession]);
+          from = Math.max(from, o.endTimeSession);
+        }
+        if (e.endTimeSession > from) pieces.push([from, e.endTimeSession]);
+      }
+      const label = undone?.neverResumed ? 'ADMIN (draft never resumed)'
+        : undone?.originalType === 'STUDY' ? 'ADMIN (undone study)'
+        : undone ? `ADMIN (was ${undone.originalType} in an undone study)` : e.type;
+      return pieces.map(([a, b], p) => {
+        const x = xScale(a / 60);
+        return {
+          key: `event-${i}-${p}`, x, w: Math.max(xScale(b / 60) - x, 3), y: zeroY + PAR_TICK_HEIGHT + 2, h: BELOW_AXIS_HEIGHT - 4,
+          fill: eventColor[e.type] || '#6b7280',
+          tooltip: [label, `Duration: ${formatMinSec(dur)}`],
+        };
+      });
+    });
 
     const legendItems: Array<{ label: string; color: string; border?: boolean; hash?: boolean; tick?: boolean }> = [
       { label: 'Under/At Par', color: '#22c55e' },
       { label: 'Over Par', color: '#ef4444' },
+      { label: 'Drafted', color: '#a855f7' },
       ...(filmstripExpanded ? [{ label: 'Par Tick', color: '#ef4444', tick: true }] : []),
       { label: 'Interstitial', color: '#eab308' },
       { label: 'Break', color: '#ef4444', border: true },

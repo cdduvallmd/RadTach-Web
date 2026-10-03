@@ -53,7 +53,7 @@ export type TimerSignal =
   | { type: 'break_toggle' }
   | { type: 'doubletap_toggle'; modality?: string }
   | { type: 'draft_enter' }
-  | { type: 'swap_detected'; studyId: string; correctedElapsedTime: number; correctedStart: number; correctedSystem: string }
+  | { type: 'swap_detected'; studyId: string }
   | { type: 'undo_study'; studyId: string };
 
 // Same shape as the legacy engine's events
@@ -72,6 +72,7 @@ export interface ModeStudyEvent {
   pauseTime: number;
   pauseUsed: boolean;
   drafted: boolean;
+  draftGaps?: DraftGap[];  // drafted studies only: when it was on hold
   swapped?: boolean;
   rvuSource?: string;
   cpts?: string[];
@@ -98,6 +99,9 @@ export interface UndoneStudy {
   elapsedTime?: number;
   swapped?: boolean;
   drafted?: boolean;
+  // Set when the study was drafted and never resumed before Stop (not an
+  // Undo): its reading time is Admin, but it is not a deleted study.
+  neverResumed?: boolean;
 }
 
 export interface ModeInterstitialEvent {
@@ -134,6 +138,7 @@ interface StudyContext {
   rvuDerivedMode?: boolean;
   targetRvuPerHour?: number;
   drafted: boolean;
+  draftGaps?: DraftGap[];
   pauseTime: number;
   accumulatedTime: number;
   originalStart: number;
@@ -142,14 +147,19 @@ interface StudyContext {
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
-function getCurrentISO(): string {
-  const d = new Date();
+// Local wall-clock time, no zone suffix (the format every event uses).
+function getCurrentISO(d: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+// When a drafted study was on hold: from the Draft press to its resume (3e).
+// Lets the filmstrip draw the study's pieces around the studies read between.
+export interface DraftGap { start: number; end: number }
+
 // An event added or replaced at `index` in the event list. Reported after each
 // signal / endSession so the caller can mirror the list (crash log, uploads).
+
 export interface EventChange {
   index: number;
   event: ModeEvent;
@@ -229,6 +239,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
       pauseTime: ctx.pauseTime,
       pauseUsed: ctx.pauseTime > 0,
       drafted: ctx.drafted,
+      ...(ctx.draftGaps ? { draftGaps: ctx.draftGaps } : {}),
       ...(ctx.cpts ? { rvuSource: ctx.rvuSource, cpts: ctx.cpts } : {}),
       ...(ctx.rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour: ctx.targetRvuPerHour } : {}),
     });
@@ -366,6 +377,8 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
           // elapsedTime spans pre-draft + post-resume.
           studyContext.current = draftedStudyContext.current;
           draftedStudyContext.current = null;
+          const gaps = studyContext.current.draftGaps;
+          if (gaps?.length) gaps[gaps.length - 1].end = sessionTime;
         } else if (studyContext.current?.studyId !== action.studyId) {
           studyContext.current = {
             studyId: action.studyId,
@@ -429,16 +442,25 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
         for (let i = studyIdx - 1; i >= 0 && evts[i].type !== 'STUDY' && !('undoneStudy' in evts[i]); i--) {
           if (evts[i].type === 'INTERSTITIAL') { interIdx = i; break; }
         }
-        if (studyIdx >= 0 && interIdx >= 0) {
+        // A resumed drafted study started long before this gap; skip it.
+        const drafted = studyIdx >= 0 && (evts[studyIdx] as ModeStudyEvent).drafted;
+        if (studyIdx >= 0 && interIdx >= 0 && !drafted) {
+          // The study really began 10 s after the previous one ended; the rest
+          // of the gap was reading time. Computed from this engine's own events
+          // (and never more than the gap itself), so the seconds still add up.
           const inter = evts[interIdx] as ModeInterstitialEvent;
-          replaceEvent(interIdx, { ...inter, duration: 10, endTimeSession: inter.startTimeSession + 10 });
+          const keep = Math.min(10, inter.duration);
+          // Local time, like every other stamp (toISOString would be UTC).
+          const splitSystem = getCurrentISO(new Date(new Date(inter.startTimeSystem).getTime() + keep * 1000));
+          replaceEvent(interIdx, { ...inter, duration: keep, endTimeSession: inter.startTimeSession + keep, endTimeSystem: splitSystem });
           const study = evts[studyIdx] as ModeStudyEvent;
+          const elapsedTime = study.elapsedTime + inter.duration - keep;
           replaceEvent(studyIdx, {
             ...study,
-            startTimeSession: action.correctedStart,
-            startTimeSystem: action.correctedSystem,
-            elapsedTime: action.correctedElapsedTime,
-            variance: action.correctedElapsedTime - study.parTime,
+            startTimeSession: inter.startTimeSession + keep,
+            startTimeSystem: splitSystem,
+            elapsedTime,
+            variance: elapsedTime - study.parTime,
             swapped: true,
           });
         }
@@ -490,6 +512,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
         // Drafted during an interruption: the interruption carries on, and
         // ends in interstitial since the study is no longer open.
         ctx.drafted = true;
+        ctx.draftGaps = [...(ctx.draftGaps ?? []), { start: sessionTime, end: sessionTime }];
         // Move the drafted context to its own slot so subsequent studies
         // (including different-modality Sidecar studies) can't clobber it.
         draftedStudyContext.current = ctx;
@@ -528,6 +551,40 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     const studyOpen = ctx && (mode.current === 'study' || wasInStudy.current);
     closeCurrentMode(sessionTime);
     if (studyOpen) pushStudy(ctx, sessionTime);
+    // A draft never resumed was never completed: like an undone study, its
+    // reading time is Admin, with no study and no RVU (owner, 2026-10-03).
+    // It ends where it was last drafted.
+    const draft = draftedStudyContext.current;
+    if (draft && draft.accumulatedTime > 0) {
+      const end = draft.draftGaps?.at(-1)?.start ?? draft.originalStart + draft.accumulatedTime;
+      pushEvent({
+        type: 'ADMIN',
+        startTimeSession: draft.originalStart,
+        startTimeSystem: draft.originalStartSystem,
+        endTimeSession: end,
+        endTimeSystem: getCurrentISO(new Date(new Date(draft.originalStartSystem).getTime() + (end - draft.originalStart) * 1000)),
+        duration: draft.accumulatedTime,
+        undoneStudy: {
+          studyId: draft.studyId,
+          originalType: 'STUDY',
+          studyNumber: draft.studyNumber,
+          modality: draft.modality,
+          complications: draft.complications,
+          rvu: draft.rvu,
+          cpts: draft.cpts,
+          rvuSource: draft.rvuSource,
+          parTime: draft.parTime,
+          elapsedTime: draft.accumulatedTime,
+          swapped: false,
+          drafted: true,
+          neverResumed: true,
+        },
+      });
+    }
+    draftedStudyContext.current = null;
+    // Nothing is open any more, so a repeated endSession adds nothing.
+    studyContext.current = null;
+    wasInStudy.current = false;
     mode.current = 'idle';
     emitChanges();
     return [...events.current];

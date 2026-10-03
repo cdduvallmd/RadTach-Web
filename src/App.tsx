@@ -25,10 +25,10 @@ import { flushBuffer, hasPendingEndSession, getLocalEvents, getLocalEventLog, me
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { RecoveryToast } from './components/RecoveryToast';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
-import { useTimerMode, type UndoneStudy } from './hooks/useTimerMode';
+import { useTimerMode, type UndoneStudy, type DraftGap } from './hooks/useTimerMode';
 import { useEventSync } from './hooks/useEventSync';
 import { useSidecarRelay } from './hooks/useSidecarRelay';
-import { useSessionClock } from './hooks/useSessionClock';
+import { useSessionClock, type ClockGap } from './hooks/useSessionClock';
 import { useSwapArmed, handleSidecarCommandSwapFlag, shouldApplySwap, applySwap } from './hooks/useSwapSubsystem';
 import { BUILD_ID } from './buildId';
 import { isAdminPress } from './utils/adminEvents';
@@ -82,6 +82,9 @@ interface CptOverride {
 interface DraftStudyData {
   studyId: string | null;
   cptOverride: CptOverride | null; // kept so a resumed Sidecar study keeps its CPT RVU
+  studyStartTime: { session: number; system: string } | null; // the drafted study's own start
+  draftedAt: number; // session time of the Draft press
+  draftGaps: DraftGap[]; // earlier holds of this same study (drafted more than once)
   modality: Modality | null;
   complications: Complication[];
   currentTime: number;
@@ -95,6 +98,8 @@ interface StudyEvent {
   studyNumber: number;
   startTimeSession: number;
   startTimeSystem: string;
+  endTimeSession?: number;  // true end; elapsedTime excludes interruptions
+  endTimeSystem?: string;
   modality: Modality;
   complications: Complication[];
   parTime: number;
@@ -104,6 +109,7 @@ interface StudyEvent {
   pauseTime: number;
   pauseUsed: boolean;
   drafted: boolean;
+  draftGaps?: DraftGap[]; // drafted studies only: when it was on hold
   swapped?: boolean;
   rvuSource?: RvuSource;
   cpts?: string[];
@@ -150,6 +156,7 @@ interface SessionNotes {
 }
 
 interface SessionData {
+  _clockGaps?: ClockGap[]; // diagnostic: ticks > 5 min apart (step 3d)
   sessionId: string;
   userAbbrev: string;
   workstationId: string;
@@ -243,7 +250,11 @@ function RadTachInner() {
   // Session clock — the one clock shared by both timer engines (mode-enum plan
   // step 3a). Pauses while the Stop Session dialog is open.
   const [showStopSessionDialog, setShowStopSessionDialog] = useState(false);
-  const sessionClock = useSessionClock(showStopSessionDialog);
+  const [showAdminClassificationDialog, setShowAdminClassificationDialog] = useState(false);
+  // Shift-click Stop ends the session: every clock stays stopped through the
+  // Stop dialog and, if shown, the Admin Block Classifier (owner, 2026-10-02).
+  const sessionStopping = showStopSessionDialog || showAdminClassificationDialog;
+  const sessionClock = useSessionClock(sessionStopping);
   const { sessionTime, isRunning: isSessionTimeRunning } = sessionClock;
 
   // Interstitial time tracking
@@ -298,6 +309,8 @@ function RadTachInner() {
   const [isDraftMode, setIsDraftMode] = useState(false);
   const [draftStudy, setDraftStudy] = useState<DraftStudyData | null>(null);
   const [wasDrafted, setWasDrafted] = useState(false);
+  // On-hold spans of the drafted study now resumed (for the filmstrip).
+  const draftGapsRef = useRef<DraftGap[]>([]);
 
   // Break tracking
   const [isBreakTimeRunning, setIsBreakTimeRunning] = useState(false);
@@ -332,8 +345,8 @@ function RadTachInner() {
   // Triggered from handleEndSession when there are ≥30 min admin events to
   // classify. Refs hold the pending pvcMeetingHours / pvcPendingClassification
   // values so buildSessionData (called inside resetSession) can pick them up
-  // synchronously after the dialog resolves.
-  const [showAdminClassificationDialog, setShowAdminClassificationDialog] = useState(false);
+  // synchronously after the dialog resolves. (Its open flag,
+  // showAdminClassificationDialog, sits with the session clock, which it pauses.)
   const [adminBlocksToClassify, setAdminBlocksToClassify] = useState<AdminBlock[]>([]);
   const pendingMeetingHoursRef = useRef<number>(0);
   const pendingClassificationRef = useRef<boolean>(false);
@@ -626,13 +639,13 @@ function RadTachInner() {
   
   const elapsedBackground = getElapsedTimeBackground();
   
-  // Timer effect. Tick is gated on !showStopSessionDialog so all counters
+  // Timer effect. Tick is gated on !sessionStopping so all counters
   // freeze the moment the Stop Session dialog opens — the rad has stopped
   // working at that point and shouldn't accrue wait-for-Epic time to any
   // category. Flags stay true so resetSession's "if running, emit final
   // event" branches still fire with the correct frozen sessionTime.
   useEffect(() => {
-    if (isRunning && !showStopSessionDialog) {
+    if (isRunning && !sessionStopping) {
       timerRef.current = setInterval(() => {
         setCurrentTime(prev => prev + 1);
       }, 1000);
@@ -647,13 +660,13 @@ function RadTachInner() {
         clearInterval(timerRef.current);
       }
     };
-  }, [isRunning, showStopSessionDialog]);
+  }, [isRunning, sessionStopping]);
 
   // Pause timer removed — ABC buttons handle interruptions
 
   // Double Tap timer effect (Issue #3) - tracks duration of double tap events
   useEffect(() => {
-    if (isDoubleTapRunning && !showStopSessionDialog) {
+    if (isDoubleTapRunning && !sessionStopping) {
       doubleTapTimeRef.current = setInterval(() => {
         setDoubleTapTime(prev => prev + 1);
       }, 1000);
@@ -668,11 +681,11 @@ function RadTachInner() {
         clearInterval(doubleTapTimeRef.current);
       }
     };
-  }, [isDoubleTapRunning, showStopSessionDialog]);
+  }, [isDoubleTapRunning, sessionStopping]);
 
   // Interstitial time effect
   useEffect(() => {
-    if (isInterstitialRunning && !showStopSessionDialog) {
+    if (isInterstitialRunning && !sessionStopping) {
       interstitialTimeRef.current = setInterval(() => {
         setInterstitialTime(prev => prev + 1);
       }, 1000);
@@ -687,11 +700,11 @@ function RadTachInner() {
         clearInterval(interstitialTimeRef.current);
       }
     };
-  }, [isInterstitialRunning, showStopSessionDialog]);
+  }, [isInterstitialRunning, sessionStopping]);
 
   // Admin time effect
   useEffect(() => {
-    if (isAdminTimeRunning && !showStopSessionDialog) {
+    if (isAdminTimeRunning && !sessionStopping) {
       adminTimeRef.current = setInterval(() => {
         setAdminTime(prev => prev + 1);
       }, 1000);
@@ -706,11 +719,11 @@ function RadTachInner() {
         clearInterval(adminTimeRef.current);
       }
     };
-  }, [isAdminTimeRunning, showStopSessionDialog]);
+  }, [isAdminTimeRunning, sessionStopping]);
 
   // Comms time effect
   useEffect(() => {
-    if (isCommsTimeRunning && !showStopSessionDialog) {
+    if (isCommsTimeRunning && !sessionStopping) {
       commsTimeRef.current = setInterval(() => {
         setCommsTime(prev => prev + 1);
       }, 1000);
@@ -725,11 +738,11 @@ function RadTachInner() {
         clearInterval(commsTimeRef.current);
       }
     };
-  }, [isCommsTimeRunning, showStopSessionDialog]);
+  }, [isCommsTimeRunning, sessionStopping]);
 
   // Break time effect
   useEffect(() => {
-    if (isBreakTimeRunning && !showStopSessionDialog) {
+    if (isBreakTimeRunning && !sessionStopping) {
       breakTimeRef.current = setInterval(() => {
         setBreakTime(prev => prev + 1);
       }, 1000);
@@ -744,11 +757,11 @@ function RadTachInner() {
         clearInterval(breakTimeRef.current);
       }
     };
-  }, [isBreakTimeRunning, showStopSessionDialog]);
+  }, [isBreakTimeRunning, sessionStopping]);
 
   // Time Since Last Break effect - runs when session is running but not on break
   useEffect(() => {
-    const shouldRun = isSessionTimeRunning && !isBreakTimeRunning && !showStopSessionDialog;
+    const shouldRun = isSessionTimeRunning && !isBreakTimeRunning && !sessionStopping;
 
     if (shouldRun) {
       timeSinceLastBreakRef.current = setInterval(() => {
@@ -765,7 +778,7 @@ function RadTachInner() {
         clearInterval(timeSinceLastBreakRef.current);
       }
     };
-  }, [isSessionTimeRunning, isBreakTimeRunning, showStopSessionDialog]);
+  }, [isSessionTimeRunning, isBreakTimeRunning, sessionStopping]);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -1561,6 +1574,8 @@ function RadTachInner() {
         startDateTime: now,
         // Mode-enum is the canonical engine for every session (2026-10-01).
         _modeEnumPrimary: true,
+        // Session time follows the wall clock (mode-enum plan step 3d).
+        _clockVersion: 'wallclock-1',
         ...(userDisplayName ? { displayName: userDisplayName } : {}),
         ...pvcFields,
       });
@@ -1621,7 +1636,7 @@ function RadTachInner() {
       halfDay: halfDay,
       startDateTime: sessionStartDateTime || '',
       stopDateTime: getCurrentDateTime(),
-      totalSessionTime: sessionTime,
+      totalSessionTime: sessionClock.getSessionTime(), // the stopped time, not the last render
       studiesCompleted: studiesCompleted,
       deletedStudies: deletedStudies,
       cumulativeParTime: cumulativeParTime,
@@ -1642,6 +1657,7 @@ function RadTachInner() {
       // PVC classification outputs from end-of-session dialog. Refs are
       // populated by handleClassifySave / handleClassifySkip and read here
       // synchronously when resetSession builds the final session payload.
+      ...(sessionClock.getClockGaps().length > 0 ? { _clockGaps: sessionClock.getClockGaps() } : {}),
       ...(pendingMeetingHoursRef.current > 0
         ? { pvcMeetingHours: pendingMeetingHoursRef.current }
         : {}),
@@ -1655,6 +1671,7 @@ function RadTachInner() {
   // End session — detect 30+ min admin blocks and prompt the rad to classify
   // before finalizing. If no blocks need classification, finalize immediately.
   const handleEndSession = () => {
+    const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
     const ADMIN_BLOCK_MIN_SEC = 30 * 60;
     const blocks: AdminBlock[] = [];
     for (const e of sessionEvents) {
@@ -1724,6 +1741,7 @@ function RadTachInner() {
 
   // Reset session state (Issue #1)
   const resetSession = () => {
+    const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
     // Close out any running timers before snapshotting events
     // Without this, timers still running at session end never produce events
     let finalEvents = [...sessionEvents];
@@ -1786,17 +1804,20 @@ function RadTachInner() {
       finalEvents.push(evt);
     }
 
-    // Phase 8: Preserve session data for Reports before resetting
+    // Mode-enum: finalize. endSession reports its closing event to eventSync,
+    // which queues it like every other event.
+    const uploadedEvents = modeEnum.endSession(sessionTime);
+
+    // Phase 8: Preserve session data for Reports before resetting. The events
+    // shown are mode-enum's, the ones uploaded, so the report right after Stop
+    // matches the stored one. The summary stays on legacy until Phase 5/6
+    // (owner, 2026-10-03).
     if (FIREBASE_ENABLED) {
       const preserved = buildSessionData();
-      setLastSessionEvents(finalEvents);
+      setLastSessionEvents(uploadedEvents as unknown as SessionEvent[]);
       setLastSessionData(preserved.session);
       setLastSessionSummary(computeSessionSummary(finalEvents, sessionTime, sessionStartDateTime || undefined));
     }
-
-    // Mode-enum: finalize. endSession reports its closing event to eventSync,
-    // which queues it like every other event.
-    modeEnum.endSession(sessionTime);
 
     // Firebase: queue the session end and settings behind the session's events
     // (no network wait, so logging off offline loses nothing), then upload.
@@ -1864,6 +1885,11 @@ function RadTachInner() {
     setInterstitialStartTime(null);
     setStudyStartTime(null);
     studyIdRef.current = null;
+    draftGapsRef.current = [];
+    // A draft left open at Stop ends with the session (Clyde 261003b #2).
+    setIsDraftMode(false);
+    setDraftStudy(null);
+    setWasDrafted(false);
     sessionClock.clearAnchor();
     setSessionTags(['No Comment']);
     setSessionDescription('');
@@ -1873,8 +1899,8 @@ function RadTachInner() {
   // A new mode ends the running one (same rule as mode-enum's
   // toggleInterruption): record and stop any running Admin, Comms, Break or
   // Double Tap. Called on study start and when any of those is turned on.
-  const stopRunningTimers = () => {
-    const end = { endTimeSession: sessionTime, endTimeSystem: getCurrentDateTime() };
+  const stopRunningTimers = (at: number) => {
+    const end = { endTimeSession: at, endTimeSystem: getCurrentDateTime() };
     const running: Array<[boolean, { session: number; system: string } | null, TimerEvent['type']]> = [
       [isAdminTimeRunning, adminStartTime, 'ADMIN'],
       [isCommsTimeRunning, commsStartTime, 'COMMS'],
@@ -1888,7 +1914,7 @@ function RadTachInner() {
         startTimeSession: start!.session,
         startTimeSystem: start!.system,
         ...end,
-        duration: sessionTime - start!.session,
+        duration: at - start!.session,
         ...(type === 'DOUBLE_TAP' ? { associatedModality: lastStudyModality } : {}),
       }));
     if (evts.length > 0) setSessionEvents(prev => [...prev, ...evts]);
@@ -1923,6 +1949,7 @@ function RadTachInner() {
 
   // Start/Stop timer
   const toggleTimer = () => {
+    const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
     if (!selectedModality && !isRunning) {
       alert('Please select a modality before starting');
       return;
@@ -1964,7 +1991,7 @@ function RadTachInner() {
       }
 
       // Study start ends any running Admin/Comms/Break/Double Tap
-      stopRunningTimers();
+      stopRunningTimers(sessionTime);
 
       // Start session time if this is the first study
       if (!isSessionTimeRunning) {
@@ -2082,6 +2109,7 @@ function RadTachInner() {
 
   // Complete study
   const completeStudy = () => {
+    const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
     if (!selectedModality) {
       alert('Please select a modality');
       return;
@@ -2113,13 +2141,16 @@ function RadTachInner() {
     let effectiveTime = currentTime;
     let wasSwapped = false;
     let swapStartOverride: { session: number; system: string } | null = null;
-    if (shouldApplySwap(swapArmed.consume)) {
+    // Always consume an armed swap; a resumed drafted study started long
+    // before this gap, so it is never swapped.
+    const swapRequested = shouldApplySwap(swapArmed.consume);
+    if (swapRequested && !wasDrafted) {
       const result = applySwap(
         currentTime,
         sessionEvents,
         setSessionEvents,
         setInterstitialTime,
-        (params) => modeEnum.signal({ type: 'swap_detected', studyId, ...params }, sessionTime),
+        () => modeEnum.signal({ type: 'swap_detected', studyId }, sessionTime),
       );
       effectiveTime = result.effectiveTime;
       wasSwapped = result.wasSwapped;
@@ -2192,6 +2223,8 @@ function RadTachInner() {
         studyNumber: studiesCompleted + 1,
         startTimeSession: eventStart.session,
         startTimeSystem: eventStart.system,
+        endTimeSession: sessionTime,
+        endTimeSystem: getCurrentDateTime(),
         modality: selectedModality,
         complications: [...selectedComplications],
         parTime: currentParTime,
@@ -2201,6 +2234,7 @@ function RadTachInner() {
         pauseTime: 0,
         pauseUsed: false,
         drafted: wasDrafted,
+        ...(wasDrafted && draftGapsRef.current.length > 0 ? { draftGaps: draftGapsRef.current } : {}),
         swapped: wasSwapped,
         ...(cptOverride ? { rvuSource: cptOverride.source, cpts: cptOverride.cpts } : {}),
         ...(rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour } : {}),
@@ -2209,6 +2243,7 @@ function RadTachInner() {
       };
       setSessionEvents(prev => [...prev, studyEvent]);
       setWasDrafted(false);
+      draftGapsRef.current = [];
     }
 
     // Update cumulative par time (Issue #1)
@@ -2255,6 +2290,7 @@ function RadTachInner() {
   
   // Undo last study
   const undoLastStudy = () => {
+    const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
     if (!lastStudy) {
       alert('No study to undo');
       return;
@@ -2295,8 +2331,8 @@ function RadTachInner() {
         type: 'ADMIN',
         startTimeSession: e.startTimeSession,
         startTimeSystem: e.startTimeSystem,
-        endTimeSession: e.startTimeSession + e.elapsedTime,
-        endTimeSystem: getCurrentDateTime(),
+        endTimeSession: e.endTimeSession ?? e.startTimeSession + e.elapsedTime,
+        endTimeSystem: e.endTimeSystem ?? getCurrentDateTime(),
         duration: e.elapsedTime,
         undoneStudy: {
           studyId: lastStudy.studyId,
@@ -2327,10 +2363,11 @@ function RadTachInner() {
 
   // Toggle Admin Time
   const toggleAdminTime = () => {
+    const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
     modeEnum.signal({ type: 'admin_toggle' }, sessionTime);
     if (!isAdminTimeRunning) {
       // Starting Admin Time
-      stopRunningTimers();
+      stopRunningTimers(sessionTime);
       setIsAdminTimeRunning(true);
       setIsInterstitialRunning(false);
       setAdminEvents(prev => prev + 1); // Issue #4: Increment event counter
@@ -2376,10 +2413,11 @@ function RadTachInner() {
 
   // Toggle Comms Time
   const toggleCommsTime = () => {
+    const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
     modeEnum.signal({ type: 'comms_toggle' }, sessionTime);
     if (!isCommsTimeRunning) {
       // Starting Comms Time
-      stopRunningTimers();
+      stopRunningTimers(sessionTime);
       setIsCommsTimeRunning(true);
       setIsInterstitialRunning(false);
       setCommsEvents(prev => prev + 1); // Issue #4: Increment event counter
@@ -2428,11 +2466,12 @@ function RadTachInner() {
   // and resumes on Break end without going through Interstitial. Break can be
   // taken anywhere — between studies, mid-study, mid-admin — same rule applies.
   const toggleBreakTime = () => {
+    const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
     if (!isBreakTimeRunning) {
       // Signal mode-enum before starting break (no drift issue on start)
       modeEnum.signal({ type: 'break_toggle' }, sessionTime);
       // Starting Break - ends Admin/Comms/Double Tap, absorbs Interstitial
-      stopRunningTimers();
+      stopRunningTimers(sessionTime);
       setIsBreakTimeRunning(true);
       setIsInterstitialRunning(false);
       // Reset Time Since Last Break and decline tracking
@@ -2489,6 +2528,7 @@ function RadTachInner() {
 
   // Toggle Double Tap (Issue #3)
   const toggleDoubleTap = () => {
+    const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
     // Disable if study is in progress (modality selected OR timer running/has time)
     const isStudyInProgress = selectedModality !== null || currentTime > 0;
     if (isStudyInProgress && !isDoubleTapRunning) {
@@ -2499,7 +2539,7 @@ function RadTachInner() {
 
     if (!isDoubleTapRunning) {
       // Starting Double Tap - stop Interstitial (productive time, not wasted)
-      stopRunningTimers();
+      stopRunningTimers(sessionTime);
       setIsDoubleTapRunning(true);
       setIsInterstitialRunning(false);
       setDoubleTapEvents(prev => prev + 1);
@@ -2537,6 +2577,7 @@ function RadTachInner() {
 
   // Toggle Draft Mode
   const toggleDraft = () => {
+    const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
     if (!isDraftMode) {
       // Entering draft mode - save current study state
       if (!selectedModality) {
@@ -2554,6 +2595,11 @@ function RadTachInner() {
       setDraftStudy({
         studyId: studyIdRef.current,
         cptOverride,
+        studyStartTime,
+        draftedAt: sessionTime,
+        // A study drafted again carries its earlier holds with it, so they
+        // can't pass to the next study read (Clyde 261003b #1).
+        draftGaps: wasDrafted ? draftGapsRef.current : [],
         modality: selectedModality,
         complications: [...selectedComplications],
         currentTime: currentTime,
@@ -2562,6 +2608,9 @@ function RadTachInner() {
       
       studyIdRef.current = null;
       setCptOverride(null);
+      setStudyStartTime(null); // the next study gets its own start
+      draftGapsRef.current = [];
+      setWasDrafted(false);
 
       // Clear current selections and reset timer
       setSelectedModality(null);
@@ -2597,6 +2646,8 @@ function RadTachInner() {
       setSelectedComplications(draftStudy.complications);
       setCurrentTime(draftStudy.currentTime);
       setCptOverride(draftStudy.cptOverride);
+      setStudyStartTime(draftStudy.studyStartTime);
+      draftGapsRef.current = [...draftStudy.draftGaps, { start: draftStudy.draftedAt, end: sessionTime }];
       studyIdRef.current = draftStudy.studyId;
       setWasDrafted(true);
 

@@ -3,6 +3,7 @@
 // summary field on the session document.
 
 import { isAdminPress } from './adminEvents';
+import { studyEndTime } from './studyEnd';
 
 interface StudyEvent {
   type: 'STUDY';
@@ -13,6 +14,7 @@ interface StudyEvent {
   complications: string[];
   parTime: number;
   elapsedTime: number;
+  endTimeSession?: number; // true end (mode-enum, 3c onward)
   variance: number;
   rvu: number;
   pauseTime: number;
@@ -564,7 +566,7 @@ function computePeakRVUWindow(
   let bestStart = 0;
 
   // Slide window across session time in 1-minute increments
-  const maxTime = Math.max(...studies.map(s => s.startTimeSession + s.elapsedTime));
+  const maxTime = Math.max(...studies.map(studyEndTime));
   const windowSize = 3600; // 60 minutes in seconds
 
   for (let start = 0; start <= maxTime - windowSize; start += 60) {
@@ -644,7 +646,7 @@ function computeModalityTransitionPenalty(
 
     // Find interstitial between these two studies
     const between = interstitials.find(
-      inter => inter.startTimeSession >= prev.startTimeSession + prev.elapsedTime - 2 &&
+      inter => inter.startTimeSession >= studyEndTime(prev) - 2 &&
                inter.endTimeSession <= curr.startTimeSession + 2
     );
     if (!between) continue;

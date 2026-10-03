@@ -27,6 +27,7 @@ interface StudyEvent {
   complications: string[];
   parTime: number;
   elapsedTime: number;
+  endTimeSession?: number; // true end (3c onward)
   variance: number;
   rvu: number;
   pauseTime: number;
