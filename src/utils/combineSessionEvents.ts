@@ -71,7 +71,9 @@ export function combineSessionEvents(
     }
 
     const sessionStudies = events.filter(e => e.type === 'STUDY');
-    studyNumberOffset += sessionStudies.length;
+    // Highest number, not the count: numbers can have gaps after an Undo
+    // (mode-enum numbers at completion and never reuses one, Phase 5).
+    studyNumberOffset += Math.max(0, ...sessionStudies.map(e => e.studyNumber));
   }
 
   // Build synthetic SessionData from combined sessions

@@ -4,9 +4,10 @@
  *
  * Canonical engine for every session (2026-10-01). Its event list is what
  * reaches Firestore `events`: every add or edit is reported through the change
- * callback to useEventSync. The legacy boolean-flag timers still run alongside
- * only to drive the display and session totals until those move here
- * (mode-enum plan Phases 4–6).
+ * callback to useEventSync. Since Phases 4–5 it also drives everything on
+ * screen (getSnapshot → utils/deriveSession). The legacy boolean-flag timers
+ * still run alongside for click gating and the session-doc totals until
+ * Phase 6–7.
  *
  * Clyde fixes applied (2026-05-18):
  * - F1: Removed savedInterstitialStart spanning — ABC during interstitial
@@ -40,14 +41,14 @@
  * leak its id, start or RVU into the next study.
  */
 import { useRef, useCallback, useEffect } from 'react';
-import { isPress } from '../utils/adminEvents';
+import { deriveSession, type SessionTotals, type TimedMode } from '../utils/deriveSession';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type TimerMode = 'idle' | 'study' | 'interstitial' | 'admin' | 'comms' | 'break' | 'doubleTap';
 
 export type TimerSignal =
-  | { type: 'study_start'; studyId: string; modality: string; complications: string[]; parTime: number; studyNumber: number; rvu: number; cpts?: string[]; rvuSource?: string; rvuDerivedMode?: boolean; targetRvuPerHour?: number }
+  | { type: 'study_start'; studyId: string; modality: string; complications: string[]; parTime: number; rvu: number; cpts?: string[]; rvuSource?: string; rvuDerivedMode?: boolean; targetRvuPerHour?: number }
   | { type: 'study_complete'; rvu: number; parTime: number; complications: string[]; cpts?: string[]; rvuSource?: string }
   | { type: 'admin_toggle' }
   | { type: 'comms_toggle' }
@@ -135,7 +136,6 @@ interface StudyContext {
   modality: string;
   complications: string[];
   parTime: number;
-  studyNumber: number;
   rvu: number;
   cpts?: string[];
   rvuSource?: string;
@@ -173,20 +173,15 @@ export interface EventChange {
 // mode running now; an interstitial absorbed by a new mode moves with it.
 // Counts are recorded events (one per press: no undone-study Admin, no
 // continuation of a split interruption), plus the one running now.
-export interface ModeSnapshot {
+export interface ModeSnapshot extends SessionTotals {
   mode: TimerMode;
   studyElapsed: number;
-  totals: { interstitial: number; admin: number; comms: number; break: number; doubleTap: number };
-  counts: { admin: number; comms: number; break: number; doubleTap: number };
+  timeSinceLastBreak: number; // 0 during a break
 }
 
 const EVENT_TYPE = {
   interstitial: 'INTERSTITIAL', admin: 'ADMIN', comms: 'COMMS', break: 'BREAK', doubleTap: 'DOUBLE_TAP',
 } as const;
-type TimedMode = keyof typeof EVENT_TYPE;
-const MODE_OF: Record<string, TimedMode> = {
-  INTERSTITIAL: 'interstitial', ADMIN: 'admin', COMMS: 'comms', BREAK: 'break', DOUBLE_TAP: 'doubleTap',
-};
 
 export interface UseTimerModeReturn {
   signal: (action: TimerSignal, sessionTime: number) => void;
@@ -205,6 +200,9 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
   const events = useRef<ModeEvent[]>([]);
   const studyContext = useRef<StudyContext | null>(null);
   const wasInStudy = useRef<boolean>(false);
+  // Studies recorded so far, including any later undone: numbers are given at
+  // completion and never reused (no clash for a drafted study, none after Undo).
+  const studiesRecorded = useRef<number>(0);
   // True while the running interruption continues one split at a study's end.
   const continuing = useRef<boolean>(false);
   const lastStudyModality = useRef<string | null>(null);
@@ -251,7 +249,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     pushEvent({
       type: 'STUDY',
       studyId: ctx.studyId,
-      studyNumber: ctx.studyNumber,
+      studyNumber: ++studiesRecorded.current,
       startTimeSession: ctx.originalStart,
       startTimeSystem: ctx.originalStartSystem,
       endTimeSession: sessionTime,
@@ -415,7 +413,6 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
             modality: action.modality,
             complications: action.complications,
             parTime: action.parTime,
-            studyNumber: action.studyNumber,
             rvu: action.rvu,
             cpts: action.cpts,
             rvuSource: action.rvuSource,
@@ -575,6 +572,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     studyContext.current = null;
     wasInStudy.current = false;
     continuing.current = false;
+    studiesRecorded.current = 0;
     lastStudyModality.current = null;
     draftedStudyContext.current = null;
   }, []);
@@ -602,7 +600,6 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
         undoneStudy: {
           studyId: draft.studyId,
           originalType: 'STUDY',
-          studyNumber: draft.studyNumber,
           modality: draft.modality,
           complications: draft.complications,
           rvu: draft.rvu,
@@ -634,6 +631,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     studyContext.current = null;
     wasInStudy.current = false;
     continuing.current = false;
+    studiesRecorded.current = 0;
     lastStudyModality.current = null;
     draftedStudyContext.current = null;
   }, []);
@@ -642,24 +640,18 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
   const getMode = useCallback((): TimerMode => mode.current, []);
 
   const getSnapshot = useCallback((now: number): ModeSnapshot => {
-    const totals = { interstitial: 0, admin: 0, comms: 0, break: 0, doubleTap: 0 };
-    const counts = { admin: 0, comms: 0, break: 0, doubleTap: 0 };
-    for (const e of events.current) {
-      if (e.type === 'STUDY') continue;
-      const m = MODE_OF[e.type];
-      totals[m] += e.duration;
-      if (m !== 'interstitial' && isPress(e)) counts[m]++;
-    }
+    const derived = deriveSession(events.current, now);
     const current = mode.current;
     const running = Math.max(0, now - modeEnteredAt.current);
     if (current in EVENT_TYPE) {
       const m = current as TimedMode;
-      totals[m] += running;
-      if (m !== 'interstitial' && running > 0 && !continuing.current) counts[m]++;
+      derived.totals[m] += running;
+      if (m !== 'interstitial' && running > 0 && !continuing.current) derived.counts[m]++;
     }
     const ctx = studyContext.current;
     const studyElapsed = ctx ? ctx.accumulatedTime + (current === 'study' ? running : 0) : 0;
-    return { mode: current, studyElapsed, totals, counts };
+    const timeSinceLastBreak = current === 'break' ? 0 : Math.max(0, now - derived.lastBreakEnd);
+    return { ...derived, mode: current, studyElapsed, timeSinceLastBreak };
   }, []);
 
   return { signal, startSession, endSession, reset, getEvents, getMode, getSnapshot };

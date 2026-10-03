@@ -25,7 +25,7 @@ import { flushBuffer, hasPendingEndSession, getLocalEvents, getLocalEventLog, me
 import { reconstructSessionData } from './utils/sessionRecovery';
 import { RecoveryToast } from './components/RecoveryToast';
 import { useFirestoreHealth } from './hooks/useFirestoreHealth';
-import { useTimerMode, type UndoneStudy, type DraftGap } from './hooks/useTimerMode';
+import { useTimerMode, type UndoneStudy, type DraftGap, type ModeStudyEvent } from './hooks/useTimerMode';
 import { useEventSync } from './hooks/useEventSync';
 import { useSidecarRelay } from './hooks/useSidecarRelay';
 import { useSessionClock, type ClockGap } from './hooks/useSessionClock';
@@ -60,12 +60,9 @@ interface RVUConfig {
 
 interface LastStudyData {
   studyId: string;
-  variance: number;
   rvu: number;
-  streakBefore: number;
   elapsedTime: number;
   parTime: number;
-  completedAt: number; // completedStudies timestamp, for rolling RVU
 }
 
 // Sidecar/HL7 per-exam RVU, replacing modality defaults while set
@@ -231,7 +228,6 @@ function RadTachInner() {
   // Timer states
   const [isRunning, setIsRunning] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [cumulativeVariance, setCumulativeVariance] = useState(0);
   const [studiesCompleted, setStudiesCompleted] = useState(0);
 
   // Pause timer tracking (Issue #2) - tracks pause duration per study
@@ -293,17 +289,9 @@ function RadTachInner() {
   const [gpciValues, setGpciValues] = useState<GpciValues | null>(null);
 
   const [totalRVU, setTotalRVU] = useState(0);
-  const [rvuPerHour, setRvuPerHour] = useState(0);
-
-  // Rolling RVU tracking (Issue #6) - track studies with timestamps
-  const [completedStudies, setCompletedStudies] = useState<Array<{timestamp: number, rvu: number}>>([]);
-  const [rollingRVU, setRollingRVU] = useState(0);
 
   // Undo tracking
   const [lastStudy, setLastStudy] = useState<LastStudyData | null>(null);
-
-  // Streak tracking
-  const [currentStreak, setCurrentStreak] = useState(0);
 
   // Draft mode tracking
   const [isDraftMode, setIsDraftMode] = useState(false);
@@ -316,7 +304,6 @@ function RadTachInner() {
   const [isBreakTimeRunning, setIsBreakTimeRunning] = useState(false);
   const [breakTime, setBreakTime] = useState(0);
   const [breaksTaken, setBreaksTaken] = useState(0);
-  const [timeSinceLastBreak, setTimeSinceLastBreak] = useState(0);
   const [showBreakPrompt, setShowBreakPrompt] = useState(false);
   const [breakPromptHours, setBreakPromptHours] = useState(2);
   const [showAnimalMessage, setShowAnimalMessage] = useState(false);
@@ -453,7 +440,6 @@ function RadTachInner() {
   const adminTimeRef = useRef<number | null>(null);
   const commsTimeRef = useRef<number | null>(null);
   const breakTimeRef = useRef<number | null>(null);
-  const timeSinceLastBreakRef = useRef<number | null>(null);
   // pauseTimeRef removed — pause functionality replaced by ABC
   const doubleTapTimeRef = useRef<number | null>(null); // Issue #3: Double Tap timer
   const processSidecarStartRef = useRef<(cmd: SidecarCommand) => void>(() => {});
@@ -611,8 +597,8 @@ function RadTachInner() {
   // Determine elapsed time background color
   // Phase 4: the screen's timers, counts and active-mode highlights come from
   // mode-enum (the same state that becomes the uploaded events). Read during
-  // render; the session clock re-renders every second. Click gating and the
-  // handlers still use legacy state until Phase 5-7.
+  // render; the session clock re-renders every second. Since Phase 5 the
+  // study metrics come from here too; click gating still uses legacy state.
   const snap = modeEnum.getSnapshot(sessionTime);
 
   const getElapsedTimeBackground = () => {
@@ -764,27 +750,6 @@ function RadTachInner() {
       }
     };
   }, [isBreakTimeRunning, sessionStopping]);
-
-  // Time Since Last Break effect - runs when session is running but not on break
-  useEffect(() => {
-    const shouldRun = isSessionTimeRunning && !isBreakTimeRunning && !sessionStopping;
-
-    if (shouldRun) {
-      timeSinceLastBreakRef.current = setInterval(() => {
-        setTimeSinceLastBreak(prev => prev + 1);
-      }, 1000);
-    } else {
-      if (timeSinceLastBreakRef.current) {
-        clearInterval(timeSinceLastBreakRef.current);
-      }
-    }
-
-    return () => {
-      if (timeSinceLastBreakRef.current) {
-        clearInterval(timeSinceLastBreakRef.current);
-      }
-    };
-  }, [isSessionTimeRunning, isBreakTimeRunning, sessionStopping]);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -1607,17 +1572,11 @@ function RadTachInner() {
     setStudiesCompleted(0);
     setDeletedStudies(0);
     setCumulativeParTime(0);
-    setCumulativeVariance(0);
     setTotalRVU(0);
-    setRvuPerHour(0);
-    setRollingRVU(0);
-    setCompletedStudies([]);
-    setCurrentStreak(0);
     setCurrentTime(0);
     setSelectedModality(null);
     setSelectedComplications([]);
     setLastStudy(null);
-    setTimeSinceLastBreak(0);
     setLastBreakDeclineTime(0);
 
   };
@@ -1871,17 +1830,11 @@ function RadTachInner() {
     setStudiesCompleted(0);
     setDeletedStudies(0);
     setCumulativeParTime(0);
-    setCumulativeVariance(0);
     setTotalRVU(0);
-    setRvuPerHour(0);
-    setRollingRVU(0);
-    setCompletedStudies([]);
-    setCurrentStreak(0);
     setCurrentTime(0);
     setSelectedModality(null);
     setSelectedComplications([]);
     setLastStudy(null);
-    setTimeSinceLastBreak(0);
     setLastBreakDeclineTime(0);
 
     setLastStudyModality(null);
@@ -1947,7 +1900,6 @@ function RadTachInner() {
       modality: selectedModality,
       complications: [...selectedComplications],
       parTime: currentParTime,
-      studyNumber: studiesCompleted + 1,
       rvu: currentStudyRVU,
       ...(cptOverride ? { cpts: cptOverride.cpts, rvuSource: cptOverride.source } : {}),
       ...(rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour } : {}),
@@ -2175,50 +2127,18 @@ function RadTachInner() {
 
     const variance = effectiveTime - currentParTime;
 
-    // Update streak counter
-    if (variance <= 0) {
-      // Study completed at or below par time - increase streak
-      setCurrentStreak(prev => Math.min(prev + 1, 6)); // Max 6 for STREAK
-    } else {
-      // Study completed over par time - reset streak
-      setCurrentStreak(0);
-    }
-
-    const now = Date.now();
-
     // Save study info for undo
     setLastStudy({
       studyId,
-      variance: variance,
       rvu: currentStudyRVU,
-      streakBefore: currentStreak,
       elapsedTime: effectiveTime,
       parTime: currentParTime,
-      completedAt: now,
     });
 
-    setCumulativeVariance(prev => prev + variance);
-
-    // Update total RVU and calculate RVU/hr
-    const newTotalRVU = totalRVU + currentStudyRVU;
-    setTotalRVU(newTotalRVU);
-
-    // Calculate and update RVU per hour
-    if (sessionTime > 0) {
-      const hours = sessionTime / 3600;
-      setRvuPerHour(newTotalRVU / hours);
-    }
-
-    // Issue #6: Track completed study with timestamp for rolling RVU calculation
-    const updatedStudies = [...completedStudies, { timestamp: now, rvu: currentStudyRVU }];
-    setCompletedStudies(updatedStudies);
-
-    // Calculate rolling RVU (last 60 minutes)
-    const sixtyMinutesAgo = now - (60 * 60 * 1000); // 60 minutes in milliseconds
-    const recentStudies = updatedStudies.filter(study => study.timestamp >= sixtyMinutesAgo);
-    const calculatedRollingRVU = recentStudies.reduce((sum, study) => sum + study.rvu, 0);
-    setRollingRVU(calculatedRollingRVU);
-
+    // Legacy totals still written to the session doc until Phase 6. The
+    // on-screen metrics (streak, variance, RVU/hr, rolling RVU) come from
+    // mode-enum's events (Phase 5).
+    setTotalRVU(prev => prev + currentStudyRVU);
     setStudiesCompleted(prev => prev + 1);
 
     // Record STUDY event (Issue #1)
@@ -2236,7 +2156,9 @@ function RadTachInner() {
       const studyEvent: StudyEvent = {
         type: 'STUDY',
         studyId,
-        studyNumber: studiesCompleted + 1,
+        // Same number mode-enum just gave this study (numbers aren't reused
+        // after an Undo), so the report's summary and filmstrip agree.
+        studyNumber: modeEnum.getEvents().find((e): e is ModeStudyEvent => e.type === 'STUDY' && e.studyId === studyId)?.studyNumber ?? studiesCompleted + 1,
         startTimeSession: eventStart.session,
         startTimeSystem: eventStart.system,
         endTimeSession: sessionTime,
@@ -2288,10 +2210,12 @@ function RadTachInner() {
     }
     setCptOverride(null);
 
-    // Check if break prompt should be shown (FIXED: only prompt if 60 min since last decline)
-    const timeInMinutes = timeSinceLastBreak / 60;
+    // Check if break prompt should be shown (FIXED: only prompt if 60 min since last decline).
+    // Time since the last break comes from mode-enum (Phase 5).
+    const sinceBreak = modeEnum.getSnapshot(sessionTime).timeSinceLastBreak;
+    const timeInMinutes = sinceBreak / 60;
     const timeSinceDeclineMinutes = lastBreakDeclineTime > 0
-      ? (timeSinceLastBreak - lastBreakDeclineTime) / 60
+      ? (sinceBreak - lastBreakDeclineTime) / 60
       : timeInMinutes;
 
     // Show prompt if:
@@ -2312,26 +2236,9 @@ function RadTachInner() {
       return;
     }
     
-    // Revert the changes from the last study
-    setCumulativeVariance(prev => prev - lastStudy.variance);
-    
-    // Restore streak counter
-    if (lastStudy.streakBefore !== undefined) {
-      setCurrentStreak(lastStudy.streakBefore);
-    }
-    
-    // Update total RVU and recalculate RVU/hr
-    const newTotalRVU = totalRVU - lastStudy.rvu;
-    setTotalRVU(newTotalRVU);
-    
-    // Recalculate RVU per hour
-    if (sessionTime > 0) {
-      const hours = sessionTime / 3600;
-      setRvuPerHour(newTotalRVU / hours);
-    } else {
-      setRvuPerHour(0);
-    }
-    
+    // Legacy session-doc totals (until Phase 6); the screen re-derives its
+    // metrics from mode-enum's events, where the study is now Admin.
+    setTotalRVU(prev => prev - lastStudy.rvu);
     setStudiesCompleted(prev => prev - 1);
 
     // Track deleted study (Issue #1)
@@ -2368,10 +2275,6 @@ function RadTachInner() {
     }));
     setAdminTime(prev => prev + lastStudy.elapsedTime);
     setCumulativeParTime(prev => prev - lastStudy.parTime);
-    const remaining = completedStudies.filter(st => st.timestamp !== lastStudy.completedAt);
-    setCompletedStudies(remaining);
-    const sixtyMinutesAgo = Date.now() - 60 * 60 * 1000;
-    setRollingRVU(remaining.filter(st => st.timestamp >= sixtyMinutesAgo).reduce((sum, st) => sum + st.rvu, 0));
 
     // Clear the last study
     setLastStudy(null);
@@ -2494,7 +2397,6 @@ function RadTachInner() {
       setIsBreakTimeRunning(true);
       setIsInterstitialRunning(false);
       // Reset Time Since Last Break and decline tracking
-      setTimeSinceLastBreak(0);
       setLastBreakDeclineTime(0);
       // Increment breaks taken
       setBreaksTaken(prev => prev + 1);
@@ -4184,7 +4086,7 @@ function RadTachInner() {
                   setShowBreakPrompt(false);
                   setShowAnimalMessage(true);
                   // Record the time when user declined the break
-                  setLastBreakDeclineTime(timeSinceLastBreak);
+                  setLastBreakDeclineTime(modeEnum.getSnapshot(sessionClock.getSessionTime()).timeSinceLastBreak);
                 }}
                 className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
               >
@@ -4439,7 +4341,7 @@ function RadTachInner() {
             <h2 className="text-2xl font-bold text-white mb-4">Session Complete</h2>
             <p className="text-gray-400 text-sm mb-6">
               Session: {localSessionKeyRef.current || generateSessionId()}<br />
-              Studies: {studiesCompleted} | RVU: {totalRVU.toFixed(2)} | Time: {formatTime(sessionTime)}
+              Studies: {snap.studies} | RVU: {snap.totalRVU.toFixed(2)} | Time: {formatTime(sessionTime)}
             </p>
 
             {/* Session Notes */}
@@ -4584,7 +4486,7 @@ function RadTachInner() {
           <div className="flex items-center space-x-6">
             <div className="text-center">
               <div className="text-sm text-gray-400">Studies Completed</div>
-              <div className="text-2xl font-bold text-white">{studiesCompleted}</div>
+              <div className="text-2xl font-bold text-white">{snap.studies}</div>
             </div>
             <button
               onClick={undoLastStudy}
@@ -4680,7 +4582,7 @@ function RadTachInner() {
               <div
                 key={index}
                 className={`text-2xl font-bold transition-all duration-300 ${
-                  index < currentStreak
+                  index < snap.streak
                     ? stealthMode
                       ? 'text-white'
                       : 'text-yellow-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]'
@@ -4722,15 +4624,15 @@ function RadTachInner() {
             <div className="text-xs text-gray-400 mb-1">Above/Below Par</div>
             <div 
               className="text-5xl font-bold"
-              style={{ color: stealthMode ? '#9ca3af' : (cumulativeVariance > 0 ? '#ef4444' : '#10b981') }}
+              style={{ color: stealthMode ? '#9ca3af' : (snap.cumulativeVariance > 0 ? '#ef4444' : '#10b981') }}
             >
               {stealthMode 
-                ? (cumulativeVariance > 0 ? '+' : cumulativeVariance < 0 ? '−' : '') + formatTime(Math.abs(cumulativeVariance))
-                : formatTime(cumulativeVariance)
+                ? (snap.cumulativeVariance > 0 ? '+' : snap.cumulativeVariance < 0 ? '−' : '') + formatTime(Math.abs(snap.cumulativeVariance))
+                : formatTime(snap.cumulativeVariance)
               }
             </div>
             <div className="text-xs text-gray-500 mt-1">
-              {cumulativeVariance > 0 ? 'Over' : 'Under'} Par Time
+              {snap.cumulativeVariance > 0 ? 'Over' : 'Under'} Par Time
             </div>
           </div>
           
@@ -4808,7 +4710,7 @@ function RadTachInner() {
                 </div>
               </div>
               <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : 'text-purple-400'}`}>
-                {isHoveringRVU ? rollingRVU.toFixed(2) : rvuPerHour.toFixed(2)}
+                {isHoveringRVU ? snap.rollingRVU.toFixed(2) : snap.rvuPerHour.toFixed(2)}
               </div>
             </div>
           </div>
@@ -4912,7 +4814,7 @@ function RadTachInner() {
                 <div className="text-sm text-gray-400">Total RVU</div>
               </div>
               <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : 'text-green-400'}`}>
-                {totalRVU.toFixed(2)}
+                {snap.totalRVU.toFixed(2)}
               </div>
             </div>
           </div>
