@@ -9,7 +9,7 @@ import {
   ReferenceLine
 } from 'recharts';
 import type { SessionSummary } from '../../utils/sessionSummary';
-import { isAdminPress } from '../../utils/adminEvents';
+import { isPress } from '../../utils/adminEvents';
 import { studyEndTime } from '../../utils/studyEnd';
 
 // ── Types (mirrored from Reports.tsx) ────────────────────────────────────────
@@ -151,7 +151,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
   );
 
   const eventCounts = sessionEvents.reduce<Record<string, number>>((acc, e) => {
-    if (e.type === 'ADMIN' && !isAdminPress(e)) return acc; // undone study (step 3c)
+    if (e.type !== 'STUDY' && e.type !== 'INTERSTITIAL' && !isPress(e)) return acc; // one per press (3c, Phase 4)
     acc[e.type] = (acc[e.type] || 0) + 1;
     return acc;
   }, {});

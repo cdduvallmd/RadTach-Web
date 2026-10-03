@@ -609,6 +609,12 @@ function RadTachInner() {
   })();
   
   // Determine elapsed time background color
+  // Phase 4: the screen's timers, counts and active-mode highlights come from
+  // mode-enum (the same state that becomes the uploaded events). Read during
+  // render; the session clock re-renders every second. Click gating and the
+  // handlers still use legacy state until Phase 5-7.
+  const snap = modeEnum.getSnapshot(sessionTime);
+
   const getElapsedTimeBackground = () => {
     // In stealth mode, always use neutral gray
     if (stealthMode) {
@@ -616,13 +622,13 @@ function RadTachInner() {
     }
     
     // If no modality selected or timer hasn't started, use default gray
-    if (!selectedModality || currentParTime === 0 || currentTime === 0) {
+    if (!selectedModality || currentParTime === 0 || snap.studyElapsed === 0) {
       return 'from-gray-700 to-gray-800';
     }
     
-    const timeRemaining = currentParTime - currentTime;
+    const timeRemaining = currentParTime - snap.studyElapsed;
     
-    if (currentTime > currentParTime) {
+    if (snap.studyElapsed > currentParTime) {
       // Over par time - steady red
       return 'from-red-600 to-red-700';
     } else if (timeRemaining <= 15) {
@@ -1807,6 +1813,7 @@ function RadTachInner() {
     // Mode-enum: finalize. endSession reports its closing event to eventSync,
     // which queues it like every other event.
     const uploadedEvents = modeEnum.endSession(sessionTime);
+    modeEnum.reset(); // the screen reads mode-enum: start the next session from zero
 
     // Phase 8: Preserve session data for Reports before resetting. The events
     // shown are mode-enum's, the ones uploaded, so the report right after Stop
@@ -2123,6 +2130,15 @@ function RadTachInner() {
     
     setIsRunning(false);
 
+    // Manual mode, Resume Draft then complete without Par Time: legacy resumed
+    // the study, mode-enum hasn't yet. Resume it first so the study is
+    // recorded (no-op when mode-enum is already reading it). Not during an
+    // interruption, which study_complete splits instead (Clyde 261003d #2).
+    // Must run before the study's id is taken and cleared below.
+    if (!isRunning && !isAdminTimeRunning && !isCommsTimeRunning && !isBreakTimeRunning) {
+      signalStudyStart(sessionTime);
+    }
+
     const studyId = studyIdRef.current ?? crypto.randomUUID();
     studyIdRef.current = null;
 
@@ -2364,6 +2380,7 @@ function RadTachInner() {
   // Toggle Admin Time
   const toggleAdminTime = () => {
     const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
+    if (!isSessionActive) return; // mode-enum ignores presses before Start; so does legacy (Clyde 261003d #5)
     modeEnum.signal({ type: 'admin_toggle' }, sessionTime);
     if (!isAdminTimeRunning) {
       // Starting Admin Time
@@ -2414,6 +2431,7 @@ function RadTachInner() {
   // Toggle Comms Time
   const toggleCommsTime = () => {
     const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
+    if (!isSessionActive) return; // mode-enum ignores presses before Start; so does legacy (Clyde 261003d #5)
     modeEnum.signal({ type: 'comms_toggle' }, sessionTime);
     if (!isCommsTimeRunning) {
       // Starting Comms Time
@@ -2467,6 +2485,7 @@ function RadTachInner() {
   // taken anywhere — between studies, mid-study, mid-admin — same rule applies.
   const toggleBreakTime = () => {
     const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
+    if (!isSessionActive) return; // mode-enum ignores presses before Start; so does legacy (Clyde 261003d #5)
     if (!isBreakTimeRunning) {
       // Signal mode-enum before starting break (no drift issue on start)
       modeEnum.signal({ type: 'break_toggle' }, sessionTime);
@@ -2529,6 +2548,7 @@ function RadTachInner() {
   // Toggle Double Tap (Issue #3)
   const toggleDoubleTap = () => {
     const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
+    if (!isSessionActive) return; // mode-enum ignores presses before Start; so does legacy (Clyde 261003d #5)
     // Disable if study is in progress (modality selected OR timer running/has time)
     const isStudyInProgress = selectedModality !== null || currentTime > 0;
     if (isStudyInProgress && !isDoubleTapRunning) {
@@ -4737,7 +4757,7 @@ function RadTachInner() {
               Elapsed Time
             </div>
             <div className="text-5xl font-bold text-white">
-              {formatTime(currentTime, true)}
+              {formatTime(snap.studyElapsed, true)}
             </div>
             <div className={`text-xs mt-1 ${!selectedModality || currentParTime === 0 ? 'text-gray-500' : 'text-white'}`}>
               {currentTime > 0 ? 'Click to Complete Exam' : isRunning ? 'Timer Running...' : 'Start Timer First'}
@@ -4763,21 +4783,14 @@ function RadTachInner() {
           
           {/* Interstitial Time */}
           <div 
-            onClick={() => {
-              if (isAdminTimeRunning || isCommsTimeRunning) {
-                setIsAdminTimeRunning(false);
-                setIsCommsTimeRunning(false);
-                setIsInterstitialRunning(true);
-              }
-            }}
-            className={`bg-gray-800 rounded-lg py-3 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isInterstitialRunning ? 'border-yellow-500' : 'border-gray-600')} ${isAdminTimeRunning || isCommsTimeRunning ? 'cursor-pointer hover:bg-gray-700' : ''} transition-colors`}
+            className={`bg-gray-800 rounded-lg py-3 px-6 border-2 ${stealthMode ? 'border-gray-600' : (snap.mode === 'interstitial' ? 'border-yellow-500' : 'border-gray-600')} transition-colors`}
           >
             <div className="flex items-center justify-between">
               <div className="text-left">
                 <div className="text-sm text-gray-400">Interstitial</div>
               </div>
-              <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : (isInterstitialRunning ? 'text-yellow-400' : 'text-gray-400')}`}>
-                {formatTime(interstitialTime)}
+              <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : (snap.mode === 'interstitial' ? 'text-yellow-400' : 'text-gray-400')}`}>
+                {formatTime(snap.totals.interstitial)}
               </div>
             </div>
           </div>
@@ -4805,12 +4818,12 @@ function RadTachInner() {
             onClick={toggleBreakTime}
             onMouseEnter={() => setIsHoveringBreak(true)}
             onMouseLeave={() => setIsHoveringBreak(false)}
-            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isBreakTimeRunning ? 'border-red-500' : 'border-gray-600')} cursor-pointer hover:bg-gray-700 transition-colors relative overflow-hidden`}
+            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : (snap.mode === 'break' ? 'border-red-500' : 'border-gray-600')} cursor-pointer hover:bg-gray-700 transition-colors relative overflow-hidden`}
           >
             {/* Large semi-transparent Breaks Taken number overlay */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className={`text-9xl font-bold ${stealthMode ? 'text-gray-600' : 'text-pink-400'} opacity-20`}>
-                {breaksTaken}
+                {snap.counts.break}
               </div>
             </div>
             {/* Break Time content (on top of overlay) */}
@@ -4819,13 +4832,13 @@ function RadTachInner() {
                 <div className="text-sm text-gray-400">Break Time</div>
               </div>
               <div
-                className={`text-4xl font-bold overflow-hidden transition-all duration-300 ease-in-out ${stealthMode ? 'text-gray-400' : (isBreakTimeRunning ? 'text-red-400' : 'text-gray-400')}`}
+                className={`text-4xl font-bold overflow-hidden transition-all duration-300 ease-in-out ${stealthMode ? 'text-gray-400' : (snap.mode === 'break' ? 'text-red-400' : 'text-gray-400')}`}
                 style={{
-                  width: (isBreakTimeRunning || isHoveringBreak) ? 'auto' : '0px',
-                  opacity: (isBreakTimeRunning || isHoveringBreak) ? 1 : 0
+                  width: (snap.mode === 'break' || isHoveringBreak) ? 'auto' : '0px',
+                  opacity: (snap.mode === 'break' || isHoveringBreak) ? 1 : 0
                 }}
               >
-                {formatTime(breakTime)}
+                {formatTime(snap.totals.break)}
               </div>
             </div>
           </div>
@@ -4837,12 +4850,12 @@ function RadTachInner() {
             onClick={toggleAdminTime}
             onMouseEnter={() => setIsHoveringAdmin(true)}
             onMouseLeave={() => setIsHoveringAdmin(false)}
-            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isAdminTimeRunning ? 'border-orange-500' : 'border-gray-600')} cursor-pointer hover:bg-gray-700 transition-colors relative overflow-hidden`}
+            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : (snap.mode === 'admin' ? 'border-orange-500' : 'border-gray-600')} cursor-pointer hover:bg-gray-700 transition-colors relative overflow-hidden`}
           >
             {/* Large semi-transparent Admin event counter overlay */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className={`text-9xl font-bold ${stealthMode ? 'text-gray-600' : 'text-orange-400'} opacity-20`}>
-                {adminEvents}
+                {snap.counts.admin}
               </div>
             </div>
             {/* Admin Time content (on top of overlay) */}
@@ -4851,13 +4864,13 @@ function RadTachInner() {
                 <div className="text-sm text-gray-400">Admin Time</div>
               </div>
               <div
-                className={`text-4xl font-bold overflow-hidden transition-all duration-300 ease-in-out ${stealthMode ? 'text-gray-400' : (isAdminTimeRunning ? 'text-orange-400' : 'text-gray-400')}`}
+                className={`text-4xl font-bold overflow-hidden transition-all duration-300 ease-in-out ${stealthMode ? 'text-gray-400' : (snap.mode === 'admin' ? 'text-orange-400' : 'text-gray-400')}`}
                 style={{
-                  width: (isAdminTimeRunning || isHoveringAdmin) ? 'auto' : '0px',
-                  opacity: (isAdminTimeRunning || isHoveringAdmin) ? 1 : 0
+                  width: (snap.mode === 'admin' || isHoveringAdmin) ? 'auto' : '0px',
+                  opacity: (snap.mode === 'admin' || isHoveringAdmin) ? 1 : 0
                 }}
               >
-                {formatTime(adminTime)}
+                {formatTime(snap.totals.admin)}
               </div>
             </div>
           </div>
@@ -4867,12 +4880,12 @@ function RadTachInner() {
             onClick={toggleCommsTime}
             onMouseEnter={() => setIsHoveringComms(true)}
             onMouseLeave={() => setIsHoveringComms(false)}
-            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : (isCommsTimeRunning ? 'border-cyan-500' : 'border-gray-600')} cursor-pointer hover:bg-gray-700 transition-colors relative overflow-hidden`}
+            className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${stealthMode ? 'border-gray-600' : (snap.mode === 'comms' ? 'border-cyan-500' : 'border-gray-600')} cursor-pointer hover:bg-gray-700 transition-colors relative overflow-hidden`}
           >
             {/* Large semi-transparent Comms event counter overlay */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className={`text-9xl font-bold ${stealthMode ? 'text-gray-600' : 'text-cyan-400'} opacity-20`}>
-                {commsEvents}
+                {snap.counts.comms}
               </div>
             </div>
             {/* Comms Time content (on top of overlay) */}
@@ -4881,13 +4894,13 @@ function RadTachInner() {
                 <div className="text-sm text-gray-400">Comms Time</div>
               </div>
               <div
-                className={`text-4xl font-bold overflow-hidden transition-all duration-300 ease-in-out ${stealthMode ? 'text-gray-400' : (isCommsTimeRunning ? 'text-cyan-400' : 'text-gray-400')}`}
+                className={`text-4xl font-bold overflow-hidden transition-all duration-300 ease-in-out ${stealthMode ? 'text-gray-400' : (snap.mode === 'comms' ? 'text-cyan-400' : 'text-gray-400')}`}
                 style={{
-                  width: (isCommsTimeRunning || isHoveringComms) ? 'auto' : '0px',
-                  opacity: (isCommsTimeRunning || isHoveringComms) ? 1 : 0
+                  width: (snap.mode === 'comms' || isHoveringComms) ? 'auto' : '0px',
+                  opacity: (snap.mode === 'comms' || isHoveringComms) ? 1 : 0
                 }}
               >
-                {formatTime(commsTime)}
+                {formatTime(snap.totals.comms)}
               </div>
             </div>
           </div>
@@ -4910,7 +4923,7 @@ function RadTachInner() {
             className={`bg-gray-800 rounded-lg py-1.5 px-6 border-2 ${
               stealthMode
                 ? 'border-gray-600'
-                : (isDoubleTapRunning ? 'border-yellow-500' : 'border-gray-600')
+                : (snap.mode === 'doubleTap' ? 'border-yellow-500' : 'border-gray-600')
             } ${
               (selectedModality !== null || currentTime > 0) && !isDoubleTapRunning
                 ? 'opacity-50 cursor-not-allowed'
@@ -4920,7 +4933,7 @@ function RadTachInner() {
             {/* Large semi-transparent Double Tap event counter overlay */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className={`text-9xl font-bold ${stealthMode ? 'text-gray-600' : 'text-yellow-400'} opacity-20`}>
-                {doubleTapEvents}
+                {snap.counts.doubleTap}
               </div>
             </div>
             {/* Double Tap timer content (on top of overlay) */}
@@ -4928,8 +4941,8 @@ function RadTachInner() {
               <div className="text-left">
                 <div className="text-sm text-gray-400">Double Tap</div>
               </div>
-              <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : (isDoubleTapRunning ? 'text-yellow-400' : 'text-gray-400')}`}>
-                {formatTime(doubleTapTime)}
+              <div className={`text-4xl font-bold ${stealthMode ? 'text-gray-400' : (snap.mode === 'doubleTap' ? 'text-yellow-400' : 'text-gray-400')}`}>
+                {formatTime(snap.totals.doubleTap)}
               </div>
             </div>
           </div>

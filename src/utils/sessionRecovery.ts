@@ -7,7 +7,7 @@
 
 import { computeSessionSummary } from './sessionSummary';
 import type { SessionSummary } from './sessionSummary';
-import { isAdminPress } from './adminEvents';
+import { isPress } from './adminEvents';
 
 // Event shapes as stored in Firestore (looser than the in-app types since
 // Firestore docs come back as plain objects)
@@ -100,13 +100,13 @@ export function reconstructSessionData(
 
   const interstitialTime = interstitials.reduce((sum, e) => sum + (e.duration || 0), 0);
   const adminTime = admins.reduce((sum, e) => sum + (e.duration || 0), 0);
-  const adminEventCount = admins.filter(isAdminPress).length;
+  const adminEventCount = admins.filter(isPress).length;
   const commsTime = commsEvents.reduce((sum, e) => sum + (e.duration || 0), 0);
-  const commsEventCount = commsEvents.length;
+  const commsEventCount = commsEvents.filter(isPress).length;
   const breakTime = breaks.reduce((sum, e) => sum + (e.duration || 0), 0);
-  const breakEventCount = breaks.length;
+  const breakEventCount = breaks.filter(isPress).length;
   const doubleTapTime = doubleTaps.reduce((sum, e) => sum + (e.duration || 0), 0);
-  const doubleTapEventCount = doubleTaps.length;
+  const doubleTapEventCount = doubleTaps.filter(isPress).length;
 
   // Estimate totalSessionTime from the last event
   let totalSessionTime = 0;

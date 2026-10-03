@@ -40,6 +40,7 @@
  * leak its id, start or RVU into the next study.
  */
 import { useRef, useCallback, useEffect } from 'react';
+import { isPress } from '../utils/adminEvents';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,6 +123,9 @@ export interface ModeTimerEvent {
   duration: number;
   associatedModality?: string | null;
   undoneStudy?: UndoneStudy;
+  // The rest of an interruption that a study's end split in two: the same
+  // press, so not counted again (Phase 4 counts).
+  continued?: boolean;
 }
 
 export type ModeEvent = ModeStudyEvent | ModeInterstitialEvent | ModeTimerEvent;
@@ -165,6 +169,25 @@ export interface EventChange {
   event: ModeEvent;
 }
 
+// What the screen shows, read from mode-enum (Phase 4). Totals include the
+// mode running now; an interstitial absorbed by a new mode moves with it.
+// Counts are recorded events (one per press: no undone-study Admin, no
+// continuation of a split interruption), plus the one running now.
+export interface ModeSnapshot {
+  mode: TimerMode;
+  studyElapsed: number;
+  totals: { interstitial: number; admin: number; comms: number; break: number; doubleTap: number };
+  counts: { admin: number; comms: number; break: number; doubleTap: number };
+}
+
+const EVENT_TYPE = {
+  interstitial: 'INTERSTITIAL', admin: 'ADMIN', comms: 'COMMS', break: 'BREAK', doubleTap: 'DOUBLE_TAP',
+} as const;
+type TimedMode = keyof typeof EVENT_TYPE;
+const MODE_OF: Record<string, TimedMode> = {
+  INTERSTITIAL: 'interstitial', ADMIN: 'admin', COMMS: 'comms', BREAK: 'break', DOUBLE_TAP: 'doubleTap',
+};
+
 export interface UseTimerModeReturn {
   signal: (action: TimerSignal, sessionTime: number) => void;
   startSession: () => void;
@@ -172,6 +195,7 @@ export interface UseTimerModeReturn {
   reset: () => void;
   getEvents: () => ModeEvent[];
   getMode: () => TimerMode;
+  getSnapshot: (now: number) => ModeSnapshot;
 }
 
 export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void): UseTimerModeReturn {
@@ -181,6 +205,8 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
   const events = useRef<ModeEvent[]>([]);
   const studyContext = useRef<StudyContext | null>(null);
   const wasInStudy = useRef<boolean>(false);
+  // True while the running interruption continues one split at a study's end.
+  const continuing = useRef<boolean>(false);
   const lastStudyModality = useRef<string | null>(null);
   // Holds the drafted study's context across other studies until it gets
   // resumed (or the session ends, in which case it's discarded — production
@@ -305,26 +331,30 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
 
   const closeCurrentMode = useCallback((sessionTime: number): void => {
     const duration = sessionTime - modeEnteredAt.current;
-    const startSession = modeEnteredAt.current;
-    const startSystem = modeEnteredSystem.current;
-    const endSystem = getCurrentISO();
-    const currentMode = mode.current;
-
-    if (currentMode === 'interstitial' && duration > 0) {
-      pushEvent({ type: 'INTERSTITIAL', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
-    } else if (currentMode === 'admin' && duration > 0) {
-      pushEvent({ type: 'ADMIN', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
-    } else if (currentMode === 'comms' && duration > 0) {
-      pushEvent({ type: 'COMMS', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
-    } else if (currentMode === 'break' && duration > 0) {
-      pushEvent({ type: 'BREAK', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration });
-    } else if (currentMode === 'doubleTap' && duration > 0) {
-      pushEvent({ type: 'DOUBLE_TAP', startTimeSession: startSession, startTimeSystem: startSystem, endTimeSession: sessionTime, endTimeSystem: endSystem, duration, associatedModality: lastStudyModality.current });
+    if (!(mode.current in EVENT_TYPE) || duration <= 0) return;
+    const type = EVENT_TYPE[mode.current as TimedMode];
+    const base = {
+      startTimeSession: modeEnteredAt.current,
+      startTimeSystem: modeEnteredSystem.current,
+      endTimeSession: sessionTime,
+      endTimeSystem: getCurrentISO(),
+      duration,
+    };
+    if (type === 'INTERSTITIAL') {
+      pushEvent({ type, ...base });
+    } else {
+      pushEvent({
+        type,
+        ...base,
+        ...(type === 'DOUBLE_TAP' ? { associatedModality: lastStudyModality.current } : {}),
+        ...(continuing.current ? { continued: true } : {}),
+      });
     }
   }, []);
 
   const enterMode = useCallback((newMode: TimerMode, sessionTime: number): void => {
     mode.current = newMode;
+    continuing.current = false;
     modeEnteredAt.current = sessionTime;
     modeEnteredSystem.current = getCurrentISO();
   }, []);
@@ -420,10 +450,14 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
           // Ended while an interruption taken during the study is still on.
           // Split the interruption at the study's end: the part inside the
           // study stays in its span (Undo converts it), the rest carries on.
+          const firstHalfRecorded = sessionTime > modeEnteredAt.current;
           closeCurrentMode(sessionTime);
           pushStudy(ctx, sessionTime);
           wasInStudy.current = false;
           enterMode(currentMode, sessionTime);
+          // The press is counted on the first half; if that was 0 s (nothing
+          // recorded), the rest is the press (Clyde 261003d #7).
+          continuing.current = firstHalfRecorded;
         } else {
           break;
         }
@@ -540,6 +574,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     changed.current.clear();
     studyContext.current = null;
     wasInStudy.current = false;
+    continuing.current = false;
     lastStudyModality.current = null;
     draftedStudyContext.current = null;
   }, []);
@@ -598,6 +633,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     changed.current.clear();
     studyContext.current = null;
     wasInStudy.current = false;
+    continuing.current = false;
     lastStudyModality.current = null;
     draftedStudyContext.current = null;
   }, []);
@@ -605,5 +641,26 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
   const getEvents = useCallback((): ModeEvent[] => [...events.current], []);
   const getMode = useCallback((): TimerMode => mode.current, []);
 
-  return { signal, startSession, endSession, reset, getEvents, getMode };
+  const getSnapshot = useCallback((now: number): ModeSnapshot => {
+    const totals = { interstitial: 0, admin: 0, comms: 0, break: 0, doubleTap: 0 };
+    const counts = { admin: 0, comms: 0, break: 0, doubleTap: 0 };
+    for (const e of events.current) {
+      if (e.type === 'STUDY') continue;
+      const m = MODE_OF[e.type];
+      totals[m] += e.duration;
+      if (m !== 'interstitial' && isPress(e)) counts[m]++;
+    }
+    const current = mode.current;
+    const running = Math.max(0, now - modeEnteredAt.current);
+    if (current in EVENT_TYPE) {
+      const m = current as TimedMode;
+      totals[m] += running;
+      if (m !== 'interstitial' && running > 0 && !continuing.current) counts[m]++;
+    }
+    const ctx = studyContext.current;
+    const studyElapsed = ctx ? ctx.accumulatedTime + (current === 'study' ? running : 0) : 0;
+    return { mode: current, studyElapsed, totals, counts };
+  }, []);
+
+  return { signal, startSession, endSession, reset, getEvents, getMode, getSnapshot };
 }
