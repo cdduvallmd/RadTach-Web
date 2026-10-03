@@ -35,6 +35,8 @@ export interface SessionClock {
   isRunning: boolean;
   /** True session time now, readable from any handler. */
   getSessionTime: () => number;
+  /** Wall-clock ms of the Stop click while the clock is paused, else null. */
+  getStoppedAt: () => number | null;
   /** Clock gaps seen this session (diagnostic). */
   getClockGaps: () => ClockGap[];
   /** Session start: anchor wall clock and start ticking. */
@@ -105,6 +107,7 @@ export function useSessionClock(paused: boolean): SessionClock {
   }, [isRunning, paused, getSessionTime]);
 
   const getClockGaps = useCallback(() => [...gapsRef.current], []);
+  const getStoppedAt = useCallback(() => pauseStartRef.current, []);
 
   const start = useCallback(() => {
     startMsRef.current = Date.now();
@@ -134,5 +137,5 @@ export function useSessionClock(paused: boolean): SessionClock {
     return t;
   }, [getSessionTime]);
 
-  return { sessionTime, isRunning, getSessionTime, getClockGaps, start, stop, ensureRunning, zero, clearAnchor, resyncAtBreakEnd };
+  return { sessionTime, isRunning, getSessionTime, getStoppedAt, getClockGaps, start, stop, ensureRunning, zero, clearAnchor, resyncAtBreakEnd };
 }

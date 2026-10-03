@@ -7,7 +7,8 @@
 
 import { computeSessionSummary } from './sessionSummary';
 import type { SessionSummary } from './sessionSummary';
-import { isPress } from './adminEvents';
+import { deriveSession } from './deriveSession';
+import type { ModeEvent } from '../hooks/useTimerMode';
 
 // Event shapes as stored in Firestore (looser than the in-app types since
 // Firestore docs come back as plain objects)
@@ -52,6 +53,7 @@ interface FirestoreTimerEvent {
 type FirestoreEvent = FirestoreStudyEvent | FirestoreInterstitialEvent | FirestoreTimerEvent;
 
 export interface ReconstructedSessionData {
+  _recordVersion: string;
   stopDateTime: string;
   totalSessionTime: number;
   studiesCompleted: number;
@@ -85,28 +87,8 @@ export function reconstructSessionData(
 ): ReconstructedSessionData {
   const typed = events as FirestoreEvent[];
 
-  const studies = typed.filter((e): e is FirestoreStudyEvent => e.type === 'STUDY');
-  const interstitials = typed.filter((e): e is FirestoreInterstitialEvent => e.type === 'INTERSTITIAL');
-  const admins = typed.filter((e): e is FirestoreTimerEvent => e.type === 'ADMIN');
-  const commsEvents = typed.filter((e): e is FirestoreTimerEvent => e.type === 'COMMS');
-  const breaks = typed.filter((e): e is FirestoreTimerEvent => e.type === 'BREAK');
-  const doubleTaps = typed.filter((e): e is FirestoreTimerEvent => e.type === 'DOUBLE_TAP');
-
-  // Aggregate counts and sums
-  const studiesCompleted = studies.length;
-  const totalRVU = studies.reduce((sum, s) => sum + (s.rvu || 0), 0);
-  const cumulativeParTime = studies.reduce((sum, s) => sum + (s.parTime || 0), 0);
-  const swapEvents = studies.filter(s => s.swapped === true).length;
-
-  const interstitialTime = interstitials.reduce((sum, e) => sum + (e.duration || 0), 0);
-  const adminTime = admins.reduce((sum, e) => sum + (e.duration || 0), 0);
-  const adminEventCount = admins.filter(isPress).length;
-  const commsTime = commsEvents.reduce((sum, e) => sum + (e.duration || 0), 0);
-  const commsEventCount = commsEvents.filter(isPress).length;
-  const breakTime = breaks.reduce((sum, e) => sum + (e.duration || 0), 0);
-  const breakEventCount = breaks.filter(isPress).length;
-  const doubleTapTime = doubleTaps.reduce((sum, e) => sum + (e.duration || 0), 0);
-  const doubleTapEventCount = doubleTaps.filter(isPress).length;
+  // The same totals as a normal session end (Phase 6: deriveSession).
+  const d = deriveSession(events as unknown as ModeEvent[], 0);
 
   // Estimate totalSessionTime from the last event
   let totalSessionTime = 0;
@@ -145,24 +127,23 @@ export function reconstructSessionData(
   return {
     stopDateTime,
     totalSessionTime,
-    studiesCompleted,
-    deletedStudies: admins.filter(e => {
-      const u = (e as { undoneStudy?: { originalType?: string; neverResumed?: boolean } }).undoneStudy;
-      return u?.originalType === 'STUDY' && !u.neverResumed;
-    }).length,
-    cumulativeParTime,
-    interstitialTime,
-    adminTime,
-    adminEvents: adminEventCount,
-    commsTime,
-    commsEvents: commsEventCount,
-    breakTime,
-    breakEvents: breakEventCount,
-    doubleTapTime,
-    doubleTapEvents: doubleTapEventCount,
-    swapEvents,
-    totalRVU,
+    studiesCompleted: d.studies,
+    deletedStudies: d.undoneStudies,
+    cumulativeParTime: d.cumulativePar,
+    interstitialTime: d.totals.interstitial,
+    adminTime: d.totals.admin,
+    adminEvents: d.counts.admin,
+    commsTime: d.totals.comms,
+    commsEvents: d.counts.comms,
+    breakTime: d.totals.break,
+    breakEvents: d.counts.break,
+    doubleTapTime: d.totals.doubleTap,
+    doubleTapEvents: d.counts.doubleTap,
+    swapEvents: d.swaps,
+    totalRVU: d.totalRVU,
     notes: { tags: ['No Comment'], description: '(recovered session)' },
+    // Same totals rule as a normal Phase 6 end (Clyde 261003g #3).
+    _recordVersion: 'mode-enum-6',
     summary,
   };
 }

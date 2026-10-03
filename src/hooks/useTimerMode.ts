@@ -49,7 +49,7 @@ export type TimerMode = 'idle' | 'study' | 'interstitial' | 'admin' | 'comms' | 
 
 export type TimerSignal =
   | { type: 'study_start'; studyId: string; modality: string; complications: string[]; parTime: number; rvu: number; cpts?: string[]; rvuSource?: string; rvuDerivedMode?: boolean; targetRvuPerHour?: number }
-  | { type: 'study_complete'; rvu: number; parTime: number; complications: string[]; cpts?: string[]; rvuSource?: string }
+  | { type: 'study_complete'; rvu: number; parTime: number; complications: string[]; cpts?: string[]; rvuSource?: string; rvuRaw?: number; rvuAdjustment?: number; personallyPerformed?: boolean }
   | { type: 'admin_toggle' }
   | { type: 'comms_toggle' }
   | { type: 'break_toggle' }
@@ -74,6 +74,11 @@ export interface ModeStudyEvent {
   pauseTime: number;
   pauseUsed: boolean;
   drafted: boolean;
+  // PVC audit (Phase 6): present only when an adjustment applied / the rad
+  // claimed the study as personally performed.
+  rvuRaw?: number;
+  rvuAdjustment?: number;
+  personallyPerformed?: boolean;
   draftGaps?: DraftGap[];  // drafted studies only: when it was on hold
   swapped?: boolean;
   rvuSource?: string;
@@ -104,6 +109,9 @@ export interface UndoneStudy {
   // Set when the study was drafted and never resumed before Stop (not an
   // Undo): its reading time is Admin, but it is not a deleted study.
   neverResumed?: boolean;
+  // Set when the study was still open at Stop: never completed, so its
+  // reading time is Admin, but it is not a deleted study (owner, 2026-10-03).
+  openAtStop?: boolean;
 }
 
 export interface ModeInterstitialEvent {
@@ -141,6 +149,9 @@ interface StudyContext {
   rvuSource?: string;
   rvuDerivedMode?: boolean;
   targetRvuPerHour?: number;
+  rvuRaw?: number;
+  rvuAdjustment?: number;
+  personallyPerformed?: boolean;
   drafted: boolean;
   draftGaps?: DraftGap[];
   pauseTime: number;
@@ -175,6 +186,9 @@ export interface EventChange {
 // continuation of a split interruption), plus the one running now.
 export interface ModeSnapshot extends SessionTotals {
   mode: TimerMode;
+  modeStart: number;          // session time the current mode began (absorbed interstitial included)
+  modeStartSystem: string;
+  continuing: boolean;        // the running mode is the rest of a press split at a study's end
   studyElapsed: number;
   timeSinceLastBreak: number; // 0 during a break
 }
@@ -186,7 +200,7 @@ const EVENT_TYPE = {
 export interface UseTimerModeReturn {
   signal: (action: TimerSignal, sessionTime: number) => void;
   startSession: () => void;
-  endSession: (sessionTime: number) => ModeEvent[];
+  endSession: (sessionTime: number, endSystem?: string) => ModeEvent[];
   reset: () => void;
   getEvents: () => ModeEvent[];
   getMode: () => TimerMode;
@@ -243,7 +257,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
 
   // Reading time = time banked before interruptions, plus the current
   // segment if the study is the active mode.
-  const pushStudy = useCallback((ctx: StudyContext, sessionTime: number): void => {
+  const pushStudy = useCallback((ctx: StudyContext, sessionTime: number, endSystem?: string): void => {
     const current = mode.current === 'study' ? sessionTime - modeEnteredAt.current : 0;
     const elapsedTime = ctx.accumulatedTime + current;
     pushEvent({
@@ -253,7 +267,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
       startTimeSession: ctx.originalStart,
       startTimeSystem: ctx.originalStartSystem,
       endTimeSession: sessionTime,
-      endTimeSystem: getCurrentISO(),
+      endTimeSystem: endSystem ?? getCurrentISO(),
       modality: ctx.modality,
       complications: ctx.complications,
       parTime: ctx.parTime,
@@ -266,6 +280,8 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
       ...(ctx.draftGaps ? { draftGaps: ctx.draftGaps } : {}),
       ...(ctx.cpts ? { rvuSource: ctx.rvuSource, cpts: ctx.cpts } : {}),
       ...(ctx.rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour: ctx.targetRvuPerHour } : {}),
+      ...(ctx.rvuRaw !== undefined ? { rvuRaw: ctx.rvuRaw, rvuAdjustment: ctx.rvuAdjustment } : {}),
+      ...(ctx.personallyPerformed ? { personallyPerformed: true } : {}),
     });
   }, []);
 
@@ -303,31 +319,12 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
         drafted: study.drafted,
       },
     });
-    // A drafted study's span holds other studies' work, so only the study
-    // itself is converted (accepted, plan 3c).
-    if (study.drafted) return;
-    // Interruptions taken while the study was open sit just before it in the
-    // list. Walk back until another study or anything older than this one,
-    // so the conversion can never reach into an earlier study.
-    for (
-      let i = index - 1;
-      i >= 0 && evts[i].type !== 'STUDY' && evts[i].startTimeSession >= study.startTimeSession;
-      i--
-    ) {
-      const e = evts[i] as ModeInterstitialEvent | ModeTimerEvent;
-      replaceEvent(i, {
-        type: 'ADMIN',
-        startTimeSession: e.startTimeSession,
-        startTimeSystem: e.startTimeSystem,
-        endTimeSession: e.endTimeSession,
-        endTimeSystem: e.endTimeSystem,
-        duration: e.duration,
-        undoneStudy: { studyId, originalType: e.type },
-      });
-    }
+    // Only the study's own reading time becomes Admin. Admin/Comms/Break taken
+    // while it was open were real and keep their type, count and meeting
+    // eligibility (owner, 2026-10-03; replaces the 3c whole-span rule).
   }, []);
 
-  const closeCurrentMode = useCallback((sessionTime: number): void => {
+  const closeCurrentMode = useCallback((sessionTime: number, endSystem?: string): void => {
     const duration = sessionTime - modeEnteredAt.current;
     if (!(mode.current in EVENT_TYPE) || duration <= 0) return;
     const type = EVENT_TYPE[mode.current as TimedMode];
@@ -335,7 +332,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
       startTimeSession: modeEnteredAt.current,
       startTimeSystem: modeEnteredSystem.current,
       endTimeSession: sessionTime,
-      endTimeSystem: getCurrentISO(),
+      endTimeSystem: endSystem ?? getCurrentISO(),
       duration,
     };
     if (type === 'INTERSTITIAL') {
@@ -439,6 +436,9 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
           complications: action.complications,
           cpts: action.cpts,
           rvuSource: action.rvuSource,
+          rvuRaw: action.rvuRaw,
+          rvuAdjustment: action.rvuAdjustment,
+          personallyPerformed: action.personallyPerformed,
         };
         if (currentMode === 'study') {
           pushStudy(ctx, sessionTime);
@@ -446,7 +446,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
         } else if (wasInStudy.current && (currentMode === 'admin' || currentMode === 'comms' || currentMode === 'break')) {
           // Ended while an interruption taken during the study is still on.
           // Split the interruption at the study's end: the part inside the
-          // study stays in its span (Undo converts it), the rest carries on.
+          // study stays in its span, the rest carries on.
           const firstHalfRecorded = sessionTime > modeEnteredAt.current;
           closeCurrentMode(sessionTime);
           pushStudy(ctx, sessionTime);
@@ -577,41 +577,52 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     draftedStudyContext.current = null;
   }, []);
 
-  const endSession = useCallback((sessionTime: number): ModeEvent[] => {
-    // A study still open (or interrupted) at Stop is recorded after the
-    // interruption that was running, as at study_complete.
+  const pushNotCompleted = useCallback((
+    ctx: StudyContext, end: number, endSystem: string, reading: number, reason: 'openAtStop' | 'neverResumed',
+  ): void => {
+    pushEvent({
+      type: 'ADMIN',
+      startTimeSession: ctx.originalStart,
+      startTimeSystem: ctx.originalStartSystem,
+      endTimeSession: end,
+      endTimeSystem: endSystem,
+      duration: reading,
+      undoneStudy: {
+        studyId: ctx.studyId,
+        originalType: 'STUDY',
+        modality: ctx.modality,
+        complications: ctx.complications,
+        rvu: ctx.rvu,
+        cpts: ctx.cpts,
+        rvuSource: ctx.rvuSource,
+        parTime: ctx.parTime,
+        elapsedTime: reading,
+        swapped: false,
+        drafted: ctx.drafted,
+        [reason]: true,
+      },
+    });
+  }, []);
+
+  // endSystem: the wall-clock time of the Stop click, so the closing events
+  // end when the session did, not at End Session (Phase 6).
+  const endSession = useCallback((sessionTime: number, endSystem?: string): ModeEvent[] => {
+    // A study not completed by Stop is no study and no RVU: its reading time
+    // is Admin, like an undone study (owner, 2026-10-03). That covers a study
+    // still open (or interrupted) at Stop and a draft never resumed.
     const ctx = studyContext.current;
     const studyOpen = ctx && (mode.current === 'study' || wasInStudy.current);
-    closeCurrentMode(sessionTime);
-    if (studyOpen) pushStudy(ctx, sessionTime);
-    // A draft never resumed was never completed: like an undone study, its
-    // reading time is Admin, with no study and no RVU (owner, 2026-10-03).
-    // It ends where it was last drafted.
+    const openReading = ctx ? ctx.accumulatedTime + (mode.current === 'study' ? sessionTime - modeEnteredAt.current : 0) : 0;
+    closeCurrentMode(sessionTime, endSystem);
+    if (studyOpen && openReading > 0) {
+      pushNotCompleted(ctx, sessionTime, endSystem ?? getCurrentISO(), openReading, 'openAtStop');
+    }
     const draft = draftedStudyContext.current;
     if (draft && draft.accumulatedTime > 0) {
+      // It ends where it was last drafted.
       const end = draft.draftGaps?.at(-1)?.start ?? draft.originalStart + draft.accumulatedTime;
-      pushEvent({
-        type: 'ADMIN',
-        startTimeSession: draft.originalStart,
-        startTimeSystem: draft.originalStartSystem,
-        endTimeSession: end,
-        endTimeSystem: getCurrentISO(new Date(new Date(draft.originalStartSystem).getTime() + (end - draft.originalStart) * 1000)),
-        duration: draft.accumulatedTime,
-        undoneStudy: {
-          studyId: draft.studyId,
-          originalType: 'STUDY',
-          modality: draft.modality,
-          complications: draft.complications,
-          rvu: draft.rvu,
-          cpts: draft.cpts,
-          rvuSource: draft.rvuSource,
-          parTime: draft.parTime,
-          elapsedTime: draft.accumulatedTime,
-          swapped: false,
-          drafted: true,
-          neverResumed: true,
-        },
-      });
+      const endSys = getCurrentISO(new Date(new Date(draft.originalStartSystem).getTime() + (end - draft.originalStart) * 1000));
+      pushNotCompleted(draft, end, endSys, draft.accumulatedTime, 'neverResumed');
     }
     draftedStudyContext.current = null;
     // Nothing is open any more, so a repeated endSession adds nothing.
@@ -620,7 +631,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     mode.current = 'idle';
     emitChanges();
     return [...events.current];
-  }, [closeCurrentMode, pushStudy]);
+  }, [closeCurrentMode, pushNotCompleted]);
 
   const reset = useCallback((): void => {
     mode.current = 'idle';
@@ -651,7 +662,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     const ctx = studyContext.current;
     const studyElapsed = ctx ? ctx.accumulatedTime + (current === 'study' ? running : 0) : 0;
     const timeSinceLastBreak = current === 'break' ? 0 : Math.max(0, now - derived.lastBreakEnd);
-    return { ...derived, mode: current, studyElapsed, timeSinceLastBreak };
+    return { ...derived, mode: current, modeStart: modeEnteredAt.current, modeStartSystem: modeEnteredSystem.current, continuing: continuing.current, studyElapsed, timeSinceLastBreak };
   }, []);
 
   return { signal, startSession, endSession, reset, getEvents, getMode, getSnapshot };

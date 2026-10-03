@@ -146,7 +146,6 @@ export function applySwap<E extends EventWithType>(
   currentTime: number,
   sessionEvents: E[],
   setSessionEvents: (events: E[]) => void,
-  setInterstitialTime: (updater: (prev: number) => number) => void,
   emitShadowSwap: (params: {
     correctedElapsedTime: number;
     correctedStart: number;
@@ -180,9 +179,6 @@ export function applySwap<E extends EventWithType>(
     endTimeSession: inter.startTimeSession + 10,
   } as unknown as E;
   setSessionEvents(events);
-  // inter.duration is wall-clock (3d) while the counter can lag when the
-  // window is covered, so never let the display counter go negative.
-  setInterstitialTime((prev) => Math.max(0, prev - (inter.duration - 10)));
   const swapStartOverride = {
     session: inter.startTimeSession + 10,
     // Local time like every other stamp (toISOString would be UTC).

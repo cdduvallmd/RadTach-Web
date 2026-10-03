@@ -2,7 +2,7 @@
 // Computed from in-memory sessionEvents at session end, written as a
 // summary field on the session document.
 
-import { isAdminPress } from './adminEvents';
+import { isPress, isAdminPress } from './adminEvents';
 import { studyEndTime } from './studyEnd';
 
 interface StudyEvent {
@@ -312,7 +312,9 @@ export function computeSessionSummary(
 
   // ── 7J: Interruption recovery cost ────────────────────────────────────
   const interruptionRecoveryCost = computeInterruptionRecoveryCost(
-    interstitials, admins.filter(isAdminPress), comms
+    // Both halves of a split interruption: the continued half is the one that
+    // ends into the interstitial (Clyde 261003g #1).
+    interstitials, admins.filter(isAdminPress), comms.filter(e => !(e as { undoneStudy?: unknown }).undoneStudy)
   );
 
   // ── 7K: Complication stacking ─────────────────────────────────────────
@@ -483,7 +485,7 @@ function computeBreakROI(
   return {
     avgVarianceBefore: avg(allBefore),
     avgVarianceAfter: avg(allAfter),
-    breakCount: breaks.length,
+    breakCount: breaks.filter(isPress).length,
   };
 }
 

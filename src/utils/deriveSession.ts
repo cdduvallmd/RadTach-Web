@@ -18,6 +18,8 @@ export interface SessionTotals {
   totals: Record<TimedMode, number>;
   counts: { admin: number; comms: number; break: number; doubleTap: number };
   studies: number;
+  undoneStudies: number;   // Undo only; a draft never resumed isn't a deleted study
+  swaps: number;
   totalRVU: number;
   cumulativePar: number;
   cumulativeVariance: number;
@@ -30,23 +32,28 @@ export interface SessionTotals {
 export function deriveSession(events: ModeEvent[], now: number): SessionTotals {
   const totals: Record<TimedMode, number> = { interstitial: 0, admin: 0, comms: 0, break: 0, doubleTap: 0 };
   const counts = { admin: 0, comms: 0, break: 0, doubleTap: 0 };
-  let studies = 0, totalRVU = 0, cumulativePar = 0, cumulativeVariance = 0, streak = 0;
+  let studies = 0, undoneStudies = 0, swaps = 0, totalRVU = 0, cumulativePar = 0, cumulativeVariance = 0, streak = 0;
   let rollingRVU = 0, lastChange = 0, lastBreakEnd = 0;
 
   for (const e of events) {
     if (e.type === 'STUDY') {
       studies++;
-      totalRVU += e.rvu;
-      cumulativePar += e.parTime;
-      cumulativeVariance += e.variance;
-      streak = e.variance <= 0 ? Math.min(streak + 1, STREAK_MAX) : 0;
-      const end = e.endTimeSession ?? e.startTimeSession + e.elapsedTime;
-      if (end >= now - 3600) rollingRVU += e.rvu;
+      if (e.swapped) swaps++;
+      // `?? 0` guards stored or older events read back for recovery.
+      const rvu = e.rvu ?? 0;
+      const variance = e.variance ?? 0;
+      totalRVU += rvu;
+      cumulativePar += e.parTime ?? 0;
+      cumulativeVariance += variance;
+      streak = variance <= 0 ? Math.min(streak + 1, STREAK_MAX) : 0;
+      const end = e.endTimeSession ?? e.startTimeSession + (e.elapsedTime ?? 0);
+      if (end >= now - 3600) rollingRVU += rvu;
       lastChange = Math.max(lastChange, end);
       continue;
     }
     const m = MODE_OF[e.type];
-    totals[m] += e.duration;
+    if (!m) continue;
+    totals[m] += e.duration ?? 0;
     if (m !== 'interstitial' && isPress(e)) counts[m]++;
     // A break counts even if Undo later made it Admin: it was still a real
     // break, so it must not bring the break prompt back (Clyde 261003e #3).
@@ -54,11 +61,14 @@ export function deriveSession(events: ModeEvent[], now: number): SessionTotals {
       lastBreakEnd = Math.max(lastBreakEnd, e.endTimeSession);
     }
     // An undone study changes RVU/hr too, as of its end.
-    if (e.type === 'ADMIN' && e.undoneStudy?.originalType === 'STUDY' && !e.undoneStudy.neverResumed) {
+    // Undo only: a study open at Stop or a draft never resumed was never
+    // completed, so it isn't a deleted study and doesn't move RVU/hr.
+    if (e.type === 'ADMIN' && e.undoneStudy?.originalType === 'STUDY' && !e.undoneStudy.neverResumed && !e.undoneStudy.openAtStop) {
+      undoneStudies++;
       lastChange = Math.max(lastChange, e.endTimeSession);
     }
   }
 
   const rvuPerHour = lastChange > 0 ? totalRVU / (lastChange / 3600) : 0;
-  return { totals, counts, studies, totalRVU, cumulativePar, cumulativeVariance, streak, rvuPerHour, rollingRVU, lastBreakEnd };
+  return { totals, counts, studies, undoneStudies, swaps, totalRVU, cumulativePar, cumulativeVariance, streak, rvuPerHour, rollingRVU, lastBreakEnd };
 }

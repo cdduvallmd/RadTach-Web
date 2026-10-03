@@ -420,10 +420,10 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
 
     // Each event is drawn from its start to its recorded end. An undone
     // study's Admin block spans the whole study, so it is drawn in pieces
-    // around the events inside it (its interruptions, now Admin too) rather
+    // around the events inside it (its interruptions, which keep their type) rather
     // than over them. An undone or never-resumed drafted study keeps its
     // reading length, since its span holds other studies.
-    type Undone = { originalType?: string; drafted?: boolean; neverResumed?: boolean };
+    type Undone = { originalType?: string; drafted?: boolean; neverResumed?: boolean; openAtStop?: boolean };
     const timed = nonStudyEvents.filter(e => 'duration' in e && (e as { duration: number }).duration > 0);
     const eventRects = timed.flatMap((e, i) => {
       const dur = (e as { duration: number }).duration;
@@ -444,6 +444,7 @@ export default function SessionReportSections({ sessionEvents, sessionData, summ
         if (e.endTimeSession > from) pieces.push([from, e.endTimeSession]);
       }
       const label = undone?.neverResumed ? 'ADMIN (draft never resumed)'
+        : undone?.openAtStop ? 'ADMIN (study open at Stop)'
         : undone?.originalType === 'STUDY' ? 'ADMIN (undone study)'
         : undone ? `ADMIN (was ${undone.originalType} in an undone study)` : e.type;
       return pieces.map(([a, b], p) => {

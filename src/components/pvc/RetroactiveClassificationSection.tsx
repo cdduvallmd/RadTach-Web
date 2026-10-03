@@ -11,14 +11,13 @@ import { firestoreService } from '../../services/firestore';
 import type { StoredSession } from '../../types/reports';
 import AdminBlockClassifier, { type AdminBlock } from './AdminBlockClassifier';
 import { subDays } from 'date-fns';
-import { isAdminPress } from '../../utils/adminEvents';
+import { findAdminBlocks, ADMIN_BLOCK_MIN_SEC } from '../../utils/adminEvents';
 
 interface Props {
   userId: string;
 }
 
 const LOOKBACK_DAYS = 30;
-const ADMIN_BLOCK_MIN_SEC = 30 * 60;
 
 interface SessionWithFlags {
   session: StoredSession;
@@ -73,19 +72,8 @@ export default function RetroactiveClassificationSection({ userId }: Props) {
   const openClassifier = async (s: StoredSession) => {
     try {
       const eventDocs = await firestoreService.getSessionEvents(userId, s.sessionId);
-      const blocks: AdminBlock[] = [];
-      for (const e of eventDocs) {
-        if (isAdminPress(e) && (e.duration ?? 0) >= ADMIN_BLOCK_MIN_SEC) {
-          blocks.push({
-            index: blocks.length,
-            startTimeSession: e.startTimeSession ?? 0,
-            startTimeSystem: e.startTimeSystem,
-            durationSec: e.duration ?? 0,
-            classification: 'unset',
-            meetingMinutes: 0,
-          });
-        }
-      }
+      const blocks: AdminBlock[] = findAdminBlocks(eventDocs)
+        .map((b, index) => ({ ...b, index, classification: 'unset', meetingMinutes: 0 }));
       if (blocks.length === 0) {
         // Session was eligible by the rough adminTime proxy but actually has
         // no individual ≥30min blocks. Just clear pending flag.

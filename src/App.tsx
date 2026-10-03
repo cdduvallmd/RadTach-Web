@@ -31,7 +31,8 @@ import { useSidecarRelay } from './hooks/useSidecarRelay';
 import { useSessionClock, type ClockGap } from './hooks/useSessionClock';
 import { useSwapArmed, handleSidecarCommandSwapFlag, shouldApplySwap, applySwap } from './hooks/useSwapSubsystem';
 import { BUILD_ID } from './buildId';
-import { isAdminPress } from './utils/adminEvents';
+import { findAdminBlocks } from './utils/adminEvents';
+import { deriveSession, type SessionTotals } from './utils/deriveSession';
 
 // ============================================================================
 // EXTERNAL INTEGRATION CONTRACT — HL7 / Middleware Interface
@@ -153,6 +154,7 @@ interface SessionNotes {
 }
 
 interface SessionData {
+  _recordVersion?: string;
   _clockGaps?: ClockGap[]; // diagnostic: ticks > 5 min apart (step 3d)
   sessionId: string;
   userAbbrev: string;
@@ -235,9 +237,7 @@ function RadTachInner() {
   // Pause removed (2026-05-18) — use Admin/Comms/Break instead
 
   // Double Tap tracking (Issue #3) - tracks when reopening recently-completed studies
-  const [doubleTapTime, setDoubleTapTime] = useState(0);
   const [isDoubleTapRunning, setIsDoubleTapRunning] = useState(false);
-  const [doubleTapEvents, setDoubleTapEvents] = useState(0);
   // const [lastStudyModality, setLastStudyModality] = useState<Modality | null>(null); // TODO: FIREBASE - Uncomment for Phase 3 (Issue #3). Associates Double Tap events with modality for analytics
 
   // Track if Admin/Comms auto-paused a study (so we can resume it when they stop)
@@ -250,20 +250,16 @@ function RadTachInner() {
   // Shift-click Stop ends the session: every clock stays stopped through the
   // Stop dialog and, if shown, the Admin Block Classifier (owner, 2026-10-02).
   const sessionStopping = showStopSessionDialog || showAdminClassificationDialog;
+  const sessionStoppingRef = useRef(sessionStopping);
+  sessionStoppingRef.current = sessionStopping;
   const sessionClock = useSessionClock(sessionStopping);
   const { sessionTime, isRunning: isSessionTimeRunning } = sessionClock;
 
   // Interstitial time tracking
-  const [interstitialTime, setInterstitialTime] = useState(0);
-  const [isInterstitialRunning, setIsInterstitialRunning] = useState(false);
   
   // Admin and Comms time tracking
-  const [adminTime, setAdminTime] = useState(0);
-  const [commsTime, setCommsTime] = useState(0);
   const [isAdminTimeRunning, setIsAdminTimeRunning] = useState(false);
   const [isCommsTimeRunning, setIsCommsTimeRunning] = useState(false);
-  const [adminEvents, setAdminEvents] = useState(0); // Issue #4: Admin event counter
-  const [commsEvents, setCommsEvents] = useState(0); // Issue #4: Comms event counter
 
   // Hover states for secondary timers (UI test for Issue #5)
   const [isHoveringAdmin, setIsHoveringAdmin] = useState(false);
@@ -288,7 +284,6 @@ function RadTachInner() {
   const [gpciZip, setGpciZip] = useState('');
   const [gpciValues, setGpciValues] = useState<GpciValues | null>(null);
 
-  const [totalRVU, setTotalRVU] = useState(0);
 
   // Undo tracking
   const [lastStudy, setLastStudy] = useState<LastStudyData | null>(null);
@@ -302,8 +297,6 @@ function RadTachInner() {
 
   // Break tracking
   const [isBreakTimeRunning, setIsBreakTimeRunning] = useState(false);
-  const [breakTime, setBreakTime] = useState(0);
-  const [breaksTaken, setBreaksTaken] = useState(0);
   const [showBreakPrompt, setShowBreakPrompt] = useState(false);
   const [breakPromptHours, setBreakPromptHours] = useState(2);
   const [showAnimalMessage, setShowAnimalMessage] = useState(false);
@@ -345,8 +338,6 @@ function RadTachInner() {
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [sessionStartDateTime, setSessionStartDateTime] = useState<string | null>(null);
   const [sessionEvents, setSessionEvents] = useState<SessionEvent[]>([]);
-  const [deletedStudies, setDeletedStudies] = useState(0);
-  const [cumulativeParTime, setCumulativeParTime] = useState(0);
   const [showPostSessionScreen, setShowPostSessionScreen] = useState(false);
   const [todaySessionCount, setTodaySessionCount] = useState(0);
   const [sessionTags, setSessionTags] = useState<SessionTag[]>(['No Comment']);
@@ -436,12 +427,7 @@ function RadTachInner() {
   // studyPauseTime removed — pause functionality replaced by ABC
 
   const timerRef = useRef<number | null>(null);
-  const interstitialTimeRef = useRef<number | null>(null);
-  const adminTimeRef = useRef<number | null>(null);
-  const commsTimeRef = useRef<number | null>(null);
-  const breakTimeRef = useRef<number | null>(null);
   // pauseTimeRef removed — pause functionality replaced by ABC
-  const doubleTapTimeRef = useRef<number | null>(null); // Issue #3: Double Tap timer
   const processSidecarStartRef = useRef<(cmd: SidecarCommand) => void>(() => {});
   const processSidecarStopRef = useRef<() => void>(() => {});
 
@@ -654,102 +640,8 @@ function RadTachInner() {
     };
   }, [isRunning, sessionStopping]);
 
-  // Pause timer removed — ABC buttons handle interruptions
-
-  // Double Tap timer effect (Issue #3) - tracks duration of double tap events
-  useEffect(() => {
-    if (isDoubleTapRunning && !sessionStopping) {
-      doubleTapTimeRef.current = setInterval(() => {
-        setDoubleTapTime(prev => prev + 1);
-      }, 1000);
-    } else {
-      if (doubleTapTimeRef.current) {
-        clearInterval(doubleTapTimeRef.current);
-      }
-    }
-
-    return () => {
-      if (doubleTapTimeRef.current) {
-        clearInterval(doubleTapTimeRef.current);
-      }
-    };
-  }, [isDoubleTapRunning, sessionStopping]);
-
-  // Interstitial time effect
-  useEffect(() => {
-    if (isInterstitialRunning && !sessionStopping) {
-      interstitialTimeRef.current = setInterval(() => {
-        setInterstitialTime(prev => prev + 1);
-      }, 1000);
-    } else {
-      if (interstitialTimeRef.current) {
-        clearInterval(interstitialTimeRef.current);
-      }
-    }
-
-    return () => {
-      if (interstitialTimeRef.current) {
-        clearInterval(interstitialTimeRef.current);
-      }
-    };
-  }, [isInterstitialRunning, sessionStopping]);
-
-  // Admin time effect
-  useEffect(() => {
-    if (isAdminTimeRunning && !sessionStopping) {
-      adminTimeRef.current = setInterval(() => {
-        setAdminTime(prev => prev + 1);
-      }, 1000);
-    } else {
-      if (adminTimeRef.current) {
-        clearInterval(adminTimeRef.current);
-      }
-    }
-
-    return () => {
-      if (adminTimeRef.current) {
-        clearInterval(adminTimeRef.current);
-      }
-    };
-  }, [isAdminTimeRunning, sessionStopping]);
-
-  // Comms time effect
-  useEffect(() => {
-    if (isCommsTimeRunning && !sessionStopping) {
-      commsTimeRef.current = setInterval(() => {
-        setCommsTime(prev => prev + 1);
-      }, 1000);
-    } else {
-      if (commsTimeRef.current) {
-        clearInterval(commsTimeRef.current);
-      }
-    }
-
-    return () => {
-      if (commsTimeRef.current) {
-        clearInterval(commsTimeRef.current);
-      }
-    };
-  }, [isCommsTimeRunning, sessionStopping]);
-
-  // Break time effect
-  useEffect(() => {
-    if (isBreakTimeRunning && !sessionStopping) {
-      breakTimeRef.current = setInterval(() => {
-        setBreakTime(prev => prev + 1);
-      }, 1000);
-    } else {
-      if (breakTimeRef.current) {
-        clearInterval(breakTimeRef.current);
-      }
-    }
-
-    return () => {
-      if (breakTimeRef.current) {
-        clearInterval(breakTimeRef.current);
-      }
-    };
-  }, [isBreakTimeRunning, sessionStopping]);
+  // The per-mode legacy counters and their 1 s intervals are gone (Phase 6):
+  // the screen and the session record both come from mode-enum's events.
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -1035,6 +927,13 @@ function RadTachInner() {
     const unsub = firestoreService.listenToCommandDoc(currentUser.uid, (cmd: SidecarCommand | null) => {
       if (!cmd || cmd.ack) return;          // already processed
       if (cmd.source === 'radtach') return; // ignore our own writes
+      // After the Stop click the session is over: a Sidecar start/stop must
+      // not change the record being written (Clyde 261003f #4).
+      if (sessionStoppingRef.current && (cmd.action === 'start' || cmd.action === 'stop')) {
+        // Ack so it can't replay at the next Start (Clyde 261003g #2).
+        firestoreService.ackCommandDoc(currentUser.uid).catch(console.error);
+        return;
+      }
 
       if (cmd.action === 'start') {
         // Swap subsystem: arm on swap:true so completeStudy applies the correction.
@@ -1075,8 +974,7 @@ function RadTachInner() {
   };
 
   // Helper function to get current ISO 8601 datetime string (Issue #1)
-  const getCurrentDateTime = (): string => {
-    const now = new Date();
+  const getCurrentDateTime = (now: Date = new Date()): string => {
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
@@ -1494,7 +1392,6 @@ function RadTachInner() {
     // Start interstitial at session start so a swap on the first study has a
     // prior INTERSTITIAL fragment to harvest if the timer wasn't started
     // when the rad opened the study in PACS.
-    setIsInterstitialRunning(true);
     setInterstitialStartTime({ session: 0, system: now });
     // Reset classification refs in case a prior session left them set.
     pendingMeetingHoursRef.current = 0;
@@ -1560,19 +1457,7 @@ function RadTachInner() {
     }
     // Reset all counters
     sessionClock.zero();
-    setInterstitialTime(0);
-    setAdminTime(0);
-    setCommsTime(0);
-    setBreakTime(0);
-    setDoubleTapTime(0);
-    setAdminEvents(0);
-    setCommsEvents(0);
-    setBreaksTaken(0);
-    setDoubleTapEvents(0);
     setStudiesCompleted(0);
-    setDeletedStudies(0);
-    setCumulativeParTime(0);
-    setTotalRVU(0);
     setCurrentTime(0);
     setSelectedModality(null);
     setSelectedComplications([]);
@@ -1591,7 +1476,9 @@ function RadTachInner() {
   };
 
   // Build session data for export (Issue #1)
-  const buildSessionData = (): { session: SessionData; events: SessionEvent[] } => {
+  // Phase 6: totals come from mode-enum's events (deriveSession), the same
+  // numbers the screen showed, so the record matches the screen.
+  const buildSessionData = (d: SessionTotals, stopSystem: string): SessionData => {
     const sessionData: SessionData = {
       sessionId: localSessionKeyRef.current || generateSessionId(),
       userAbbrev: currentUser ? currentUser.uid : 'LOCAL',
@@ -1600,22 +1487,25 @@ function RadTachInner() {
       rotation: selectedRotation || 'Unassigned',
       halfDay: halfDay,
       startDateTime: sessionStartDateTime || '',
-      stopDateTime: getCurrentDateTime(),
+      stopDateTime: stopSystem, // the Stop click, not End Session
       totalSessionTime: sessionClock.getSessionTime(), // the stopped time, not the last render
-      studiesCompleted: studiesCompleted,
-      deletedStudies: deletedStudies,
-      cumulativeParTime: cumulativeParTime,
-      interstitialTime: interstitialTime,
-      adminTime: adminTime,
-      adminEvents: adminEvents,
-      commsTime: commsTime,
-      commsEvents: commsEvents,
-      breakTime: breakTime,
-      breakEvents: breaksTaken,
-      doubleTapTime: doubleTapTime,
-      doubleTapEvents: doubleTapEvents,
-      swapEvents: sessionEvents.filter(e => e.type === 'STUDY' && (e as StudyEvent).swapped).length,
-      totalRVU: totalRVU,
+      studiesCompleted: d.studies,
+      deletedStudies: d.undoneStudies,
+      cumulativeParTime: d.cumulativePar,
+      interstitialTime: d.totals.interstitial,
+      adminTime: d.totals.admin,
+      adminEvents: d.counts.admin,
+      commsTime: d.totals.comms,
+      commsEvents: d.counts.comms,
+      breakTime: d.totals.break,
+      breakEvents: d.counts.break,
+      doubleTapTime: d.totals.doubleTap,
+      doubleTapEvents: d.counts.doubleTap,
+      swapEvents: d.swaps,
+      totalRVU: d.totalRVU,
+      // Totals derived from mode-enum's events (Phase 6). Earlier docs used
+      // legacy's counters (absorbed interstitial stayed interstitial, etc.).
+      _recordVersion: 'mode-enum-6',
       verifiedRVU: verifiedRVU.trim() ? parseFloat(verifiedRVU) : null,
       ...(userDisplayName ? { displayName: userDisplayName } : {}),
       notes: { tags: sessionTags, description: sessionDescription.trim() || '(none)' },
@@ -1630,43 +1520,22 @@ function RadTachInner() {
         ? { pvcPendingClassification: true }
         : {}),
     };
-    return { session: sessionData, events: sessionEvents };
+    return sessionData;
   };
 
   // End session — detect 30+ min admin blocks and prompt the rad to classify
   // before finalizing. If no blocks need classification, finalize immediately.
   const handleEndSession = () => {
     const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
-    const ADMIN_BLOCK_MIN_SEC = 30 * 60;
-    const blocks: AdminBlock[] = [];
-    for (const e of sessionEvents) {
-      if (isAdminPress(e) && (e as TimerEvent).duration >= ADMIN_BLOCK_MIN_SEC) {
-        const te = e as TimerEvent;
-        blocks.push({
-          index: blocks.length,
-          startTimeSession: te.startTimeSession,
-          startTimeSystem: te.startTimeSystem,
-          durationSec: te.duration,
-          classification: 'unset',
-          meetingMinutes: 0,
-        });
-      }
-    }
-    // Include any in-progress admin block — resetSession will record it as a
-    // normal ADMIN event with full duration, but we want it classifiable now.
-    if (isAdminTimeRunning && adminStartTime !== null) {
-      const inProgressDur = sessionTime - adminStartTime.session;
-      if (inProgressDur >= ADMIN_BLOCK_MIN_SEC) {
-        blocks.push({
-          index: blocks.length,
-          startTimeSession: adminStartTime.session,
-          startTimeSystem: adminStartTime.system,
-          durationSec: inProgressDur,
-          classification: 'unset',
-          meetingMinutes: 0,
-        });
-      }
-    }
+    // Phase 6: mode-enum's events plus its running Admin; a press split at a
+    // study's end is one block (findAdminBlocks).
+    const now = modeEnum.getSnapshot(sessionTime);
+    const blocks: AdminBlock[] = findAdminBlocks(
+      modeEnum.getEvents(),
+      now.mode === 'admin'
+        ? { start: now.modeStart, startSystem: now.modeStartSystem, now: sessionTime, continuing: now.continuing }
+        : undefined,
+    ).map((b, index) => ({ ...b, index, classification: 'unset', meetingMinutes: 0 }));
 
     setShowStopSessionDialog(false);
 
@@ -1707,91 +1576,31 @@ function RadTachInner() {
   // Reset session state (Issue #1)
   const resetSession = () => {
     const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
-    // Close out any running timers before snapshotting events
-    // Without this, timers still running at session end never produce events
-    let finalEvents = [...sessionEvents];
-    const now = getCurrentDateTime();
-
-    if (isAdminTimeRunning && adminStartTime !== null) {
-      const evt = {
-        type: 'ADMIN',
-        startTimeSession: adminStartTime.session,
-        startTimeSystem: adminStartTime.system,
-        endTimeSession: sessionTime,
-        endTimeSystem: now,
-        duration: sessionTime - adminStartTime.session,
-      } as TimerEvent;
-      finalEvents.push(evt);
-    }
-    if (isCommsTimeRunning && commsStartTime !== null) {
-      const evt = {
-        type: 'COMMS',
-        startTimeSession: commsStartTime.session,
-        startTimeSystem: commsStartTime.system,
-        endTimeSession: sessionTime,
-        endTimeSystem: now,
-        duration: sessionTime - commsStartTime.session,
-      } as TimerEvent;
-      finalEvents.push(evt);
-    }
-    if (isBreakTimeRunning && breakStartTime !== null) {
-      const evt = {
-        type: 'BREAK',
-        startTimeSession: breakStartTime.session,
-        startTimeSystem: breakStartTime.system,
-        endTimeSession: sessionTime,
-        endTimeSystem: now,
-        duration: sessionTime - breakStartTime.session,
-      } as TimerEvent;
-      finalEvents.push(evt);
-    }
-    if (isDoubleTapRunning && doubleTapStartTime !== null) {
-      const evt = {
-        type: 'DOUBLE_TAP',
-        startTimeSession: doubleTapStartTime.session,
-        startTimeSystem: doubleTapStartTime.system,
-        endTimeSession: sessionTime,
-        endTimeSystem: now,
-        duration: sessionTime - doubleTapStartTime.session,
-        associatedModality: lastStudyModality,
-      } as TimerEvent;
-      finalEvents.push(evt);
-    }
-    if (isInterstitialRunning && interstitialStartTime !== null) {
-      const evt = {
-        type: 'INTERSTITIAL',
-        startTimeSession: interstitialStartTime.session,
-        startTimeSystem: interstitialStartTime.system,
-        endTimeSession: sessionTime,
-        endTimeSystem: now,
-        duration: sessionTime - interstitialStartTime.session,
-      } as InterstitialEvent;
-      finalEvents.push(evt);
-    }
-
-    // Mode-enum: finalize. endSession reports its closing event to eventSync,
-    // which queues it like every other event.
-    const uploadedEvents = modeEnum.endSession(sessionTime);
+    // Phase 6: mode-enum owns the record. Its events are closed at the Stop
+    // click (session time and wall-clock time), and the session doc's totals
+    // and summary are derived from those same events.
+    const stoppedAt = sessionClock.getStoppedAt();
+    const stopSystem = getCurrentDateTime(stoppedAt !== null ? new Date(stoppedAt) : new Date());
+    const uploadedEvents = modeEnum.endSession(sessionTime, stopSystem);
     modeEnum.reset(); // the screen reads mode-enum: start the next session from zero
+    const derived = deriveSession(uploadedEvents, sessionTime);
+    const recordEvents = uploadedEvents as unknown as SessionEvent[];
+    const summary = computeSessionSummary(recordEvents, sessionTime, sessionStartDateTime || undefined);
+    const record = buildSessionData(derived, stopSystem);
 
-    // Phase 8: Preserve session data for Reports before resetting. The events
-    // shown are mode-enum's, the ones uploaded, so the report right after Stop
-    // matches the stored one. The summary stays on legacy until Phase 5/6
-    // (owner, 2026-10-03).
+    // Preserve session data for Reports before resetting; the report right
+    // after Stop shows exactly what was uploaded.
     if (FIREBASE_ENABLED) {
-      const preserved = buildSessionData();
-      setLastSessionEvents(uploadedEvents as unknown as SessionEvent[]);
-      setLastSessionData(preserved.session);
-      setLastSessionSummary(computeSessionSummary(finalEvents, sessionTime, sessionStartDateTime || undefined));
+      setLastSessionEvents(recordEvents);
+      setLastSessionData(record);
+      setLastSessionSummary(summary);
     }
 
     // Firebase: queue the session end and settings behind the session's events
     // (no network wait, so logging off offline loses nothing), then upload.
     // Always called — a Stop during start-up cancels the session. (Clyde 2026-10-01b #3)
     if (FIREBASE_ENABLED) {
-      const data = buildSessionData();
-      const summary = computeSessionSummary(finalEvents, sessionTime, sessionStartDateTime || undefined);
-      eventSync.finish({ ...data.session, summary }, {
+      eventSync.finish({ ...record, summary }, {
         parTimes, rvuValues, stealthMode, autoStartEnabled, useHMSFormat,
         gpciZip, gpciValues, rvuDerivedMode, targetRvuPerHour,
       }).then(result => {
@@ -1810,7 +1619,6 @@ function RadTachInner() {
     setIsSessionActive(false);
     sessionClock.stop();
     setIsRunning(false);
-    setIsInterstitialRunning(false);
     setIsAdminTimeRunning(false);
     setIsCommsTimeRunning(false);
     setIsBreakTimeRunning(false);
@@ -1818,19 +1626,7 @@ function RadTachInner() {
     setSessionStartDateTime(null);
     setSessionEvents([]);
     sessionClock.zero();
-    setInterstitialTime(0);
-    setAdminTime(0);
-    setCommsTime(0);
-    setBreakTime(0);
-    setDoubleTapTime(0);
-    setAdminEvents(0);
-    setCommsEvents(0);
-    setBreaksTaken(0);
-    setDoubleTapEvents(0);
     setStudiesCompleted(0);
-    setDeletedStudies(0);
-    setCumulativeParTime(0);
-    setTotalRVU(0);
     setCurrentTime(0);
     setSelectedModality(null);
     setSelectedComplications([]);
@@ -1924,7 +1720,6 @@ function RadTachInner() {
       // Starting/Resuming a study
       setIsRunning(true);
 
-      setIsInterstitialRunning(false); // Stop interstitial time
 
       // Record study start time (Issue #1)
       if (studyStartTime === null) {
@@ -2096,6 +1891,18 @@ function RadTachInner() {
 
     // Shadow signal: study complete
     // The study's final details: the rad may change them after the start.
+    // PVC audit fields — present only when an adjustment fired on this study.
+    // Sidecar path: rvuRaw comes from cptOverride. Modality path: rvuRaw
+    // would require re-running modality-only adjustment in reverse, which we
+    // skip since modality adjustments are rare.
+    // Measured against the RVU actually credited (currentStudyRVU), so a
+    // personally-performed rule shows up too (Clyde 261003f #6).
+    const pvcAudit: { rvuRaw?: number; rvuAdjustment?: number } = {};
+    const rvuRaw = cptOverride ? (cptOverride.rvuRaw ?? cptOverride.rvu) : undefined;
+    if (rvuRaw !== undefined && rvuRaw !== currentStudyRVU) {
+      pvcAudit.rvuRaw = rvuRaw;
+      pvcAudit.rvuAdjustment = +(currentStudyRVU - rvuRaw).toFixed(4);
+    }
     modeEnum.signal({
       type: 'study_complete',
       rvu: currentStudyRVU,
@@ -2103,6 +1910,8 @@ function RadTachInner() {
       complications: [...selectedComplications],
       cpts: cptOverride?.cpts,
       rvuSource: cptOverride?.source,
+      ...pvcAudit,
+      ...(personallyPerformedActive ? { personallyPerformed: true } : {}),
     }, sessionTime);
 
     // ── Swap correction (excisable subsystem — see src/hooks/useSwapSubsystem.ts) ──
@@ -2117,7 +1926,6 @@ function RadTachInner() {
         currentTime,
         sessionEvents,
         setSessionEvents,
-        setInterstitialTime,
         () => modeEnum.signal({ type: 'swap_detected', studyId }, sessionTime),
       );
       effectiveTime = result.effectiveTime;
@@ -2138,21 +1946,11 @@ function RadTachInner() {
     // Legacy totals still written to the session doc until Phase 6. The
     // on-screen metrics (streak, variance, RVU/hr, rolling RVU) come from
     // mode-enum's events (Phase 5).
-    setTotalRVU(prev => prev + currentStudyRVU);
     setStudiesCompleted(prev => prev + 1);
 
     // Record STUDY event (Issue #1)
     if (studyStartTime !== null && selectedModality) {
       const eventStart = swapStartOverride ?? studyStartTime;
-      // PVC audit fields — present only when an adjustment fired on this study.
-      // Sidecar path: rvuRaw comes from cptOverride. Modality path: rvuRaw
-      // would require re-running modality-only adjustment in reverse, which we
-      // skip in Phase 1 since modality adjustments are rare.
-      const pvcAudit: { rvuRaw?: number; rvuAdjustment?: number } = {};
-      if (cptOverride?.rvuRaw !== undefined && cptOverride.rvuRaw !== cptOverride.rvu) {
-        pvcAudit.rvuRaw = cptOverride.rvuRaw;
-        pvcAudit.rvuAdjustment = +(cptOverride.rvu - cptOverride.rvuRaw).toFixed(4);
-      }
       const studyEvent: StudyEvent = {
         type: 'STUDY',
         studyId,
@@ -2185,7 +1983,6 @@ function RadTachInner() {
     }
 
     // Update cumulative par time (Issue #1)
-    setCumulativeParTime(prev => prev + currentParTime);
 
     // Save modality for double tap tracking (Issue #1)
     setLastStudyModality(selectedModality);
@@ -2194,7 +1991,6 @@ function RadTachInner() {
     // Admin/Comms/Break taken during the study is still on; its off press
     // starts interstitial then.
     if (!isAdminTimeRunning && !isCommsTimeRunning && !isBreakTimeRunning) {
-      setIsInterstitialRunning(true);
       setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
     }
 
@@ -2236,17 +2032,16 @@ function RadTachInner() {
       return;
     }
     
-    // Legacy session-doc totals (until Phase 6); the screen re-derives its
-    // metrics from mode-enum's events, where the study is now Admin.
-    setTotalRVU(prev => prev - lastStudy.rvu);
+    // Legacy study count (only the legacy study-number fallback reads it). The
+    // screen and the record re-derive everything from mode-enum's events,
+    // where the study is now Admin.
     setStudiesCompleted(prev => prev - 1);
 
     // Track deleted study (Issue #1)
-    setDeletedStudies(prev => prev + 1);
 
-    // Plan step 3c: an undone study is Admin time, not a study. Mode-enum
-    // converts the study and everything taken while it was open; legacy
-    // converts only the study (accepted until Phase 6).
+    // An undone study is Admin time, not a study. Both engines convert only
+    // the study itself; Admin/Comms/Break taken while it was open keep their
+    // type (owner, 2026-10-03, Phase 6).
     modeEnum.signal({ type: 'undo_study', studyId: lastStudy.studyId }, sessionTime);
     setSessionEvents(prev => prev.map((e): SessionEvent => {
       if (e.type !== 'STUDY' || e.studyId !== lastStudy.studyId) return e;
@@ -2273,8 +2068,6 @@ function RadTachInner() {
         },
       };
     }));
-    setAdminTime(prev => prev + lastStudy.elapsedTime);
-    setCumulativeParTime(prev => prev - lastStudy.parTime);
 
     // Clear the last study
     setLastStudy(null);
@@ -2289,8 +2082,6 @@ function RadTachInner() {
       // Starting Admin Time
       stopRunningTimers(sessionTime);
       setIsAdminTimeRunning(true);
-      setIsInterstitialRunning(false);
-      setAdminEvents(prev => prev + 1); // Issue #4: Increment event counter
       // Absorb pre-toggle interstitial into ADMIN start time (unified absorption rule)
       const adminStart = interstitialStartTime ?? { session: sessionTime, system: getCurrentDateTime() };
       setAdminStartTime(adminStart);
@@ -2325,7 +2116,6 @@ function RadTachInner() {
         setIsRunning(true);
         signalStudyStart(sessionTime);
       } else {
-        setIsInterstitialRunning(true);
         setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
       }
     }
@@ -2340,8 +2130,6 @@ function RadTachInner() {
       // Starting Comms Time
       stopRunningTimers(sessionTime);
       setIsCommsTimeRunning(true);
-      setIsInterstitialRunning(false);
-      setCommsEvents(prev => prev + 1); // Issue #4: Increment event counter
       // Absorb pre-toggle interstitial into COMMS start time
       const commsStart = interstitialStartTime ?? { session: sessionTime, system: getCurrentDateTime() };
       setCommsStartTime(commsStart);
@@ -2376,7 +2164,6 @@ function RadTachInner() {
         setIsRunning(true);
         signalStudyStart(sessionTime);
       } else {
-        setIsInterstitialRunning(true);
         setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
       }
     }
@@ -2395,11 +2182,9 @@ function RadTachInner() {
       // Starting Break - ends Admin/Comms/Double Tap, absorbs Interstitial
       stopRunningTimers(sessionTime);
       setIsBreakTimeRunning(true);
-      setIsInterstitialRunning(false);
       // Reset Time Since Last Break and decline tracking
       setLastBreakDeclineTime(0);
       // Increment breaks taken
-      setBreaksTaken(prev => prev + 1);
       // Absorb pre-toggle interstitial into BREAK start time
       const breakStart = interstitialStartTime ?? { session: sessionTime, system: getCurrentDateTime() };
       setBreakStartTime(breakStart);
@@ -2441,7 +2226,6 @@ function RadTachInner() {
         setIsRunning(true);
         signalStudyStart(correctedSessionTime);
       } else {
-        setIsInterstitialRunning(true);
         setInterstitialStartTime({ session: correctedSessionTime, system: getCurrentDateTime() });
       }
     }
@@ -2463,8 +2247,6 @@ function RadTachInner() {
       // Starting Double Tap - stop Interstitial (productive time, not wasted)
       stopRunningTimers(sessionTime);
       setIsDoubleTapRunning(true);
-      setIsInterstitialRunning(false);
-      setDoubleTapEvents(prev => prev + 1);
       // Absorb pre-toggle interstitial into DOUBLE_TAP start time
       const dtStart = interstitialStartTime ?? { session: sessionTime, system: getCurrentDateTime() };
       setDoubleTapStartTime(dtStart);
@@ -2487,7 +2269,6 @@ function RadTachInner() {
       }
 
       setIsDoubleTapRunning(false);
-      setIsInterstitialRunning(true);
       setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() }); // Issue #1
     }
   };
@@ -2544,7 +2325,6 @@ function RadTachInner() {
       // interstitial event has a stale start. Not while an Admin/Comms/Break
       // is still on; its off press starts interstitial then.
       if (!isAdminTimeRunning && !isCommsTimeRunning && !isBreakTimeRunning) {
-        setIsInterstitialRunning(true);
         setInterstitialStartTime({ session: sessionTime, system: getCurrentDateTime() });
       }
 
