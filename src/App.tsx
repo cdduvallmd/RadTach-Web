@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { updateProfile } from 'firebase/auth';
 import { firestoreService } from './services/firestore';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -32,6 +32,8 @@ import { useSessionClock, type ClockGap } from './hooks/useSessionClock';
 import { useSwapArmed, handleSidecarCommandSwapFlag, shouldApplySwap, applySwap } from './hooks/useSwapSubsystem';
 import { BUILD_ID } from './buildId';
 import { findAdminBlocks } from './utils/adminEvents';
+import { deriveRecentCases, gridStudyName } from './utils/recentCases';
+import { RecentCases } from './components/RecentCases';
 import { deriveSession, type SessionTotals } from './utils/deriveSession';
 
 // ============================================================================
@@ -423,6 +425,19 @@ function RadTachInner() {
   // Random id for the open study (no PHI), shared by both engines so Undo
   // targets exactly this study (plan step 3c). Kept across a draft.
   const studyIdRef = useRef<string | null>(null);
+  // Recent Cases: exam names by studyId, in memory only — never persisted
+  // (owner, 2026-10-04: RadTach must not name the exam it timed).
+  const examNamesRef = useRef<Map<string, string>>(new Map());
+  // Which grid/display tab shows (October 2026 UI Refresh); remembered per browser.
+  const [mainTab, setMainTab] = useState<'modalities' | 'complications' | 'recent'>(() => {
+    try {
+      const t = localStorage.getItem('radtach_mainTab');
+      return t === 'modalities' || t === 'complications' ? t : 'recent';
+    } catch { return 'recent'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('radtach_mainTab', mainTab); } catch { /* per-browser convenience only */ }
+  }, [mainTab]);
   const [lastStudyModality, setLastStudyModality] = useState<Modality | null>(null);
   // studyPauseTime removed — pause functionality replaced by ABC
 
@@ -586,6 +601,26 @@ function RadTachInner() {
   // render; the session clock re-renders every second. Since Phase 5 the
   // study metrics come from here too; click gating still uses legacy state.
   const snap = modeEnum.getSnapshot(sessionTime);
+  // Recent Cases redraws only when its content changes: a study completed or
+  // undone, a double tap, or the study in progress (owner, 2026-10-04).
+  const openName = snap.openStudyId && selectedModality
+    ? cptOverride?.examDesc || gridStudyName(selectedModality, selectedComplications)
+    : null;
+  const openBilateral = selectedComplications.includes('Bilateral');
+  const openCombo = (cptOverride?.cpts.length ?? 0) > 1;
+  const doubleTapRunning = snap.mode === 'doubleTap';
+  const recentRows = useMemo(
+    () => deriveRecentCases(
+      modeEnum.getEvents(),
+      examNamesRef.current,
+      snap.openStudyId && openName !== null
+        ? { studyId: snap.openStudyId, name: openName, rvu: currentStudyRVU, bilateral: openBilateral, combo: openCombo }
+        : null,
+      doubleTapRunning,
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- revision stands for the event list
+    [snap.revision, snap.openStudyId, openName, currentStudyRVU, openBilateral, openCombo, doubleTapRunning],
+  );
 
   const getElapsedTimeBackground = () => {
     // In stealth mode, always use neutral gray
@@ -1385,6 +1420,7 @@ function RadTachInner() {
     setSessionStartDateTime(now);
     setIsSessionActive(true);
     sessionClock.start();
+    examNamesRef.current.clear();
     setTodaySessionCount(prev => prev + 1);
     setSessionEvents([]);
     const syncToken = eventSync.open();
@@ -1583,6 +1619,7 @@ function RadTachInner() {
     const stopSystem = getCurrentDateTime(stoppedAt !== null ? new Date(stoppedAt) : new Date());
     const uploadedEvents = modeEnum.endSession(sessionTime, stopSystem);
     modeEnum.reset(); // the screen reads mode-enum: start the next session from zero
+    examNamesRef.current.clear(); // names never outlive the session
     const derived = deriveSession(uploadedEvents, sessionTime);
     const recordEvents = uploadedEvents as unknown as SessionEvent[];
     const summary = computeSessionSummary(recordEvents, sessionTime, sessionStartDateTime || undefined);
@@ -1888,6 +1925,7 @@ function RadTachInner() {
 
     const studyId = studyIdRef.current ?? crypto.randomUUID();
     studyIdRef.current = null;
+    examNamesRef.current.set(studyId, cptOverride?.examDesc || gridStudyName(selectedModality, selectedComplications));
 
     // Shadow signal: study complete
     // The study's final details: the rad may change them after the start.
@@ -3463,14 +3501,14 @@ function RadTachInner() {
                       <span className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold mr-3">1</span>
                       <div>
                         <h3 className="font-semibold text-white">Select Modality</h3>
-                        <p className="text-sm text-gray-300">Click your exam type: XR, FL, CT, US, MR, NM, MA, or PET-CT</p>
+                        <p className="text-sm text-gray-300">On the Modalities tab, click your exam type: XR, FL, CT, US, MR, NM, MA, or PET-CT. (With Sidecar, studies arrive on their own; the Recent Cases tab lists your last five.)</p>
                       </div>
                     </div>
                     <div className="flex items-start">
                       <span className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold mr-3">2</span>
                       <div>
                         <h3 className="font-semibold text-white">Add Complications (Optional)</h3>
-                        <p className="text-sm text-gray-300">Click any applicable factors: Cancer Follow, +1 Section, Multiple Priors, etc. These add time to your par and (for some) additional RVU.</p>
+                        <p className="text-sm text-gray-300">On the Complications tab, click any applicable factors: Cancer Follow, +1 Section, Multiple Priors, etc. These add time to your par and (for some) additional RVU.</p>
                       </div>
                     </div>
                     <div className="flex items-start">
@@ -4631,16 +4669,27 @@ function RadTachInner() {
 
         </div>
         
-        {/* Modality Selection */}
+        {/* Modalities / Complications / Recent Cases — one visible at a time
+            (October 2026 UI Refresh). Recent Cases replaces the old Sidecar
+            badge as the "this is the study RadTach has" checksum. */}
         <div className="bg-gray-800 rounded-lg pt-3 pb-1.5 px-6 mb-2">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xl font-semibold text-white">Modality</h2>
-            {cptOverride && (
-              <span className="text-sm font-mono px-2 py-0.5 rounded" style={{ backgroundColor: '#92400e', color: '#fbbf24' }}>
-                {cptOverride.source.toUpperCase()}: {cptOverride.examDesc} — {cptOverride.rvu.toFixed(2)} RVU
-              </span>
-            )}
+          <div className="flex gap-2 mb-3">
+            {([['recent', 'Recent Cases'], ['modalities', 'Modalities'], ['complications', 'Complications']] as const).map(([tab, label]) => (
+              <button
+                key={tab}
+                onClick={() => setMainTab(tab)}
+                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+                  mainTab === tab
+                    ? (stealthMode ? 'bg-gray-600 text-white' : 'bg-blue-600 text-white')
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
+          {mainTab === 'recent' && <RecentCases rows={recentRows} stealthMode={stealthMode} />}
+          {mainTab === 'modalities' && (
           <div className="grid grid-cols-8 gap-3">
             {modalities.map(modality => (
               <button
@@ -4660,11 +4709,9 @@ function RadTachInner() {
               </button>
             ))}
           </div>
-        </div>
-        
-        {/* Complications Selection */}
-        <div className="bg-gray-800 rounded-lg pt-3 pb-1.5 px-6 mb-2">
-          <h2 className="text-xl font-semibold text-white mb-2">Complications (Optional)</h2>
+          )}
+          {mainTab === 'complications' && (
+          <>
           {/* Top row: non-RVU modifiers — always available */}
           <div className="grid grid-cols-5 gap-3 mb-2">
             {complicationsTopRow.map(complication => {
@@ -4718,6 +4765,8 @@ function RadTachInner() {
               );
             })}
           </div>
+          </>
+          )}
         </div>
       </div>
       

@@ -190,6 +190,8 @@ export interface ModeSnapshot extends SessionTotals {
   modeStartSystem: string;
   continuing: boolean;        // the running mode is the rest of a press split at a study's end
   studyElapsed: number;
+  openStudyId: string | null; // the study open now (also while interrupted)
+  revision: number;           // changes whenever the event list changes
   timeSinceLastBreak: number; // 0 during a break
 }
 
@@ -229,6 +231,9 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
   // the event list is recorded by index and reported once per signal, so the
   // caller's crash log and upload tracker follow this list exactly.
   const changed = useRef<Set<number>>(new Set());
+  // Bumped whenever the event list changes, so displays derived from it
+  // (Recent Cases) recompute only then, not on every clock tick.
+  const revision = useRef<number>(0);
   const onEventsChangedRef = useRef(onEventsChanged);
   useEffect(() => {
     onEventsChangedRef.current = onEventsChanged;
@@ -248,6 +253,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
 
   const emitChanges = (): void => {
     if (changed.current.size === 0) return;
+    revision.current++;
     const list = [...changed.current]
       .sort((a, b) => a - b)
       .map(index => ({ index, event: events.current[index] }));
@@ -573,6 +579,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     wasInStudy.current = false;
     continuing.current = false;
     studiesRecorded.current = 0;
+    revision.current++;
     lastStudyModality.current = null;
     draftedStudyContext.current = null;
   }, []);
@@ -643,6 +650,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     wasInStudy.current = false;
     continuing.current = false;
     studiesRecorded.current = 0;
+    revision.current++;
     lastStudyModality.current = null;
     draftedStudyContext.current = null;
   }, []);
@@ -662,7 +670,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     const ctx = studyContext.current;
     const studyElapsed = ctx ? ctx.accumulatedTime + (current === 'study' ? running : 0) : 0;
     const timeSinceLastBreak = current === 'break' ? 0 : Math.max(0, now - derived.lastBreakEnd);
-    return { ...derived, mode: current, modeStart: modeEnteredAt.current, modeStartSystem: modeEnteredSystem.current, continuing: continuing.current, studyElapsed, timeSinceLastBreak };
+    return { ...derived, mode: current, modeStart: modeEnteredAt.current, modeStartSystem: modeEnteredSystem.current, continuing: continuing.current, studyElapsed, openStudyId: ctx?.studyId ?? null, revision: revision.current, timeSinceLastBreak };
   }, []);
 
   return { signal, startSession, endSession, reset, getEvents, getMode, getSnapshot };
