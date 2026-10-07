@@ -9,15 +9,16 @@ import type { SidecarCommand, SidecarLists } from '../../types/sidecar';
 
 export function listenToSessionStatus(
   uid: string,
-  callback: (active: boolean) => void,
+  callback: (active: boolean, midnightAlert: boolean) => void,
   onError?: (err: Error) => void,
 ): () => void {
   const docRef = doc(db, 'users', uid, 'status', 'current');
   return onSnapshot(docRef, (snap) => {
     if (snap.exists()) {
-      callback(snap.data().sessionActive === true);
+      const d = snap.data();
+      callback(d.sessionActive === true, d.sessionActive === true && d.midnightAlert === true);
     } else {
-      callback(false);
+      callback(false, false);
     }
   }, (err) => {
     console.error('Session status listener error:', err);

@@ -4,6 +4,7 @@ import { listenToSessionStatus, listenToCommandDoc } from '../services/sidecarFi
 import { connectToGoose, type GooseMessage } from '../services/gooseWebSocket';
 import { BUILD_ID } from '../../buildId';
 import SidecarMain from '../SidecarMain';
+import { MidnightFlash } from '../../components/MidnightFlash';
 
 type SessionState = 'loading' | 'waiting' | 'active' | 'ended';
 
@@ -13,6 +14,8 @@ export default function SessionGate() {
   const [connectionError, setConnectionError] = useState(false);
   const [gooseConnected, setGooseConnected] = useState(false);
   const [testMode, setTestMode] = useState(false);
+  // Midnight Protection: flash while RadTach's Epic box is unacknowledged.
+  const [midnightAlert, setMidnightAlert] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -42,8 +45,9 @@ export default function SessionGate() {
         }
       };
 
-      unsubStatus = listenToSessionStatus(currentUser.uid, (active) => {
+      unsubStatus = listenToSessionStatus(currentUser.uid, (active, alert) => {
         setConnectionError(false);
+        setMidnightAlert(alert);
         retryDelay = 5000; // Reset backoff on success
         if (active) {
           setState('active');
@@ -175,5 +179,10 @@ export default function SessionGate() {
   }
 
   // state === 'active'
-  return <SidecarMain gooseConnected={gooseConnected} testMode={testMode} />;
+  return (
+    <>
+      <MidnightFlash active={midnightAlert && !testMode} />
+      <SidecarMain gooseConnected={gooseConnected} testMode={testMode} />
+    </>
+  );
 }

@@ -34,6 +34,9 @@ import { BUILD_ID } from './buildId';
 import { findAdminBlocks } from './utils/adminEvents';
 import { deriveRecentCases, gridStudyName } from './utils/recentCases';
 import { RecentCases } from './components/RecentCases';
+import { MidnightFlash } from './components/MidnightFlash';
+import { EpicPanel, type EpicPanelMode } from './components/EpicPanel';
+import { DEFAULT_PROMPT_TIME, inPromptWindow, localDate, dateOf, computeEpicRVU } from './utils/midnightProtection';
 import { deriveSession, type SessionTotals } from './utils/deriveSession';
 
 // ============================================================================
@@ -157,6 +160,10 @@ interface SessionNotes {
 
 interface SessionData {
   _recordVersion?: string;
+  epicBaselineTotal?: number | null;     // Midnight Protection: Epic's total at session start
+  epicPreMidnightTotal?: number | null;  // ... just before midnight (crossed sessions)
+  epicEndTotal?: number | null;          // ... at Stop
+  epicCombinedEntered?: boolean;         // pre-midnight missed: verifiedRVU entered as a combined figure
   _clockGaps?: ClockGap[]; // diagnostic: ticks > 5 min apart (step 3d)
   sessionId: string;
   userAbbrev: string;
@@ -282,6 +289,15 @@ function RadTachInner() {
   const [stealthMode, setStealthMode] = useState(false);
   const [useHMSFormat, setUseHMSFormat] = useState(false);
   const [rvuDerivedMode, setRvuDerivedMode] = useState(false);
+  // Midnight Protection (owner, 2026-10-06): Epic's RVU total resets at midnight.
+  const [midnightProtection, setMidnightProtection] = useState(false);
+  const [midnightPromptTime, setMidnightPromptTime] = useState(DEFAULT_PROMPT_TIME);
+  // Per session: Epic totals entered, the box on screen, and the flashing alert.
+  const [epicBaseline, setEpicBaseline] = useState('');
+  const [epicPreMidnight, setEpicPreMidnight] = useState('');
+  const [epicPanel, setEpicPanel] = useState<EpicPanelMode | null>(null);
+  const [midnightAlertOn, setMidnightAlertOn] = useState(false);
+  const midnightPromptedRef = useRef(false);
   const [targetRvuPerHour, setTargetRvuPerHour] = useState(8);
   const [gpciZip, setGpciZip] = useState('');
   const [gpciValues, setGpciValues] = useState<GpciValues | null>(null);
@@ -601,6 +617,49 @@ function RadTachInner() {
   // render; the session clock re-renders every second. Since Phase 5 the
   // study metrics come from here too; click gating still uses legacy state.
   const snap = modeEnum.getSnapshot(sessionTime);
+
+  // Midnight Protection: at the prompt time (local) on the session's start
+  // day, flash RadTach and Sidecar and ask for Epic's pre-midnight total. An
+  // unanswered box says "missed" once midnight passes. Runs on the session
+  // clock's tick, which follows the wall clock (3d).
+  useEffect(() => {
+    // Not until the session has begun: Start's status write would otherwise
+    // overwrite Sidecar's alert (Clyde 261006 #1).
+    if (!midnightProtection || !isSessionActive || !sessionStartDateTime || sessionStopping || !localSessionKeyRef.current) return;
+    const now = new Date();
+    const startDay = localDate(sessionStartDateTime);
+    const raise = (mode: EpicPanelMode) => {
+      midnightPromptedRef.current = true;
+      setEpicPanel(mode);
+      setMidnightAlertOn(true);
+      if (currentUser) firestoreService.writeMidnightAlert(currentUser.uid, true).catch(console.error);
+    };
+    if (!midnightPromptedRef.current) {
+      if (dateOf(now) === startDay && inPromptWindow(now, midnightPromptTime || DEFAULT_PROMPT_TIME)) raise('preMidnight');
+      // Slept or was away through the prompt time: say it was missed (#4).
+      else if (dateOf(now) > startDay) raise('missed');
+    }
+    if (epicPanel === 'preMidnight' && dateOf(now) !== startDay && epicPreMidnight.trim() === '') {
+      setEpicPanel('missed');
+    }
+  }, [sessionTime, midnightProtection, isSessionActive, sessionStartDateTime, sessionStopping, midnightPromptTime, epicPanel, epicPreMidnight, currentUser]);
+
+  // The Stop dialog's Epic result, also used to block End Session when the
+  // totals give less than zero (Clyde 261006 #3).
+  const stopEpic = midnightProtection && showStopSessionDialog
+    ? computeEpicRVU({
+        baseline: epicBaseline, preMidnight: epicPreMidnight, end: verifiedRVU,
+        crossed: !!sessionStartDateTime && localDate(sessionStartDateTime)
+          !== dateOf(sessionClock.getStoppedAt() !== null ? new Date(sessionClock.getStoppedAt()!) : new Date()),
+      })
+    : null;
+
+  // Clicking the Epic box acknowledges the alert; no value is required.
+  const acknowledgeMidnight = () => {
+    if (!midnightAlertOn) return;
+    setMidnightAlertOn(false);
+    if (currentUser) firestoreService.writeMidnightAlert(currentUser.uid, false).catch(console.error);
+  };
   // Recent Cases redraws only when its content changes: a study completed or
   // undone, a double tap, or the study in progress (owner, 2026-10-04).
   const openName = snap.openStudyId && selectedModality
@@ -737,6 +796,10 @@ function RadTachInner() {
       if (savedTargetRvuPerHour !== null) {
         setTargetRvuPerHour(parseFloat(savedTargetRvuPerHour));
       }
+      const savedMidnight = localStorage.getItem('radtach_midnightProtection');
+      if (savedMidnight !== null) setMidnightProtection(JSON.parse(savedMidnight) === true);
+      const savedPromptTime = localStorage.getItem('radtach_midnightPromptTime');
+      if (savedPromptTime) setMidnightPromptTime(savedPromptTime);
     } catch (error: unknown) {
       console.error('Error loading settings from localStorage:', error);
     }
@@ -795,6 +858,16 @@ function RadTachInner() {
       console.error('Error saving gpciZip to localStorage:', error);
     }
   }, [gpciZip]);
+
+  // Save Midnight Protection settings to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('radtach_midnightProtection', JSON.stringify(midnightProtection));
+      localStorage.setItem('radtach_midnightPromptTime', midnightPromptTime);
+    } catch (error: unknown) {
+      console.error('Error saving Midnight Protection to localStorage:', error);
+    }
+  }, [midnightProtection, midnightPromptTime]);
 
   // Save rvuDerivedMode to localStorage whenever it changes
   useEffect(() => {
@@ -858,6 +931,12 @@ function RadTachInner() {
           }
           if (typeof settings.targetRvuPerHour === 'number') {
             setTargetRvuPerHour(settings.targetRvuPerHour);
+          }
+          if (typeof settings.midnightProtection === 'boolean') {
+            setMidnightProtection(settings.midnightProtection);
+          }
+          if (typeof settings.midnightPromptTime === 'string' && settings.midnightPromptTime) {
+            setMidnightPromptTime(settings.midnightPromptTime);
           }
           // Load system from Firestore if not set locally (needed for HA/admin report access)
           if (typeof settings.currentSystem === 'string' && settings.currentSystem) {
@@ -1421,6 +1500,11 @@ function RadTachInner() {
     setIsSessionActive(true);
     sessionClock.start();
     examNamesRef.current.clear();
+    setEpicBaseline('');
+    setEpicPreMidnight('');
+    setEpicPanel(null);
+    setMidnightAlertOn(false);
+    midnightPromptedRef.current = false;
     setTodaySessionCount(prev => prev + 1);
     setSessionEvents([]);
     const syncToken = eventSync.open();
@@ -1488,6 +1572,27 @@ function RadTachInner() {
       if (!begun) return;
       localSessionKeyRef.current = localKey;
       firestoreService.writeSessionStatus(currentUser!.uid, true).catch(console.error);
+      // Midnight Protection: if a session already ended today, Epic's total
+      // already includes it — ask for Epic's total now as this session's
+      // baseline, prefilled from that session.
+      // Prefill only from Epic's own running total at that session's end
+      // (epicEndTotal), never from verifiedRVU (Clyde 261006 #2). The previous
+      // session in memory is used first; Firestore only after a reload.
+      if (midnightProtection) {
+        const today = dateOf(new Date());
+        const showBaseline = (prev: { stopDateTime?: unknown; epicEndTotal?: unknown } | null | undefined) => {
+          if (!prev || typeof prev.stopDateTime !== 'string' || localDate(prev.stopDateTime) !== today) return;
+          if (typeof prev.epicEndTotal === 'number') setEpicBaseline(String(prev.epicEndTotal));
+          setEpicPanel(p => p ?? 'baseline');
+        };
+        if (lastSessionData) {
+          showBaseline(lastSessionData);
+        } else {
+          firestoreService.getRecentSessions(currentUser!.uid, 3)
+            .then(recent => showBaseline(recent.find(r => r.id !== localKey) as { stopDateTime?: unknown; epicEndTotal?: unknown } | undefined))
+            .catch(console.error);
+        }
+      }
       // Send sync_settings to Sidecar via command doc (replaces clearCommandDoc)
       sidecarRelay.sendToSidecar();
     }
@@ -1542,7 +1647,21 @@ function RadTachInner() {
       // Totals derived from mode-enum's events (Phase 6). Earlier docs used
       // legacy's counters (absorbed interstitial stayed interstitial, etc.).
       _recordVersion: 'mode-enum-6',
-      verifiedRVU: verifiedRVU.trim() ? parseFloat(verifiedRVU) : null,
+      ...(() => {
+        if (!midnightProtection) return { verifiedRVU: verifiedRVU.trim() ? parseFloat(verifiedRVU) : null };
+        // Midnight Protection: this session's Epic RVU from Epic's running
+        // totals (baseline, pre-midnight, now); the raw totals kept for audit.
+        const crossed = !!sessionStartDateTime && localDate(sessionStartDateTime) !== localDate(stopSystem);
+        const epic = computeEpicRVU({ baseline: epicBaseline, preMidnight: epicPreMidnight, end: verifiedRVU, crossed });
+        const n = (v: string) => (v.trim() !== '' && Number.isFinite(parseFloat(v)) ? parseFloat(v) : null);
+        return {
+          verifiedRVU: epic.verifiedRVU,
+          epicBaselineTotal: n(epicBaseline),
+          epicPreMidnightTotal: crossed ? n(epicPreMidnight) : null,
+          epicEndTotal: epic.missed ? null : n(verifiedRVU),
+          ...(epic.missed ? { epicCombinedEntered: true } : {}),
+        };
+      })(),
       ...(userDisplayName ? { displayName: userDisplayName } : {}),
       notes: { tags: sessionTags, description: sessionDescription.trim() || '(none)' },
       // PVC classification outputs from end-of-session dialog. Refs are
@@ -1620,6 +1739,8 @@ function RadTachInner() {
     const uploadedEvents = modeEnum.endSession(sessionTime, stopSystem);
     modeEnum.reset(); // the screen reads mode-enum: start the next session from zero
     examNamesRef.current.clear(); // names never outlive the session
+    setEpicPanel(null);
+    setMidnightAlertOn(false); // the status doc is overwritten below, which clears Sidecar's flash
     const derived = deriveSession(uploadedEvents, sessionTime);
     const recordEvents = uploadedEvents as unknown as SessionEvent[];
     const summary = computeSessionSummary(recordEvents, sessionTime, sessionStartDateTime || undefined);
@@ -1640,6 +1761,7 @@ function RadTachInner() {
       eventSync.finish({ ...record, summary }, {
         parTimes, rvuValues, stealthMode, autoStartEnabled, useHMSFormat,
         gpciZip, gpciValues, rvuDerivedMode, targetRvuPerHour,
+        midnightProtection, midnightPromptTime,
       }).then(result => {
         if (result && result.remaining > 0) health.setHasPendingOnExit(true);
       });
@@ -1649,8 +1771,10 @@ function RadTachInner() {
       localSessionKeyRef.current = null;
       // Write session_ended BEFORE sessionActive:false so Sidecar sees ended state before status change
       firestoreService.writeSessionEnded(currentUser!.uid)
-        .then(() => firestoreService.writeSessionStatus(currentUser!.uid, false))
-        .catch(console.error);
+        .catch(console.error)
+        // Always clear the status (and Sidecar's midnight flash), even if the
+        // ended write fails (Clyde 261006 #8).
+        .finally(() => firestoreService.writeSessionStatus(currentUser!.uid, false).catch(console.error));
     }
 
     setIsSessionActive(false);
@@ -2983,6 +3107,35 @@ function RadTachInner() {
             </div>
             
             <div className="space-y-6">
+              {/* Midnight Protection (owner, 2026-10-06) */}
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-1">Midnight Protection</h3>
+                <p className="text-sm text-gray-400 mb-3">Prompt to check secondary RVU source before midnight. Does not end session.</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setMidnightProtection(v => !v)}
+                    className={`px-5 py-2.5 rounded-lg font-medium transition-colors ${
+                      midnightProtection ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-600 hover:bg-gray-500 text-gray-300'
+                    }`}
+                  >
+                    {midnightProtection ? 'On' : 'Off'}
+                  </button>
+                  {midnightProtection && (
+                    <label className="text-sm text-gray-300 flex items-center gap-2">
+                      Prompt at
+                      <input
+                        type="time"
+                        value={midnightPromptTime}
+                        min="18:00"
+                        max="23:59"
+                        onChange={e => setMidnightPromptTime(e.target.value)}
+                        className="bg-gray-700 text-white rounded-lg p-2 text-sm"
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
               {/* Par Time Mode Toggle */}
               <div>
                 <h3 className="text-lg font-semibold text-white mb-3">Par Time Mode</h3>
@@ -4153,6 +4306,17 @@ function RadTachInner() {
         </div>
       )}
 
+      <MidnightFlash active={midnightAlertOn} />
+      {epicPanel && isSessionActive && (
+        <EpicPanel
+          mode={epicPanel}
+          value={epicPanel === 'baseline' ? epicBaseline : epicPreMidnight}
+          onChange={epicPanel === 'baseline' ? setEpicBaseline : setEpicPreMidnight}
+          onAcknowledge={acknowledgeMidnight}
+          onClose={() => { acknowledgeMidnight(); setEpicPanel(null); }}
+        />
+      )}
+
       {showStopSessionDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-lg">
@@ -4211,6 +4375,7 @@ function RadTachInner() {
               </div>
             </div>
 
+            {!midnightProtection ? (
             <div className="mb-6">
               <label className="text-gray-200 font-medium text-sm block mb-1">Verified RVUs (from Epic/Medicalis)</label>
               <input
@@ -4224,9 +4389,48 @@ function RadTachInner() {
               />
               <p className="text-gray-600 text-xs mt-1">Enter total RVUs from Epic or Medicalis for this session</p>
             </div>
+            ) : (() => {
+              // Midnight Protection: this session's Epic RVU from Epic's running totals.
+              const stopped = sessionClock.getStoppedAt();
+              const crossed = !!sessionStartDateTime && localDate(sessionStartDateTime) !== dateOf(stopped !== null ? new Date(stopped) : new Date());
+              const epic = computeEpicRVU({ baseline: epicBaseline, preMidnight: epicPreMidnight, end: verifiedRVU, crossed });
+              const missed = crossed && epicPreMidnight.trim() === '';
+              const field = 'w-full bg-gray-700 text-white rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500';
+              return (
+                <div className="mb-6 space-y-3">
+                  <label className="text-gray-200 font-medium text-sm block">Verified RVUs (Midnight Protection)</label>
+                  <div>
+                    <span className="text-gray-400 text-xs">Epic total at session start (blank = first session today)</span>
+                    <input type="number" step="0.01" min="0" value={epicBaseline} onChange={e => setEpicBaseline(e.target.value)} placeholder="0" className={field} />
+                  </div>
+                  {crossed && (
+                    <div>
+                      <span className="text-gray-400 text-xs">Pre-12 AM Epic total</span>
+                      <input type="number" step="0.01" min="0" value={epicPreMidnight} onChange={e => setEpicPreMidnight(e.target.value)} placeholder="Missed? Leave blank" className={field} />
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-gray-400 text-xs">
+                      {missed ? 'Combined Epic total for this session (pre-12 AM total missed)' : crossed ? 'Epic total now (since midnight)' : 'Epic total now'}
+                    </span>
+                    <input type="number" step="0.01" min="0" value={verifiedRVU} onChange={e => setVerifiedRVU(e.target.value)} placeholder="Optional" className={field} />
+                  </div>
+                  {epic.negative && (
+                    <p className="text-red-400 text-sm font-medium">These totals give less than zero — check the start total and Epic's number. End Session is disabled until they make sense (or clear "Epic total now").</p>
+                  )}
+                  <p className="text-gray-300 text-sm">
+                    This session: <span className="font-semibold text-white">{epic.verifiedRVU !== null ? epic.verifiedRVU.toFixed(2) : '—'}</span> RVU
+                    {epic.verifiedRVU !== null && !missed && (
+                      <span className="text-gray-500 text-xs"> {crossed ? '= (pre-12 AM − start) + now' : '= now − start'}</span>
+                    )}
+                  </p>
+                </div>
+              );
+            })()}
 
             <button
               onClick={handleEndSession}
+              disabled={!!stopEpic?.negative}
               className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
             >
               End Session

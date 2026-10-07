@@ -648,6 +648,14 @@ export const firestoreService = {
     await setDoc(docRef, { sessionActive: active, updatedAt: serverTimestamp() });
   },
 
+  // Midnight Protection: tells Sidecar to flash until RadTach's Epic box is
+  // acknowledged. Merged into the status doc; writeSessionStatus (a full
+  // overwrite) clears it when the session starts or ends.
+  async writeMidnightAlert(userId: string, on: boolean): Promise<void> {
+    const docRef = doc(db, 'users', userId, 'status', 'current');
+    await setDoc(docRef, { midnightAlert: on }, { merge: true });
+  },
+
   async clearCommandDoc(userId: string): Promise<void> {
     const docRef = doc(db, 'users', userId, 'commands', 'current');
     await setDoc(docRef, {
