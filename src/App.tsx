@@ -36,6 +36,7 @@ import { deriveRecentCases, gridStudyName } from './utils/recentCases';
 import { RecentCases } from './components/RecentCases';
 import { MidnightFlash } from './components/MidnightFlash';
 import { EpicPanel, type EpicPanelMode } from './components/EpicPanel';
+import { HotkeyScript } from './components/HotkeyScript';
 import { DEFAULT_PROMPT_TIME, inPromptWindow, localDate, dateOf, computeEpicRVU } from './utils/midnightProtection';
 import { deriveSession, type SessionTotals } from './utils/deriveSession';
 
@@ -3490,6 +3491,8 @@ function RadTachInner() {
                     <p className="text-sm"><strong className="text-green-400">✓ Settings Sync:</strong> Your customized par times, RVU values, and display preferences are saved to the database and follow you across devices. Settings save automatically when you stop a session.</p>
                   </div>
                 </section>
+
+                <HotkeyScript />
 
                 {/* Important Notes */}
                 <section>
