@@ -4,10 +4,11 @@
  *
  * Canonical engine for every session (2026-10-01). Its event list is what
  * reaches Firestore `events`: every add or edit is reported through the change
- * callback to useEventSync. Since Phases 4–5 it also drives everything on
- * screen (getSnapshot → utils/deriveSession). The legacy boolean-flag timers
- * still run alongside for click gating and the session-doc totals until
- * Phase 6–7.
+ * callback to useEventSync. It drives everything on screen (getSnapshot →
+ * utils/deriveSession, Phases 4–5), the session record (Phase 6) and the
+ * button logic (Phase 7); the legacy timers are gone. State lives in refs; a
+ * render is requested after every signal so the screen follows a press at
+ * once, not at the next clock tick (Clyde 261010 #1).
  *
  * Clyde fixes applied (2026-05-18):
  * - F1: Removed savedInterstitialStart spanning — ABC during interstitial
@@ -40,7 +41,7 @@
  * any other id starts a new one, so a study mode-enum failed to close can't
  * leak its id, start or RVU into the next study.
  */
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useReducer } from 'react';
 import { deriveSession, type SessionTotals, type TimedMode } from '../utils/deriveSession';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -53,7 +54,7 @@ export type TimerSignal =
   | { type: 'admin_toggle' }
   | { type: 'comms_toggle' }
   | { type: 'break_toggle' }
-  | { type: 'doubletap_toggle'; modality?: string }
+  | { type: 'doubletap_toggle' }
   | { type: 'draft_enter' }
   | { type: 'swap_detected'; studyId: string }
   | { type: 'undo_study'; studyId: string };
@@ -191,6 +192,7 @@ export interface ModeSnapshot extends SessionTotals {
   continuing: boolean;        // the running mode is the rest of a press split at a study's end
   studyElapsed: number;
   openStudyId: string | null; // the study open now (also while interrupted)
+  heldDraftElapsed: number;   // reading time of a study on hold in Draft (0 if none)
   revision: number;           // changes whenever the event list changes
   timeSinceLastBreak: number; // 0 during a break
 }
@@ -231,6 +233,8 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
   // the event list is recorded by index and reported once per signal, so the
   // caller's crash log and upload tracker follow this list exactly.
   const changed = useRef<Set<number>>(new Set());
+  // Asks the owner to re-render after a change (refs alone don't).
+  const [, requestRender] = useReducer((n: number) => n + 1, 0);
   // Bumped whenever the event list changes, so displays derived from it
   // (Recent Cases) recompute only then, not on every clock tick.
   const revision = useRef<number>(0);
@@ -524,13 +528,11 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
         } else if (currentMode === 'interstitial') {
           // Absorb pre-toggle interstitial into DOUBLE_TAP
           mode.current = 'doubleTap';
-          if (action.modality) lastStudyModality.current = action.modality;
         } else if (!wasInStudy.current && (currentMode === 'admin' || currentMode === 'comms' || currentMode === 'break')) {
           // A new mode ends the running one.
           closeCurrentMode(sessionTime);
           enterMode('doubleTap', sessionTime);
           wasInStudy.current = false;
-          if (action.modality) lastStudyModality.current = action.modality;
         }
         break;
       }
@@ -565,6 +567,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
 
     }
     emitChanges();
+    requestRender();
   }, [closeCurrentMode, enterMode, pushStudy, undoStudy, toggleInterruption]);
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -582,6 +585,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     revision.current++;
     lastStudyModality.current = null;
     draftedStudyContext.current = null;
+    requestRender();
   }, []);
 
   const pushNotCompleted = useCallback((
@@ -637,6 +641,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     wasInStudy.current = false;
     mode.current = 'idle';
     emitChanges();
+    requestRender();
     return [...events.current];
   }, [closeCurrentMode, pushNotCompleted]);
 
@@ -653,6 +658,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     revision.current++;
     lastStudyModality.current = null;
     draftedStudyContext.current = null;
+    requestRender();
   }, []);
 
   const getEvents = useCallback((): ModeEvent[] => [...events.current], []);
@@ -670,7 +676,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
     const ctx = studyContext.current;
     const studyElapsed = ctx ? ctx.accumulatedTime + (current === 'study' ? running : 0) : 0;
     const timeSinceLastBreak = current === 'break' ? 0 : Math.max(0, now - derived.lastBreakEnd);
-    return { ...derived, mode: current, modeStart: modeEnteredAt.current, modeStartSystem: modeEnteredSystem.current, continuing: continuing.current, studyElapsed, openStudyId: ctx?.studyId ?? null, revision: revision.current, timeSinceLastBreak };
+    return { ...derived, mode: current, modeStart: modeEnteredAt.current, modeStartSystem: modeEnteredSystem.current, continuing: continuing.current, studyElapsed, openStudyId: ctx?.studyId ?? null, heldDraftElapsed: draftedStudyContext.current?.accumulatedTime ?? 0, revision: revision.current, timeSinceLastBreak };
   }, []);
 
   return { signal, startSession, endSession, reset, getEvents, getMode, getSnapshot };

@@ -43,17 +43,10 @@ export interface SessionClock {
   start: () => void;
   /** Session end: stop ticking. */
   stop: () => void;
-  /** Start ticking if not already (first study). */
-  ensureRunning: () => void;
   /** Zero the displayed time and the never-backward floor (start() re-anchors). */
   zero: () => void;
   /** Clear the wall-clock anchor (session reset). */
   clearAnchor: () => void;
-  /**
-   * Formerly the break-end drift correction. The clock no longer drifts, so
-   * this just returns the current time. Kept until Phase 8.
-   */
-  resyncAtBreakEnd: () => number;
 }
 
 export function useSessionClock(paused: boolean): SessionClock {
@@ -120,7 +113,6 @@ export function useSessionClock(paused: boolean): SessionClock {
 
   const stop = useCallback(() => setIsRunning(false), []);
 
-  const ensureRunning = useCallback(() => setIsRunning(true), []);
 
   const zero = useCallback(() => {
     latestRef.current = 0;
@@ -131,11 +123,5 @@ export function useSessionClock(paused: boolean): SessionClock {
     startMsRef.current = 0;
   }, []);
 
-  const resyncAtBreakEnd = useCallback((): number => {
-    const t = getSessionTime();
-    setSessionTime(t);
-    return t;
-  }, [getSessionTime]);
-
-  return { sessionTime, isRunning, getSessionTime, getStoppedAt, getClockGaps, start, stop, ensureRunning, zero, clearAnchor, resyncAtBreakEnd };
+  return { sessionTime, isRunning, getSessionTime, getStoppedAt, getClockGaps, start, stop, zero, clearAnchor };
 }

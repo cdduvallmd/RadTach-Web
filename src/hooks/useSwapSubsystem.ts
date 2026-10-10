@@ -4,8 +4,9 @@
  * Consolidates all swap-related logic in one place so the whole subsystem can
  * be deleted cleanly when HL7/FHIR reports swap-vs-new-study events directly.
  * Nothing outside this file needs to know what a swap is; the two call sites
- * in the main component are one dispatch hook and one gate/apply pair inside
- * completeStudy.
+ * in the main component are one dispatch hook and one gate inside completeStudy.
+ * The correction itself lives in mode-enum (`swap_detected`, computed from its
+ * own events since 3d); legacy's applySwap was removed in Phase 7.
  *
  * See RadTach/swap-subsystem-plan.md for the phased plan (Phase 1 = this file
  * plus ~10 lines of call-site wiring; the 5s auto-heuristic still lives here
@@ -13,35 +14,14 @@
  *
  * Phase 4 excision recipe:
  *   1. Delete this file
- *   2. Delete useSwapArmed / handleSidecarCommandSwapFlag / shouldApplySwap /
- *      applySwap imports and call sites in App.tsx
+ *   2. Delete useSwapArmed / handleSidecarCommandSwapFlag / shouldApplySwap
+ *      imports and call sites in App.tsx, and mode-enum's swap_detected
  *   3. Delete `swap?: boolean` from SidecarCommand
  *   4. Delete the START + SWAP button on Sidecar
  */
 
 import { useRef, useCallback } from 'react';
 import type { SidecarCommand } from '../types/sidecar';
-
-// Minimal shape the swap logic needs from an INTERSTITIAL event. Kept local
-// so this module doesn't take a hard dependency on the main file's inline
-// SessionEvent union — makes excision clean.
-interface SwapCompatibleInterstitialEvent {
-  type: 'INTERSTITIAL';
-  duration: number;
-  startTimeSession: number;
-  startTimeSystem: string;
-  endTimeSession: number;
-}
-
-// Generic bound for the caller's SessionEvent[]. The swap logic only touches
-// entries whose type === 'INTERSTITIAL'; other entries pass through untouched.
-type EventWithType = { type: string };
-
-export interface SwapResult {
-  effectiveTime: number;
-  wasSwapped: boolean;
-  swapStartOverride: { session: number; system: string } | null;
-}
 
 /**
  * Ref-backed flag for "the next completeStudy should apply a swap correction."
@@ -115,79 +95,4 @@ export function handleSidecarCommandSwapFlag(
  */
 export function shouldApplySwap(consumeManualArm: () => boolean): boolean {
   return consumeManualArm();
-}
-
-/**
- * Applies the swap correction: mutates the last INTERSTITIAL event to a 10s
- * default gap, adjusts the cumulative interstitial counter, and fires the
- * shadow swap_detected signal via the caller's emitter.
- *
- * Study's swap-corrected elapsedTime = (previous interstitial's original
- * duration) + (currentTime) − 10.
- *
- * Rationale: the swapped study's real wall-clock work time spans from
- * `interstitial.startTimeSession + 10` (10s buffer after the previous study
- * ended) to `sessionTime` (the moment this Par Time was pressed). That
- * equals `interstitial.duration + currentTime − 10` — the pre-Par idle time
- * *plus* the timer-on duration, minus the fixed 10s buffer. The old code
- * only captured the pre-Par piece and discarded currentTime, so manual
- * swaps where the rad started the RadTach timer and then dictated ended up
- * with elapsedTime = just the (short) SWAP-press gap.
- *
- * Max-clamped at 0 to guard against pathological inputs (interstitial +
- * currentTime shorter than the 10s buffer).
- */
-function localISO(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-export function applySwap<E extends EventWithType>(
-  currentTime: number,
-  sessionEvents: E[],
-  setSessionEvents: (events: E[]) => void,
-  emitShadowSwap: (params: {
-    correctedElapsedTime: number;
-    correctedStart: number;
-    correctedSystem: string;
-  }) => void,
-): SwapResult {
-  const events = [...sessionEvents];
-  // Only the gap between the previous study and this one can be reclaimed.
-  // If the rad went straight from Comms/Admin/Break into this study, there is
-  // no such gap, and an older interstitial must not be used.
-  let lastInterIdx = -1;
-  // An undone study (now ADMIN with undoneStudy) also ends the search.
-  for (
-    let i = events.length - 1;
-    i >= 0 && events[i].type !== 'STUDY' && !(events[i] as { undoneStudy?: unknown }).undoneStudy;
-    i--
-  ) {
-    if (events[i].type === 'INTERSTITIAL') {
-      lastInterIdx = i;
-      break;
-    }
-  }
-  if (lastInterIdx < 0) {
-    return { effectiveTime: currentTime, wasSwapped: false, swapStartOverride: null };
-  }
-  const inter = events[lastInterIdx] as unknown as SwapCompatibleInterstitialEvent;
-  const effectiveTime = Math.max(0, inter.duration + currentTime - 10);
-  events[lastInterIdx] = {
-    ...inter,
-    duration: 10,
-    endTimeSession: inter.startTimeSession + 10,
-  } as unknown as E;
-  setSessionEvents(events);
-  const swapStartOverride = {
-    session: inter.startTimeSession + 10,
-    // Local time like every other stamp (toISOString would be UTC).
-    system: localISO(new Date(new Date(inter.startTimeSystem).getTime() + 10000)),
-  };
-  emitShadowSwap({
-    correctedElapsedTime: effectiveTime,
-    correctedStart: swapStartOverride.session,
-    correctedSystem: swapStartOverride.system,
-  });
-  return { effectiveTime, wasSwapped: true, swapStartOverride };
 }
