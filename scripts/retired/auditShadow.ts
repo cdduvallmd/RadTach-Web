@@ -1,4 +1,12 @@
 /**
+ * RETIRED 2026-10-10 (mode-enum cutover Phase 8). Kept for reference only.
+ * Mode-enum became the canonical engine on 2026-10-01 and the legacy timers
+ * were deleted in Phase 7 (347e812), so nothing writes `shadow_events` any
+ * more. Existing `shadow_events` docs are left in place (owner decision).
+ * The `audit:shadow` npm script was removed; run directly with
+ * `npx tsx scripts/retired/auditShadow.ts` only to read old data.
+ */
+/**
  * auditShadow.ts — Shadow vs Production event audit
  *
  * For each session in the last N days, fetches both the production `events`
