@@ -28,7 +28,8 @@ export function HotkeyScript() {
         <li>Click <strong>Copy Script</strong> below.</li>
         <li>Open <strong>Notepad</strong>, paste, and choose <strong>File → Save As</strong>.</li>
         <li>Set "Save as type" to <strong>All files</strong> and name it <strong>RadiologyKeys.ahk</strong>.</li>
-        <li>Double-click the saved file to run it. A green <strong>H</strong> icon appears in the system tray.</li>
+        <li>Double-click the saved file to run it. A green <strong>AHK Active</strong> box appears at the top center of the main monitor (clicks pass through it).</li>
+        <li><strong>Ctrl+Alt+F1</strong> pauses or resumes all hotkeys; the box turns red and reads <strong>AHK Paused</strong> while paused.</li>
         <li>To start it at sign-in: press <strong>Win+R</strong>, type <strong>shell:startup</strong>, and put a shortcut to the file there.</li>
       </ol>
       <div className="flex items-center gap-3 mb-2">

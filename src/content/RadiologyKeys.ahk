@@ -35,6 +35,31 @@ FindReplace(find, replace, escapes := 3) {
     Send "{Tab 3}{Enter}{Escape " escapes "}"
 }
 
+; ---------- Status bug (top center of monitor 1, click-through) ----------
+Bug := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x20")
+Bug.BackColor := "00FF00"          ; window color shows as a 2 px border
+Bug.MarginX := 2, Bug.MarginY := 2
+Bug.SetFont("s11 bold", "Segoe UI")
+BugText := Bug.AddText("Center 0x200 Background000000 c00FF00", "  AHK Active  ")
+BugText.GetPos(, , &tw, &th)
+BugText.Move(, , tw, th + 8)       ; a little vertical padding
+Bug.Show("AutoSize NoActivate x-10000 y-10000")
+Bug.GetPos(, , &bw)
+MonitorGetWorkArea(1, &monLeft, &monTop, &monRight)
+Bug.Move(monLeft + (monRight - monLeft - bw) // 2, monTop)
+WinSetTransparent 255, Bug.Hwnd    ; needed for click-through
+
+; ---------- Ctrl+Alt+F1: pause / resume all hotkeys ----------
+#SuspendExempt
+^!F1:: {
+    Suspend -1
+    color := A_IsSuspended ? "FF4040" : "00FF00"
+    BugText.Text := A_IsSuspended ? "  AHK Paused  " : "  AHK Active  "
+    BugText.SetFont("c" color)
+    Bug.BackColor := color
+}
+#SuspendExempt false
+
 ; ---------- PowerScribe ----------
 F13::SendTo(PS, "{Space}")         ; Spacebar
 F14::SendTo(PS, "{Backspace}")     ; Backspace
