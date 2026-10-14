@@ -1509,21 +1509,22 @@ function RadTachInner() {
       // baseline, prefilled from that session.
       // Prefill only from Epic's own running total at that session's end
       // (epicEndTotal), never from verifiedRVU (Clyde 261006 #2). The previous
-      // session in memory is used first; Firestore only after a reload.
+      // session is whichever ended last: this tab's (its end may still be
+      // queued offline) or Firestore's newest (another workstation's session
+      // since this tab's last one — the 10/13 miss).
       if (midnightProtection) {
+        type Prev = { stopDateTime?: unknown; epicEndTotal?: unknown };
         const today = dateOf(new Date());
-        const showBaseline = (prev: { stopDateTime?: unknown; epicEndTotal?: unknown } | null | undefined) => {
-          if (!prev || typeof prev.stopDateTime !== 'string' || localDate(prev.stopDateTime) !== today) return;
+        const showBaseline = (candidates: (Prev | null | undefined)[]) => {
+          const ended = candidates.filter((c): c is Prev & { stopDateTime: string } => typeof c?.stopDateTime === 'string');
+          const prev = ended.sort((a, b) => b.stopDateTime.localeCompare(a.stopDateTime))[0];
+          if (!prev || localDate(prev.stopDateTime) !== today) return;
           if (typeof prev.epicEndTotal === 'number') setEpicBaseline(String(prev.epicEndTotal));
           setEpicPanel(p => p ?? 'baseline');
         };
-        if (lastSessionData) {
-          showBaseline(lastSessionData);
-        } else {
-          firestoreService.getRecentSessions(currentUser!.uid, 3)
-            .then(recent => showBaseline(recent.find(r => r.id !== localKey) as { stopDateTime?: unknown; epicEndTotal?: unknown } | undefined))
-            .catch(console.error);
-        }
+        firestoreService.getRecentSessions(currentUser!.uid, 3)
+          .then(recent => showBaseline([lastSessionData as Prev | null, ...(recent.filter(r => r.id !== localKey) as Prev[])]))
+          .catch(err => { console.error(err); showBaseline([lastSessionData as Prev | null]); });
       }
       // Send sync_settings to Sidecar via command doc (replaces clearCommandDoc)
       sidecarRelay.sendToSidecar();
