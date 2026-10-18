@@ -1,9 +1,9 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 
-; Key map from "AHK Key List 10-10-2026". Each key brings its target app to the
-; front (if it isn't already), then sends the output. If the app isn't running,
-; the key does nothing.
+; Key map from "CSV-AHK Key List 10-18-2026". Each key brings its target app to
+; the front (if it isn't already), then sends the output. If the app isn't
+; running, the key does nothing.
 
 PS := "ahk_exe Nuance.PowerScribe.360.exe"
 VS := "ahk_exe vsclient.exe"
@@ -61,57 +61,57 @@ WinSetTransparent 255, Bug.Hwnd    ; needed for click-through
 #SuspendExempt false
 
 ; ---------- PowerScribe ----------
-F13::SendTo(PS, "{Space}")         ; Spacebar
-F14::SendTo(PS, "{Backspace}")     ; Backspace
-F15::SendTo(PS, "!u")              ; Uppercase selected
-F16:: {                            ; Number selected (Alt+M, then N)
++F1::SendTo(PS, "{Space}")         ; Spacebar
++F2::SendTo(PS, "{Backspace}")     ; Backspace
++F3::SendTo(PS, "!u")              ; Uppercase selected
++F4:: {                            ; Number selected (Alt+M, then N)
     if SendTo(PS, "!m") {
         Sleep 100
         Send "n"
     }
 }
-F17::SendTo(PS, "{Enter}")         ; Enter
-F18::SendTo(PS, "^z")              ; Undo
-F19::SendTo(PS, "^y")              ; Redo
-F20::SendTo(PS, "{Tab}")           ; Next line
-F21::SendTo(PS, "+{Tab}")          ; Previous line
-F22::SendTo(PS, "{F4}")            ; Toggle microphone
-F23::SendTo(PS, "{F12}")           ; Sign exam
-F24::SendTo(PS, "!{End}")          ; Go to end of document
-+F13::SendTo(PS, ".")              ; Period
-+F14::SendTo(PS, ",")              ; Comma
-+F15::SendTo(PS, "{F9}")           ; Draft exam (remote)
-+F16::SendTo(PS, "!l")             ; Lowercase selected text
++F5::SendTo(PS, "{Enter}")         ; Enter
++F6::SendTo(PS, "^z")              ; Undo
++F7::SendTo(PS, "^y")              ; Redo
++F8::SendTo(PS, "{Tab}")           ; Next line
++F9::SendTo(PS, "+{Tab}")          ; Previous line
++F10::SendTo(PS, "{F4}")           ; Toggle microphone
++F11::SendTo(PS, "{F12}")          ; Sign exam
++F12::SendTo(PS, "!{End}")         ; Go to end of document
+^F1::SendTo(PS, ".")               ; Period
+^F2::SendTo(PS, ",")               ; Comma
+^F3::SendTo(PS, "{F9}")            ; Draft exam (remote)
+^F4::SendTo(PS, "!l")              ; Lowercase selected text
 
 ; ---------- Visage ----------
-+F17::SendTo(VS, ".")              ; Next marked image (remote)
-+F18::SendTo(VS, ",")              ; Prior marked image (remote)
-+F19::SendTo(VS, "d")              ; Measure tool
-+F20::SendTo(VS, "j")              ; ROI tool (remote)
-+F21::SendTo(VS, "w")              ; Ratio tool (remote)
-+F22::SendTo(VS, "g")              ; Circle marker (remote)
-+F23::SendTo(VS, "c")              ; Arrow marker (remote)
-+F24::SendTo(VS, "a")              ; Sync all same study (remote)
-!F13::SendTo(VS, "z")              ; Sync with different study (remote)
-!F14::SendTo(VS, "s")              ; Stack mode (remote)
-!F15::SendTo(VS, "q")              ; Find point in all planes (remote)
-!F16::SendTo(VS, "f")              ; Reset image to 100% (remote)
-!F17::SendTo(VS, "{F9}")           ; Reset slice orientation MPR (remote)
-!F18::SendTo(VS, "0")              ; Reset to original W/L
-!F19::SendTo(VS, "1")              ; CT bone window
-!F20::SendTo(VS, "2")              ; CT liver window
-!F21::SendTo(VS, "3")              ; CT lung window
-!F22::SendTo(VS, "4")              ; CT brain window
-!F23::SendTo(VS, "5")              ; CT angio window
-!F24::SendTo(VS, "6")              ; CT soft tissue neck
-^F13::SendTo(VS, "7")              ; CT body window
-^F14::SendTo(VS, "8")              ; CTA PE window
-^F15::SendTo(VS, "9")              ; CT dental
+^F5::SendTo(VS, ".")               ; Next marked image (remote)
+^F6::SendTo(VS, ",")               ; Prior marked image (remote)
+^F7::SendTo(VS, "d")               ; Measure tool
+^F8::SendTo(VS, "j")               ; ROI tool (remote)
+^F9::SendTo(VS, "w")               ; Ratio tool (remote)
+^F10::SendTo(VS, "g")              ; Circle marker (remote)
+^F11::SendTo(VS, "c")              ; Arrow marker (remote)
+^F12::SendTo(VS, "a")              ; Sync all same study (remote)
+!F1::SendTo(VS, "z")               ; Sync with different study (remote)
+!F2::SendTo(VS, "s")               ; Stack mode (remote)
+!F3::SendTo(VS, "q")               ; Find point in all planes (remote)
+!F5::SendTo(VS, "{F9}")            ; Reset slice orientation MPR (remote)
+!F6::SendTo(VS, "0")               ; Reset to original W/L
+!F7::SendTo(VS, "1")               ; CT bone window
+!F8::SendTo(VS, "2")               ; CT liver window
+!F9::SendTo(VS, "3")               ; CT lung window
+!F10::SendTo(VS, "4")              ; CT brain window
+!F11::SendTo(VS, "5")              ; CT angio window
+!F12::SendTo(VS, "6")              ; CT soft tissue neck
+^+F1::SendTo(VS, "7")              ; CT body window
+^+F2::SendTo(VS, "8")              ; CTA PE window
+^+F3::SendTo(VS, "9")              ; CT dental
+^+F5::SendTo(VS, "f")              ; Reset image to 100% (remote)
 
-; Ctrl+F17 through Ctrl+F24: unassigned.
+; Unassigned: Ctrl+Shift+F6 through Ctrl+Shift+F12. Alt+F4 left to Windows.
 
-; ---------- PowerScribe cleanup (Ctrl+F16) ----------
-^F16:: {
+; ---------- PowerScribe cleanup (Ctrl+Shift+F4) ----------
+^+F4:: {
     if !Activate(PS)
         return
     FindReplace("..", ".")

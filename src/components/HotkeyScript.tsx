@@ -19,7 +19,7 @@ export function HotkeyScript() {
     <section>
       <h2 className="text-2xl font-bold text-white mb-3">Hotkey Script (AutoHotkey v2)</h2>
       <p className="mb-2">
-        Optional. Lets programmable mouse buttons or a remote (sending F13–F24, with Shift, Alt or Ctrl) drive
+        Optional. Lets programmable mouse buttons or a remote (sending F1–F12 with Shift, Ctrl, Alt or Ctrl+Shift) drive
         PowerScribe 360 and Visage. Each key brings its program to the front, then sends the command. If the
         program isn't running, the key does nothing. RadTach does not need this script.
       </p>
