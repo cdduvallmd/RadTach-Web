@@ -9,20 +9,37 @@
 PS := "ahk_exe Nuance.PowerScribe.360.exe"
 VS := "ahk_exe vsclient.exe"
 
+; Testing aid: shows what each key did near the mouse pointer. Set to false
+; once everything works.
+DEBUG := true
+Debug(msg) {
+    if !DEBUG
+        return
+    ToolTip msg
+    SetTimer () => ToolTip(), -4000
+}
+
 ; Brings win to the front. Returns false if it isn't running or didn't activate.
 Activate(win) {
-    if !WinExist(win)
+    ShowKey()
+    if !WinExist(win) {
+        Debug(A_ThisHotkey ": " win " not found")
         return false
+    }
     if WinActive(win)
         return true
     WinActivate win
-    return WinWaitActive(win, , 1) != 0
+    if WinWaitActive(win, , 1)
+        return true
+    Debug(A_ThisHotkey ": found '" WinGetTitle(win) "' (" WinGetClass(win) ") but it didn't come to the front")
+    return false
 }
 
 SendTo(win, keys) {
     if !Activate(win)
         return false
     Send keys
+    Debug(A_ThisHotkey ": sent " keys)
     return true
 }
 
@@ -41,7 +58,8 @@ Bug := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x20")
 Bug.BackColor := "00FF00"          ; window color shows as a 2 px border
 Bug.MarginX := 2, Bug.MarginY := 2
 Bug.SetFont("s11 bold", "Segoe UI")
-BugText := Bug.AddText("Center 0x200 Background000000 c00FF00", "  AHK Active  ")
+; Sized for the longest line it will show: file name plus a key.
+BugText := Bug.AddText("Center 0x200 Background000000 c00FF00", "  " A_ScriptName "  -  Ctrl+Shift+F12  ")
 BugText.GetPos(, , &tw, &th)
 BugText.Move(, , tw, th + 8)       ; a little vertical padding
 Bug.Show("AutoSize NoActivate x-10000 y-10000")
@@ -49,15 +67,33 @@ Bug.GetPos(, , &bw)
 MonitorGetWorkArea(1, &monLeft, &monTop, &monRight)
 Bug.Move(monLeft + (monRight - monLeft - bw) // 2, monTop)
 WinSetTransparent 255, Bug.Hwnd    ; needed for click-through
+UpdateBug()
+
+; Shows the script's file name (green, or red when paused), plus a key if given.
+UpdateBug(key := "") {
+    color := A_IsSuspended ? "FF4040" : "00FF00"
+    BugText.Text := "  " A_ScriptName (key = "" ? "" : "  -  " key) "  "
+    BugText.SetFont("c" color)
+    Bug.BackColor := color
+}
+
+; Shows the key that triggered the current hotkey for 3 seconds.
+ShowKey() {
+    hk := A_ThisHotkey                 ; e.g. "^+F4"
+    pos := InStr(hk, "F", true)
+    mods := SubStr(hk, 1, pos - 1)
+    mods := StrReplace(mods, "+", "Shift+")   ; first, so "Ctrl+" isn't touched
+    mods := StrReplace(mods, "^", "Ctrl+")
+    mods := StrReplace(mods, "!", "Alt+")
+    UpdateBug(mods SubStr(hk, pos))
+    SetTimer UpdateBug, -3000
+}
 
 ; ---------- Ctrl+Alt+F1: pause / resume all hotkeys ----------
 #SuspendExempt
 ^!F1:: {
     Suspend -1
-    color := A_IsSuspended ? "FF4040" : "00FF00"
-    BugText.Text := A_IsSuspended ? "  AHK Paused  " : "  AHK Active  "
-    BugText.SetFont("c" color)
-    Bug.BackColor := color
+    UpdateBug()
 }
 #SuspendExempt false
 
