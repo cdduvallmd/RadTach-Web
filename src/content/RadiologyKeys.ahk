@@ -1,5 +1,6 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+#UseHook                           ; catch keys before other programs can claim them
 
 ; Key map from "CSV-AHK Key List 10-18-2026". Each key brings its target app to
 ; the front (if it isn't already), then sends the output. If the app isn't
