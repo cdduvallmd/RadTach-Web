@@ -9,11 +9,11 @@
 PS := "ahk_exe Nuance.PowerScribe.360.exe"
 VS := "ahk_exe vsclient.exe"
 
-; Testing aid: shows what each key did near the mouse pointer. Set to false
-; once everything works.
-DEBUG := true
+; Testing aid: shows what each key did near the mouse pointer. Set DebugOn to
+; false once everything works.
+DebugOn := true
 Debug(msg) {
-    if !DEBUG
+    if !DebugOn
         return
     ToolTip msg
     SetTimer () => ToolTip(), -4000
