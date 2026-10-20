@@ -11,7 +11,7 @@ VS := "ahk_exe vsclient.exe"
 
 ; Testing aid: shows what each key did near the mouse pointer. Set DebugOn to
 ; false once everything works.
-DebugOn := true
+DebugOn := false
 Debug(msg) {
     if !DebugOn
         return
