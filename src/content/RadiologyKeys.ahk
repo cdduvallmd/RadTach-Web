@@ -6,7 +6,7 @@
 ; the front (if it isn't already), then sends the output. If the app isn't
 ; running, the key does nothing.
 
-PS := "ahk_exe Nuance.PowerScribe.360.exe"
+PS := "ahk_exe Nuance.PowerScribe360.exe"
 VS := "ahk_exe vsclient.exe"
 
 ; Testing aid: shows what each key did near the mouse pointer. Set DebugOn to
