@@ -12,6 +12,7 @@ import GARPercentileGauge from './shared/GARPercentileGauge';
 import ModalityPerformance from './shared/ModalityPerformance';
 import PresidentQuarterlySection from './sections/PresidentQuarterlySection';
 import PvcReportSection from './sections/PvcReportSection';
+import FacilityValueSection from './sections/FacilityValueSection';
 import HospitalQuarterlySection from './sections/HospitalQuarterlySection';
 import ITQuarterlySection from './sections/ITQuarterlySection';
 
@@ -453,6 +454,9 @@ export default function QuarterlyReportTab({ userId, userSystem, formatTime, rol
           )}
         </div>
       )}
+
+      {/* Facility value (tcRVU and dollars) — self-hides without data */}
+      <FacilityValueSection sessions={sessions} />
 
       {/* PVC section — self-hides if PVC disabled */}
       {userId && userSystem && (

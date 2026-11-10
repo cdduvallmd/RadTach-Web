@@ -35,6 +35,9 @@ export interface StoredSession {
   doubleTapEvents: number;
   swapEvents?: number;
   totalRVU: number;
+  totalTcRVU?: number;   // technical-component RVU (from 2026-11-03; facility-cost reports)
+  tcRvuStudies?: number;
+  cptTableYear?: number | null; // CMS table year behind totalTcRVU
   verifiedRVU?: number | null;
   notes?: SessionNotes;
   displayName?: string;

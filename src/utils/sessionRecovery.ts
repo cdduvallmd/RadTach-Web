@@ -70,6 +70,9 @@ export interface ReconstructedSessionData {
   doubleTapEvents: number;
   swapEvents: number;
   totalRVU: number;
+  totalTcRVU: number;    // technical-component RVU (facility-cost reports)
+  tcRvuStudies: number;
+  cptTableYear: number | null;
   notes: { tags: string[]; description: string };
   summary: SessionSummary;
 }
@@ -83,7 +86,8 @@ export interface ReconstructedSessionData {
  */
 export function reconstructSessionData(
   sessionDoc: Record<string, any>,
-  events: Record<string, any>[]
+  events: Record<string, any>[],
+  cptTableYear: number | null = null, // CMS table year behind the events' tcRvu (Clyde 261109 #2)
 ): ReconstructedSessionData {
   const typed = events as FirestoreEvent[];
 
@@ -141,6 +145,9 @@ export function reconstructSessionData(
     doubleTapEvents: d.counts.doubleTap,
     swapEvents: d.swaps,
     totalRVU: d.totalRVU,
+    totalTcRVU: d.totalTcRVU,
+    tcRvuStudies: d.tcRvuStudies,
+    cptTableYear,
     notes: { tags: ['No Comment'], description: '(recovered session)' },
     // Same totals rule as a normal Phase 6 end (Clyde 261003g #3).
     _recordVersion: 'mode-enum-6',

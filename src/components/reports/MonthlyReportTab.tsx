@@ -15,6 +15,7 @@ import PresidentMonthlySection from './sections/PresidentMonthlySection';
 import HospitalMonthlySection from './sections/HospitalMonthlySection';
 import ITMonthlySection from './sections/ITMonthlySection';
 import PvcReportSection from './sections/PvcReportSection';
+import FacilityValueSection from './sections/FacilityValueSection';
 
 interface MonthlyReportTabProps {
   userId: string | null;
@@ -568,6 +569,9 @@ export default function MonthlyReportTab({ userId, userSystem, formatTime, role 
           )}
         </div>
       )}
+
+      {/* Facility value (tcRVU and dollars) — self-hides without data */}
+      <FacilityValueSection sessions={sessions} />
 
       {/* PVC section — self-hides if PVC disabled for this system */}
       {userId && userSystem && (

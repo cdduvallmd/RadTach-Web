@@ -18,6 +18,7 @@ import PresidentWeeklySection from './sections/PresidentWeeklySection';
 import HospitalWeeklySection from './sections/HospitalWeeklySection';
 import ITWeeklySection from './sections/ITWeeklySection';
 import PvcReportSection from './sections/PvcReportSection';
+import FacilityValueSection from './sections/FacilityValueSection';
 
 interface DailyReportTabProps {
   userId: string | null;
@@ -227,6 +228,9 @@ export default function DailyReportTab({ userId, userSystem, formatTime, role = 
               </div>
             </div>
           )}
+
+          {/* Facility value (tcRVU and dollars) — self-hides without data */}
+          <FacilityValueSection sessions={sessions} />
 
           {/* PVC section — self-hides if PVC disabled */}
           {userId && userSystem && (

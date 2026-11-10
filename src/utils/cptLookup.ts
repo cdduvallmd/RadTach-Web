@@ -51,6 +51,32 @@ export function calculateComboRvu(
   return { total, breakdown };
 }
 
+// ── Technical component (facility-cost reports) ───────────────────────────
+// Sum of the CPTs' technical-component RVUs: MPFS national (no GPCI), gross
+// (no MPPR — the stored CPTs let a report apply it). Stored on each STUDY so it
+// keeps the year's CMS value (owner, 2026-11-03). Empty (null) rather than
+// guessed (owner, 2026-11-07, Clyde 261103 #1, #2) when any CPT is:
+// - missing from the table;
+// - listed with a zero technical value (carrier-priced or unverified);
+// - flagged bilateral without a bilateral CPT of its own (×1.5 vs ×2 for the
+//   technical component is not settled; the flags are stored so it can be
+//   filled in later). The 4 paired codes are already the bilateral CPT.
+// `bilateralFlags` lines up with `cpts` (the CPTs as stored, after pairing).
+export function sumTcRvu(
+  entries: Record<string, CptEntry>,
+  cpts: string[],
+  bilateralFlags?: boolean[],
+): number | null {
+  let total = 0;
+  for (let i = 0; i < cpts.length; i++) {
+    const entry = entries[cpts[i]];
+    if (!entry || !(entry.tcRvu > 0)) return null;
+    if (bilateralFlags?.[i] && !NATIVE_BILATERAL.has(cpts[i])) return null;
+    total += entry.tcRvu;
+  }
+  return +total.toFixed(2);
+}
+
 // ── Bilateral RVU ──────────────────────────────────────────────────────────
 // 4 paired codes have native bilateral CPTs; all others use modifier-50 math (× 1.5).
 const BILATERAL_PAIRS: Record<string, string> = {
@@ -59,6 +85,8 @@ const BILATERAL_PAIRS: Record<string, string> = {
   '78457': '78458',
   '93923': '93924',
 };
+// CPTs that are themselves the bilateral code (no ×1.5 / ×2 question).
+const NATIVE_BILATERAL = new Set(Object.values(BILATERAL_PAIRS));
 
 export function getBilateralRvu(
   entries: Record<string, CptEntry>,

@@ -8,7 +8,7 @@ import { checkForNewerBuild } from './utils/versionCheck';
 import type { SessionSummary } from './utils/sessionSummary';
 import Reports from './components/Reports';
 import { triggerGARAggregation } from './utils/garTrigger';
-import { calculateComboRvu, getBilateralRvu } from './utils/cptLookup';
+import { calculateComboRvu, getBilateralRvu, sumTcRvu } from './utils/cptLookup';
 import { lookupGpci } from './utils/gpciLookup';
 import type { GpciValues } from './utils/gpciLookup';
 import type { SidecarCommand, RvuSource } from './types/sidecar';
@@ -72,6 +72,7 @@ interface CptOverride {
   rvuRaw?: number;          // pre-PVC adjustment total
   breakdown: Array<{ cpt: string; description: string; raw: number; adjusted: number }>;
   bilateral: boolean;
+  bilateralFlags: boolean[]; // per CPT, lined up with cpts
   source: RvuSource;
   examDesc: string;
 }
@@ -178,6 +179,9 @@ interface SessionData {
   doubleTapEvents: number;
   swapEvents: number;
   totalRVU: number;
+  totalTcRVU: number;    // technical-component RVU (facility-cost reports)
+  tcRvuStudies: number;
+  cptTableYear?: number | null;
   verifiedRVU?: number | null;
   displayName?: string;
   notes: SessionNotes;
@@ -1183,7 +1187,7 @@ function RadTachInner() {
         ? mergeByIndex([...firestoreEvents, ...localLog]).map(e => e.event)
         : await getLocalEvents(orphan.id).catch(() => [] as Record<string, any>[])
             .then(local => (local.length >= firestoreEvents.length ? local : firestoreEvents.map(e => e.event)));
-      const reconstructed = reconstructSessionData(orphan, events);
+      const reconstructed = reconstructSessionData(orphan, events, cptDatabase?.year ?? null);
       const txResult = await firestoreService.recoverOrphanTransactional(currentUser.uid, orphan.id, reconstructed);
       // Success either way — either we wrote endTime, or someone else did first
       // (another tab/device). Both paths are safe; clear local cache regardless.
@@ -1207,7 +1211,7 @@ function RadTachInner() {
     const entry = recoveredSessions.find((s) => s.sessionId === sessionId);
     if (!entry) return;
     try {
-      const discardData = reconstructSessionData(entry.orphan, []);
+      const discardData = reconstructSessionData(entry.orphan, [], cptDatabase?.year ?? null);
       (discardData as any).notes = { tags: ['No Comment'], description: '(discarded — incomplete session)' };
       // Overwrite the just-recovered doc with zeroed data (endTime already set from recovery).
       await firestoreService.endSession(currentUser.uid, entry.orphan.id, discardData);
@@ -1511,18 +1515,20 @@ function RadTachInner() {
       // (epicEndTotal), never from verifiedRVU (Clyde 261006 #2). The previous
       // session is whichever ended last: this tab's (its end may still be
       // queued offline) or Firestore's newest (another workstation's session
-      // since this tab's last one — the 10/13 miss).
+      // since this tab's last one — the 10/13 miss). A session with no studies
+      // is skipped: nothing was read, so Epic's total didn't move (11/6 miss).
       if (midnightProtection) {
-        type Prev = { stopDateTime?: unknown; epicEndTotal?: unknown };
+        type Prev = { stopDateTime?: unknown; epicEndTotal?: unknown; studiesCompleted?: unknown };
         const today = dateOf(new Date());
         const showBaseline = (candidates: (Prev | null | undefined)[]) => {
-          const ended = candidates.filter((c): c is Prev & { stopDateTime: string } => typeof c?.stopDateTime === 'string');
+          const ended = candidates.filter((c): c is Prev & { stopDateTime: string } =>
+            typeof c?.stopDateTime === 'string' && c.studiesCompleted !== 0);
           const prev = ended.sort((a, b) => b.stopDateTime.localeCompare(a.stopDateTime))[0];
           if (!prev || localDate(prev.stopDateTime) !== today) return;
           if (typeof prev.epicEndTotal === 'number') setEpicBaseline(String(prev.epicEndTotal));
           setEpicPanel(p => p ?? 'baseline');
         };
-        firestoreService.getRecentSessions(currentUser!.uid, 3)
+        firestoreService.getRecentSessions(currentUser!.uid, 6) // room for skipped empty sessions (Clyde 261109 #4)
           .then(recent => showBaseline([lastSessionData as Prev | null, ...(recent.filter(r => r.id !== localKey) as Prev[])]))
           .catch(err => { console.error(err); showBaseline([lastSessionData as Prev | null]); });
       }
@@ -1575,6 +1581,10 @@ function RadTachInner() {
       doubleTapEvents: d.counts.doubleTap,
       swapEvents: d.swaps,
       totalRVU: d.totalRVU,
+      totalTcRVU: d.totalTcRVU,
+      tcRvuStudies: d.tcRvuStudies,
+      // Which CMS year's table gave tcRvu/RVU values (Clyde 261103 #3).
+      cptTableYear: cptDatabase?.year ?? null,
       // Totals derived from mode-enum's events (Phase 6). Earlier docs used
       // legacy's counters (absorbed interstitial stayed interstitial, etc.).
       _recordVersion: 'mode-enum-6',
@@ -1789,7 +1799,8 @@ function RadTachInner() {
       let cpts = [...cmd.cpts];
 
       // Apply per-CPT bilateral flags (bilateralFlags[]), falling back to cmd.bilateral for all
-      const flags = cmd.bilateralFlags || cpts.map(() => cmd.bilateral || false);
+      // One flag per CPT, so the stored flags always line up (Clyde 261109 #5).
+      const flags = cpts.map((_, i) => cmd.bilateralFlags ? !!cmd.bilateralFlags[i] : !!cmd.bilateral);
       const gpci = gpciValues ?? undefined;
       const effectiveCpts = cpts.map((cpt, i) =>
         flags[i] ? getBilateralRvu(cptDatabase.entries, cpt, gpci).cpt : cpt
@@ -1829,6 +1840,7 @@ function RadTachInner() {
         ...(rvuRaw !== undefined ? { rvuRaw } : {}),
         breakdown,
         bilateral: cmd.bilateral || false,
+        bilateralFlags: flags,
         source: cmd.source === 'hl7' ? 'hl7' : 'sidecar',
         examDesc: cmd.examDesc || breakdown.map(b => b.description).join(' + '),
       });
@@ -1906,6 +1918,13 @@ function RadTachInner() {
       pvcAudit.rvuRaw = rvuRaw;
       pvcAudit.rvuAdjustment = +(currentStudyRVU - rvuRaw).toFixed(4);
     }
+    // Technical-component RVU for facility-cost reports (owner, 2026-11-03):
+    // stored, not shown. Only for CPT-driven studies; null if a CPT is unknown.
+    const tcRvu = cptOverride && cptDatabase?.entries ? sumTcRvu(cptDatabase.entries, cptOverride.cpts, cptOverride.bilateralFlags) : null;
+    const tcAudit = {
+      ...(tcRvu !== null ? { tcRvu } : {}),
+      ...(cptOverride?.bilateralFlags?.some(Boolean) ? { bilateralFlags: cptOverride.bilateralFlags } : {}),
+    };
     modeEnum.signal({
       type: 'study_complete',
       rvu: currentStudyRVU,
@@ -1913,6 +1932,7 @@ function RadTachInner() {
       complications: [...selectedComplications],
       cpts: cptOverride?.cpts,
       rvuSource: cptOverride?.source,
+      ...tcAudit,
       ...pvcAudit,
       ...(personallyPerformedActive ? { personallyPerformed: true } : {}),
     }, sessionTime);

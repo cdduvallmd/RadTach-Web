@@ -50,7 +50,7 @@ export type TimerMode = 'idle' | 'study' | 'interstitial' | 'admin' | 'comms' | 
 
 export type TimerSignal =
   | { type: 'study_start'; studyId: string; modality: string; complications: string[]; parTime: number; rvu: number; cpts?: string[]; rvuSource?: string; rvuDerivedMode?: boolean; targetRvuPerHour?: number }
-  | { type: 'study_complete'; rvu: number; parTime: number; complications: string[]; cpts?: string[]; rvuSource?: string; rvuRaw?: number; rvuAdjustment?: number; personallyPerformed?: boolean }
+  | { type: 'study_complete'; rvu: number; parTime: number; complications: string[]; cpts?: string[]; bilateralFlags?: boolean[]; rvuSource?: string; tcRvu?: number; rvuRaw?: number; rvuAdjustment?: number; personallyPerformed?: boolean }
   | { type: 'admin_toggle' }
   | { type: 'comms_toggle' }
   | { type: 'break_toggle' }
@@ -84,6 +84,11 @@ export interface ModeStudyEvent {
   swapped?: boolean;
   rvuSource?: string;
   cpts?: string[];
+  // Technical-component RVU of the CPTs read (Sidecar/HL7 studies only; see
+  // utils/cptLookup sumTcRvu). For facility-cost reports, not shown to the rad.
+  tcRvu?: number;
+  // Per-CPT bilateral flags, lined up with `cpts`; only when one is set.
+  bilateralFlags?: boolean[];
   rvuDerivedMode?: boolean;
   targetRvuPerHour?: number;
   // When the study ended (after any interruptions). Absent before step 3c.
@@ -148,6 +153,8 @@ interface StudyContext {
   rvu: number;
   cpts?: string[];
   rvuSource?: string;
+  tcRvu?: number;
+  bilateralFlags?: boolean[];
   rvuDerivedMode?: boolean;
   targetRvuPerHour?: number;
   rvuRaw?: number;
@@ -289,6 +296,8 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
       drafted: ctx.drafted,
       ...(ctx.draftGaps ? { draftGaps: ctx.draftGaps } : {}),
       ...(ctx.cpts ? { rvuSource: ctx.rvuSource, cpts: ctx.cpts } : {}),
+      ...(ctx.tcRvu !== undefined ? { tcRvu: ctx.tcRvu } : {}),
+      ...(ctx.bilateralFlags ? { bilateralFlags: ctx.bilateralFlags } : {}),
       ...(ctx.rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour: ctx.targetRvuPerHour } : {}),
       ...(ctx.rvuRaw !== undefined ? { rvuRaw: ctx.rvuRaw, rvuAdjustment: ctx.rvuAdjustment } : {}),
       ...(ctx.personallyPerformed ? { personallyPerformed: true } : {}),
@@ -446,6 +455,8 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
           complications: action.complications,
           cpts: action.cpts,
           rvuSource: action.rvuSource,
+          tcRvu: action.tcRvu,
+          bilateralFlags: action.bilateralFlags,
           rvuRaw: action.rvuRaw,
           rvuAdjustment: action.rvuAdjustment,
           personallyPerformed: action.personallyPerformed,

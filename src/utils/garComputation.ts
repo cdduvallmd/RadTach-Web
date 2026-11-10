@@ -53,6 +53,7 @@ interface UserDayMetrics {
   studiesPerHour: number;
   interstitialAvg: number;
   totalRVU: number;
+  totalTcRVU: number;
   totalStudies: number;
   totalSessionTime: number;
   adminTime: number;
@@ -186,6 +187,7 @@ function computeUserDayMetrics(sessions: StoredSession[]): UserDayMetrics | null
     studiesPerHour,
     interstitialAvg,
     totalRVU,
+    totalTcRVU: sessions.reduce((sum, s) => sum + (s.totalTcRVU ?? 0), 0),
     totalStudies,
     totalSessionTime,
     adminTime: totalAdminTime,
@@ -256,6 +258,7 @@ export function computeGroupStats(
   // Group totals
   const groupTotals = {
     totalRVU: userMetrics.reduce((sum, u) => sum + u.totalRVU, 0),
+    totalTcRVU: +userMetrics.reduce((sum, u) => sum + u.totalTcRVU, 0).toFixed(2),
     totalStudies: userMetrics.reduce((sum, u) => sum + u.totalStudies, 0),
     totalSessionHours: userMetrics.reduce((sum, u) => sum + u.totalSessionTime, 0) / 3600,
     totalAdminHours: userMetrics.reduce((sum, u) => sum + u.adminTime, 0) / 3600,

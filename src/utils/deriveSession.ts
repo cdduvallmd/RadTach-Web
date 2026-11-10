@@ -21,6 +21,8 @@ export interface SessionTotals {
   undoneStudies: number;   // Undo only; a draft never resumed isn't a deleted study
   swaps: number;
   totalRVU: number;
+  totalTcRVU: number;    // technical-component RVU of studies with CPTs (facility-cost reports)
+  tcRvuStudies: number;  // how many studies carried a tcRvu
   cumulativePar: number;
   cumulativeVariance: number;
   streak: number;          // consecutive at-or-under-par studies, capped at 6
@@ -32,7 +34,7 @@ export interface SessionTotals {
 export function deriveSession(events: ModeEvent[], now: number): SessionTotals {
   const totals: Record<TimedMode, number> = { interstitial: 0, admin: 0, comms: 0, break: 0, doubleTap: 0 };
   const counts = { admin: 0, comms: 0, break: 0, doubleTap: 0 };
-  let studies = 0, undoneStudies = 0, swaps = 0, totalRVU = 0, cumulativePar = 0, cumulativeVariance = 0, streak = 0;
+  let studies = 0, undoneStudies = 0, swaps = 0, totalRVU = 0, totalTcRVU = 0, tcRvuStudies = 0, cumulativePar = 0, cumulativeVariance = 0, streak = 0;
   let rollingRVU = 0, lastChange = 0, lastBreakEnd = 0;
 
   for (const e of events) {
@@ -43,6 +45,7 @@ export function deriveSession(events: ModeEvent[], now: number): SessionTotals {
       const rvu = e.rvu ?? 0;
       const variance = e.variance ?? 0;
       totalRVU += rvu;
+      if (typeof e.tcRvu === 'number') { totalTcRVU += e.tcRvu; tcRvuStudies++; }
       cumulativePar += e.parTime ?? 0;
       cumulativeVariance += variance;
       streak = variance <= 0 ? Math.min(streak + 1, STREAK_MAX) : 0;
@@ -70,5 +73,5 @@ export function deriveSession(events: ModeEvent[], now: number): SessionTotals {
   }
 
   const rvuPerHour = lastChange > 0 ? totalRVU / (lastChange / 3600) : 0;
-  return { totals, counts, studies, undoneStudies, swaps, totalRVU, cumulativePar, cumulativeVariance, streak, rvuPerHour, rollingRVU, lastBreakEnd };
+  return { totals, counts, studies, undoneStudies, swaps, totalRVU, totalTcRVU: +totalTcRVU.toFixed(2), tcRvuStudies, cumulativePar, cumulativeVariance, streak, rvuPerHour, rollingRVU, lastBreakEnd };
 }

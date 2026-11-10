@@ -11,6 +11,7 @@ import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveCo
 import GARPercentileGauge from './shared/GARPercentileGauge';
 import PresidentWeeklySection from './sections/PresidentWeeklySection';
 import PvcReportSection from './sections/PvcReportSection';
+import FacilityValueSection from './sections/FacilityValueSection';
 import HospitalWeeklySection from './sections/HospitalWeeklySection';
 import ITWeeklySection from './sections/ITWeeklySection';
 
@@ -610,6 +611,9 @@ export default function WeeklyReportTab({ userId, userSystem, formatTime, role =
           )}
         </div>
       )}
+
+      {/* Facility value (tcRVU and dollars) — self-hides without data */}
+      <FacilityValueSection sessions={sessions} />
 
       {/* PVC section — self-hides if PVC disabled */}
       {userId && userSystem && (
