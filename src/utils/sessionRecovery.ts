@@ -73,6 +73,7 @@ export interface ReconstructedSessionData {
   totalTcRVU: number;    // technical-component RVU (facility-cost reports)
   tcRvuStudies: number;
   cptTableYear: number | null;
+  pvcProcedureBonusRvu: number;
   notes: { tags: string[]; description: string };
   summary: SessionSummary;
 }
@@ -148,6 +149,7 @@ export function reconstructSessionData(
     totalTcRVU: d.totalTcRVU,
     tcRvuStudies: d.tcRvuStudies,
     cptTableYear,
+    pvcProcedureBonusRvu: d.procedureBonusRvu,
     notes: { tags: ['No Comment'], description: '(recovered session)' },
     // Same totals rule as a normal Phase 6 end (Clyde 261003g #3).
     _recordVersion: 'mode-enum-6',

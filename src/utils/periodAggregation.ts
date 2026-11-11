@@ -11,6 +11,13 @@ import type { StoredSession, DateRange, PeriodSummary } from '../types/reports';
 import type { PvcConfig, UserPvcSettings, ProductivityTierPeriod } from '../types/pvc';
 import { anyRotationHasBonus, anyRotationHasBonusShiftCredit, computeBonusShiftsPerShift, monthKey, quarterKey, dayKey } from './pvcConfig';
 
+// A session's Bonus RVU: the rotation bonus fixed at start plus the
+// personally-performed procedure bonus summed at Stop (owner, 2026-11-10).
+// A flat-rate session (pvcWrvuOverride, e.g. Fluoro) gets no procedure bonus:
+// on a flat-rate day no other RVU counts (owner, 2026-11-10; Clyde 261110b #3).
+const sessionBonusRvu = (s: StoredSession): number =>
+  (s.pvcBonusRvu ?? 0) + (s.pvcWrvuOverride != null ? 0 : (s.pvcProcedureBonusRvu ?? 0));
+
 // Flat-rate sessions (e.g. Fluoro with pvcWrvuOverride set at session start)
 // contribute a fixed wRVU credit that isn't earned per unit time. They belong
 // in absolute totals (wRVU sums, shifts, session time) but pollute rate,
@@ -774,7 +781,7 @@ export interface PvcAggregation {
   totalActualReadWrvu: number;// sum of raw totalRVU (not substituted) — what you actually read this period
   totalFlatRateWrvu: number;  // sum of pvcWrvuOverride — flat-rate credit that replaces actual reads on those shifts
   totalVerifiedWrvu: number;  // sum of raw verifiedRVU — Epic-reported reads only, no flat-rate substitution
-  totalBonusRvu: number;      // sum of session.pvcBonusRvu
+  totalBonusRvu: number;      // sum of session.pvcBonusRvu + pvcProcedureBonusRvu
   totalMeetingRvu: number;    // sum of session.pvcMeetingHours × user's effective rate (Phase 2a)
   totalClockHours: number;    // sum of session.totalSessionTime / 3600
   allInWrvu: number;          // totalWrvu + totalBonusRvu + totalMeetingRvu
@@ -921,10 +928,10 @@ export function aggregatePvc(
     totalActualReadWrvu += s.totalRVU ?? 0;
     if (s.pvcWrvuOverride != null) totalFlatRateWrvu += s.pvcWrvuOverride;
     if (s.verifiedRVU != null && s.verifiedRVU > 0) totalVerifiedWrvu += s.verifiedRVU;
-    totalBonusRvu += s.pvcBonusRvu ?? 0;
+    totalBonusRvu += sessionBonusRvu(s);
     totalMeetingHours += s.pvcMeetingHours ?? 0;
     totalClockSeconds += s.totalSessionTime ?? 0;
-    if ((s.pvcBonusRvu ?? 0) > 0) anySessionHasBonus = true;
+    if (sessionBonusRvu(s) > 0) anySessionHasBonus = true;
     if ((s.pvcMeetingHours ?? 0) > 0) anySessionHasMeeting = true;
   }
 
@@ -977,7 +984,7 @@ export function aggregatePvc(
         pVerifiedWrvu += s.verifiedRVU;
         hasVerifiedData = true;
       }
-      pBonus += s.pvcBonusRvu ?? 0;
+      pBonus += sessionBonusRvu(s);
       pMeetingHours += s.pvcMeetingHours ?? 0;
       pRotationBonusShifts += s.pvcBonusShiftCredit ?? 0;
     }

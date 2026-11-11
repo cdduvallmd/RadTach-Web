@@ -50,7 +50,7 @@ export type TimerMode = 'idle' | 'study' | 'interstitial' | 'admin' | 'comms' | 
 
 export type TimerSignal =
   | { type: 'study_start'; studyId: string; modality: string; complications: string[]; parTime: number; rvu: number; cpts?: string[]; rvuSource?: string; rvuDerivedMode?: boolean; targetRvuPerHour?: number }
-  | { type: 'study_complete'; rvu: number; parTime: number; complications: string[]; cpts?: string[]; bilateralFlags?: boolean[]; rvuSource?: string; tcRvu?: number; rvuRaw?: number; rvuAdjustment?: number; personallyPerformed?: boolean }
+  | { type: 'study_complete'; rvu: number; parTime: number; complications: string[]; cpts?: string[]; bilateralFlags?: boolean[]; rvuSource?: string; tcRvu?: number; rvuRaw?: number; rvuAdjustment?: number; personallyPerformed?: boolean; ppBonusRvu?: number }
   | { type: 'admin_toggle' }
   | { type: 'comms_toggle' }
   | { type: 'break_toggle' }
@@ -58,7 +58,7 @@ export type TimerSignal =
   | { type: 'draft_enter' }
   | { type: 'swap_detected'; studyId: string }
   | { type: 'undo_study'; studyId: string }
-  | { type: 'amend_study'; studyId: string; rvu: number; rvuRaw: number; rvuAdjustment: number; personallyPerformed: true };
+  | { type: 'amend_study'; studyId: string; ppBonusRvu: number };
 
 // Same shape as the legacy engine's events
 export interface ModeStudyEvent {
@@ -90,6 +90,9 @@ export interface ModeStudyEvent {
   tcRvu?: number;
   // Per-CPT bilateral flags, lined up with `cpts`; only when one is set.
   bilateralFlags?: boolean[];
+  // Personally-performed PVC bonus (owner, 2026-11-10): kept out of `rvu` so
+  // the wRVU matches Epic; summed into the session's Bonus RVU at Stop.
+  ppBonusRvu?: number;
   rvuDerivedMode?: boolean;
   targetRvuPerHour?: number;
   // When the study ended (after any interruptions). Absent before step 3c.
@@ -161,6 +164,7 @@ interface StudyContext {
   rvuRaw?: number;
   rvuAdjustment?: number;
   personallyPerformed?: boolean;
+  ppBonusRvu?: number;
   drafted: boolean;
   draftGaps?: DraftGap[];
   pauseTime: number;
@@ -302,6 +306,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
       ...(ctx.rvuDerivedMode ? { rvuDerivedMode: true, targetRvuPerHour: ctx.targetRvuPerHour } : {}),
       ...(ctx.rvuRaw !== undefined ? { rvuRaw: ctx.rvuRaw, rvuAdjustment: ctx.rvuAdjustment } : {}),
       ...(ctx.personallyPerformed ? { personallyPerformed: true } : {}),
+      ...(ctx.ppBonusRvu ? { ppBonusRvu: ctx.ppBonusRvu } : {}),
     });
   }, []);
 
@@ -461,6 +466,7 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
           rvuRaw: action.rvuRaw,
           rvuAdjustment: action.rvuAdjustment,
           personallyPerformed: action.personallyPerformed,
+          ppBonusRvu: action.ppBonusRvu,
         };
         if (currentMode === 'study') {
           pushStudy(ctx, sessionTime);
@@ -578,13 +584,13 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
       }
 
       case 'amend_study': {
-        // A completed study's credit, answered after completion (the
-        // personally-performed prompt, owner 2026-11-10). Only a recorded
-        // STUDY: an undone one is Admin and stays so. Replaced at its index.
+        // Personally performed, answered after completion (the prompt, owner
+        // 2026-11-10): the study's bonus, kept out of its wRVU. Only a
+        // recorded STUDY: an undone one is Admin and stays so.
         const i = events.current.findIndex(e => e.type === 'STUDY' && e.studyId === action.studyId);
         if (i < 0) break;
         const st = events.current[i] as ModeStudyEvent;
-        replaceEvent(i, { ...st, rvu: action.rvu, rvuRaw: action.rvuRaw, rvuAdjustment: action.rvuAdjustment, personallyPerformed: true });
+        replaceEvent(i, { ...st, personallyPerformed: true, ppBonusRvu: action.ppBonusRvu });
         break;
       }
 

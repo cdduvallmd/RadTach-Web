@@ -183,6 +183,7 @@ interface SessionData {
   totalTcRVU: number;    // technical-component RVU (facility-cost reports)
   tcRvuStudies: number;
   cptTableYear?: number | null;
+  pvcProcedureBonusRvu: number;
   verifiedRVU?: number | null;
   displayName?: string;
   notes: SessionNotes;
@@ -556,7 +557,9 @@ function RadTachInner() {
   };
   
   const currentParTime = calculateParTime();
-  const currentStudyRVU = calculateRVU();
+  // wRVU of the study in hand, without any personally-performed bonus (that
+  // is Bonus RVU, never wRVU — owner 2026-11-10; Clyde 261110b #4).
+  const currentStudyRVU = calculateRVU(false);
 
   // PVC: show the "Personally Performed" button when (a) PVC is on, (b) the
   // current rotation has at least one pp-gated adjustment that could fire,
@@ -1590,6 +1593,9 @@ function RadTachInner() {
       tcRvuStudies: d.tcRvuStudies,
       // Which CMS year's table gave tcRvu/RVU values (Clyde 261103 #3).
       cptTableYear: cptDatabase?.year ?? null,
+      // Personally-performed bonus: PVC adds it to the start-time pvcBonusRvu
+      // as one Bonus RVU line (owner, 2026-11-10).
+      pvcProcedureBonusRvu: d.procedureBonusRvu,
       // Totals derived from mode-enum's events (Phase 6). Earlier docs used
       // legacy's counters (absorbed interstitial stayed interstitial, etc.).
       _recordVersion: 'mode-enum-6',
@@ -1917,13 +1923,17 @@ function RadTachInner() {
     // Sidecar path: rvuRaw comes from cptOverride. Modality path: rvuRaw
     // would require re-running modality-only adjustment in reverse, which we
     // skip since modality adjustments are rare.
-    // Measured against the RVU actually credited (currentStudyRVU), so a
-    // personally-performed rule shows up too (Clyde 261003f #6).
+    // The study's wRVU leaves out the personally-performed bonus, so it matches
+    // Epic; the bonus is stored beside it and summed into Bonus RVU at Stop
+    // ("Epic is Epic, Bonus is Bonus", owner 2026-11-10).
+    const creditedRvu = currentStudyRVU;
+    const ppBonusRvu = personallyPerformedActive ? +(calculateRVU(true) - creditedRvu).toFixed(4) : 0;
+    // Measured against the wRVU credited (Clyde 261003f #6).
     const pvcAudit: { rvuRaw?: number; rvuAdjustment?: number } = {};
     const rvuRaw = cptOverride ? (cptOverride.rvuRaw ?? cptOverride.rvu) : undefined;
-    if (rvuRaw !== undefined && rvuRaw !== currentStudyRVU) {
+    if (rvuRaw !== undefined && rvuRaw !== creditedRvu) {
       pvcAudit.rvuRaw = rvuRaw;
-      pvcAudit.rvuAdjustment = +(currentStudyRVU - rvuRaw).toFixed(4);
+      pvcAudit.rvuAdjustment = +(creditedRvu - rvuRaw).toFixed(4);
     }
     // Technical-component RVU for facility-cost reports (owner, 2026-11-03):
     // stored, not shown. Only for CPT-driven studies; null if a CPT is unknown.
@@ -1934,7 +1944,7 @@ function RadTachInner() {
     };
     modeEnum.signal({
       type: 'study_complete',
-      rvu: currentStudyRVU,
+      rvu: creditedRvu,
       parTime: currentParTime,
       complications: [...selectedComplications],
       cpts: cptOverride?.cpts,
@@ -1942,16 +1952,16 @@ function RadTachInner() {
       ...tcAudit,
       ...pvcAudit,
       ...(personallyPerformedActive ? { personallyPerformed: true } : {}),
+      ...(ppBonusRvu > 0 ? { ppBonusRvu } : {}),
     }, sessionTime);
 
     // Personally performed (owner, 2026-11-10): if a PVC rule would credit
     // more for this study had the rad marked it personally performed (e.g. FL
     // at South, arthrograms at I-35), ask now that it's complete.
     if (!personallyPerformedActive) {
-      const ppRvu = calculateRVU(true); // unrounded, like a study marked before completion (Clyde 261110 #3a)
-      if (ppRvu > currentStudyRVU + 0.005) {
-        const rvuRaw = cptOverride ? (cptOverride.rvuRaw ?? cptOverride.rvu) : currentStudyRVU;
-        setPpQueue(q => [...q, { studyId, name: examNamesRef.current.get(studyId) ?? '', rvu: currentStudyRVU, ppRvu, rvuRaw }]);
+      const bonus = calculateRVU(true) - creditedRvu;
+      if (bonus > 0.005) {
+        setPpQueue(q => [...q, { studyId, name: examNamesRef.current.get(studyId) ?? '', rvu: creditedRvu, bonus: +bonus.toFixed(4) }]);
       }
     }
 
@@ -3877,10 +3887,7 @@ function RadTachInner() {
           onAnswer={yes => {
             const q = ppQueue[0];
             if (yes) {
-              modeEnum.signal({
-                type: 'amend_study', studyId: q.studyId, rvu: q.ppRvu, rvuRaw: q.rvuRaw,
-                rvuAdjustment: +(q.ppRvu - q.rvuRaw).toFixed(4), personallyPerformed: true,
-              }, sessionClock.getSessionTime());
+              modeEnum.signal({ type: 'amend_study', studyId: q.studyId, ppBonusRvu: q.bonus }, sessionClock.getSessionTime());
             }
             setPpQueue(qs => qs.filter(x => x.studyId !== q.studyId));
           }}
@@ -4211,7 +4218,7 @@ function RadTachInner() {
                   : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
               }`}
               title={personallyPerformedActive
-                ? 'Active — wRVU multiplier applies for this study. Click to deselect.'
+                ? 'Active — adds the procedure bonus to Bonus RVU for this study. Click to deselect.'
                 : 'Click if you personally performed this procedure (vs. dictating for the PA).'}
             >
               {personallyPerformedActive

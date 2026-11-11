@@ -49,6 +49,7 @@ export interface StoredSession {
   pvcShiftCredit?: number;            // 0, 0.5, 1.0, 2.0
   pvcBonusShiftCredit?: number;       // flat shift bonus by rotation (e.g., 1.0 for WEEKEND CALL 1/2)
   pvcBonusRvu?: number;               // computed at start, frozen
+  pvcProcedureBonusRvu?: number;      // personally-performed bonus, summed at Stop (from 2026-11-10); PVC shows it in Bonus RVU
   pvcRotationAtStart?: string;        // immutable record of qualifying rotation
   pvcPendingClassification?: boolean; // Phase 2a: admin blocks ≥30 min await user review
   pvcMeetingHours?: number;           // Phase 2a: sum of classified meeting time
