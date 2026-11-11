@@ -36,6 +36,7 @@ import { deriveRecentCases, gridStudyName } from './utils/recentCases';
 import { RecentCases } from './components/RecentCases';
 import { MidnightFlash } from './components/MidnightFlash';
 import { EpicPanel, type EpicPanelMode } from './components/EpicPanel';
+import { PersonallyPerformedPrompt, type PpQuestion } from './components/PersonallyPerformedPrompt';
 import { HotkeyScript } from './components/HotkeyScript';
 import { DEFAULT_PROMPT_TIME, inPromptWindow, localDate, dateOf, computeEpicRVU } from './utils/midnightProtection';
 import { deriveSession, type SessionTotals } from './utils/deriveSession';
@@ -307,6 +308,10 @@ function RadTachInner() {
   // Resets on every new study (processSidecarStart, completeStudy, modality
   // clear). Drives the requiresPersonallyPerformed CPT adjustment gate.
   const [personallyPerformedActive, setPersonallyPerformedActive] = useState(false);
+  // Personally-performed questions for studies already completed (owner,
+  // 2026-11-10): asked after completion so timing isn't held up; Yes amends
+  // the study's credit in place. Must be answered before End Session.
+  const [ppQueue, setPpQueue] = useState<PpQuestion[]>([]);
 
   // PVC: admin-block classification dialog at session end.
   // Triggered from handleEndSession when there are ≥30 min admin events to
@@ -473,7 +478,7 @@ function RadTachInner() {
     return total;
   };
   
-  const calculateRVU = () => {
+  const calculateRVU = (pp: boolean = personallyPerformedActive) => {
     // CPT override takes precedence (Sidecar/HL7) — PVC CPT adjustments are
     // already baked into cptOverride.rvu at processSidecarStart time. If the
     // rad has activated "personally performed" for this study, re-run the
@@ -481,7 +486,7 @@ function RadTachInner() {
     // (e.g., arthrogram 2×) take effect.
     if (cptOverride) {
       if (
-        personallyPerformedActive &&
+        pp &&
         pvcConfig?.enabled &&
         pvcConfig.cptAdjustments.length > 0 &&
         cptDatabase
@@ -542,7 +547,7 @@ function RadTachInner() {
         total,
         selectedModality,
         pvcConfig.cptAdjustments,
-        { rotation: selectedRotation || null, personallyPerformed: personallyPerformedActive },
+        { rotation: selectedRotation || null, personallyPerformed: pp },
       );
       return adjusted;
     }
@@ -1622,6 +1627,7 @@ function RadTachInner() {
   // End session — detect 30+ min admin blocks and prompt the rad to classify
   // before finalizing. If no blocks need classification, finalize immediately.
   const handleEndSession = () => {
+    if (ppQueue.length > 0) return; // answer the personally-performed question first
     const sessionTime = sessionClock.getSessionTime(); // true time now, even if the window was covered (3d)
     // Phase 6: mode-enum's events plus its running Admin; a press split at a
     // study's end is one block (findAdminBlocks).
@@ -1681,6 +1687,7 @@ function RadTachInner() {
     modeEnum.reset(); // the screen reads mode-enum: start the next session from zero
     examNamesRef.current.clear(); // names never outlive the session
     setCptOverride(null); // a Sidecar CPT never carries into the next session (Clyde 261010 #9)
+    setPpQueue([]);
     setEpicPanel(null);
     setMidnightAlertOn(false); // the status doc is overwritten below, which clears Sidecar's flash
     const derived = deriveSession(uploadedEvents, sessionTime);
@@ -1937,6 +1944,17 @@ function RadTachInner() {
       ...(personallyPerformedActive ? { personallyPerformed: true } : {}),
     }, sessionTime);
 
+    // Personally performed (owner, 2026-11-10): if a PVC rule would credit
+    // more for this study had the rad marked it personally performed (e.g. FL
+    // at South, arthrograms at I-35), ask now that it's complete.
+    if (!personallyPerformedActive) {
+      const ppRvu = calculateRVU(true); // unrounded, like a study marked before completion (Clyde 261110 #3a)
+      if (ppRvu > currentStudyRVU + 0.005) {
+        const rvuRaw = cptOverride ? (cptOverride.rvuRaw ?? cptOverride.rvu) : currentStudyRVU;
+        setPpQueue(q => [...q, { studyId, name: examNamesRef.current.get(studyId) ?? '', rvu: currentStudyRVU, ppRvu, rvuRaw }]);
+      }
+    }
+
     // Swap (excisable subsystem — see src/hooks/useSwapSubsystem.ts): always
     // consume an armed swap; mode-enum reclaims the gap from its own events
     // and skips a resumed drafted study.
@@ -1984,6 +2002,7 @@ function RadTachInner() {
       return;
     }
     modeEnum.signal({ type: 'undo_study', studyId: lastStudyId }, sessionTime);
+    setPpQueue(q => q.filter(x => x.studyId !== lastStudyId)); // an undone study isn't credited
     setLastStudyId(null);
   };
 
@@ -3849,6 +3868,24 @@ function RadTachInner() {
       )}
 
       <MidnightFlash active={midnightAlertOn} />
+      {ppQueue.length > 0 && (
+        <PersonallyPerformedPrompt
+          key={ppQueue[0].studyId} // remount per question: a double-click can't answer the next one (Clyde 261110 #1)
+          question={ppQueue[0]}
+          remaining={ppQueue.length}
+          belowEpicPanel={epicPanel !== null}
+          onAnswer={yes => {
+            const q = ppQueue[0];
+            if (yes) {
+              modeEnum.signal({
+                type: 'amend_study', studyId: q.studyId, rvu: q.ppRvu, rvuRaw: q.rvuRaw,
+                rvuAdjustment: +(q.ppRvu - q.rvuRaw).toFixed(4), personallyPerformed: true,
+              }, sessionClock.getSessionTime());
+            }
+            setPpQueue(qs => qs.filter(x => x.studyId !== q.studyId));
+          }}
+        />
+      )}
       {epicPanel && isSessionActive && (
         <EpicPanel
           mode={epicPanel}
@@ -3970,10 +4007,13 @@ function RadTachInner() {
               );
             })()}
 
+            {ppQueue.length > 0 && (
+              <p className="text-yellow-300 text-sm mb-2">Answer the “personally performed” question first.</p>
+            )}
             <button
               onClick={handleEndSession}
-              disabled={!!stopEpic?.negative}
-              className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+              disabled={!!stopEpic?.negative || ppQueue.length > 0}
+              className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
             >
               End Session
             </button>

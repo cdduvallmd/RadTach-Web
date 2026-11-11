@@ -57,7 +57,8 @@ export type TimerSignal =
   | { type: 'doubletap_toggle' }
   | { type: 'draft_enter' }
   | { type: 'swap_detected'; studyId: string }
-  | { type: 'undo_study'; studyId: string };
+  | { type: 'undo_study'; studyId: string }
+  | { type: 'amend_study'; studyId: string; rvu: number; rvuRaw: number; rvuAdjustment: number; personallyPerformed: true };
 
 // Same shape as the legacy engine's events
 export interface ModeStudyEvent {
@@ -573,6 +574,17 @@ export function useTimerMode(onEventsChanged?: (changes: EventChange[]) => void)
 
       case 'undo_study': {
         undoStudy(action.studyId);
+        break;
+      }
+
+      case 'amend_study': {
+        // A completed study's credit, answered after completion (the
+        // personally-performed prompt, owner 2026-11-10). Only a recorded
+        // STUDY: an undone one is Admin and stays so. Replaced at its index.
+        const i = events.current.findIndex(e => e.type === 'STUDY' && e.studyId === action.studyId);
+        if (i < 0) break;
+        const st = events.current[i] as ModeStudyEvent;
+        replaceEvent(i, { ...st, rvu: action.rvu, rvuRaw: action.rvuRaw, rvuAdjustment: action.rvuAdjustment, personallyPerformed: true });
         break;
       }
 
